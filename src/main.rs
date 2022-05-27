@@ -47,14 +47,18 @@ impl GridPos {
         let mut result = self.clone();
         if self.x as i32 + vec.x <= 0 { 
             vec.x = 0;
+            vec.y = 0;
         }
         else if (self.x as i32 + vec.x) as u32 >= WIDTH - 1 { 
             vec.x = 0; 
+            vec.y = 0;
         }
         if self.y as i32 + vec.y <= 0 { 
+            vec.x = 0; 
             vec.y = 0;
         }
         if (self.y as i32 + vec.y) as u32 >= HEIGHT - 1 { 
+            vec.x = 0; 
             vec.y = 0;
         }
 
