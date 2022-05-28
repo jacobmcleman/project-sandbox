@@ -12,12 +12,17 @@ use pixels::{Pixels, SurfaceTexture};
 use zstring::zstr;
 use rand::Rng;
 
-const WIDTH: u32 = 720;
-const HEIGHT: u32 = 480;
+const WORLD_WIDTH: u32 = 720;
+const WORLD_HEIGHT: u32 = 480;
+
+const SCALE_FACTOR: u32 = 2;
+
+const SCREEN_WIDTH: u32 = WORLD_WIDTH * SCALE_FACTOR;
+const SCREEN_HEIGHT: u32 = WORLD_HEIGHT * SCALE_FACTOR;
 
 struct InputState {
-    mouse_x: u32,
-    mouse_y: u32,
+    mouse_screen_pos: ScreenPos,
+    mouse_world_pos: GridPos,
     left_click_down: bool,
     middle_click_down: bool,
     right_click_down: bool,
@@ -26,7 +31,7 @@ struct InputState {
 
 /// Representation of the application state. In this example, a box will bounce around the screen.
 struct World {
-    particles: [Particle; WIDTH as usize * HEIGHT as usize],
+    particles: [Particle; WORLD_WIDTH as usize * WORLD_HEIGHT as usize],
     input: InputState,
 }
 
@@ -42,6 +47,12 @@ struct GridPos {
     y: u32,
 }
 
+#[derive(PartialEq, Debug, Copy, Clone)]
+struct ScreenPos {
+    x: u32,
+    y: u32,
+}
+
 impl GridPos {
     fn moved_by(&self, mut vec: GridVec) -> GridPos {
         let mut result = self.clone();
@@ -49,7 +60,7 @@ impl GridPos {
             vec.x = 0;
             vec.y = 0;
         }
-        else if (self.x as i32 + vec.x) as u32 >= WIDTH - 1 { 
+        else if (self.x as i32 + vec.x) as u32 >= WORLD_WIDTH - 1 { 
             vec.x = 0; 
             vec.y = 0;
         }
@@ -57,7 +68,7 @@ impl GridPos {
             vec.x = 0; 
             vec.y = 0;
         }
-        if (self.y as i32 + vec.y) as u32 >= HEIGHT - 1 { 
+        if (self.y as i32 + vec.y) as u32 >= WORLD_HEIGHT - 1 { 
             vec.x = 0; 
             vec.y = 0;
         }
@@ -92,15 +103,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let window = sdl.create_vk_window(
         zstr!("Hello Pixels"),
         None,
-        (WIDTH as i32, HEIGHT as i32),
+        (SCREEN_WIDTH as i32, SCREEN_HEIGHT as i32),
         WindowFlags::ALLOW_HIGHDPI,
     )?;
 
     let mut pixels = {
         // TODO: Beryllium does not expose the SDL2 `GetDrawableSize` APIs, so choosing the correct
         // surface texture size is not possible.
-        let surface_texture = SurfaceTexture::new(WIDTH, HEIGHT, &*window);
-        Pixels::new(WIDTH, HEIGHT, surface_texture)?
+        let surface_texture = SurfaceTexture::new(SCREEN_WIDTH, SCREEN_HEIGHT, &*window);
+        Pixels::new(SCREEN_WIDTH, SCREEN_HEIGHT, surface_texture)?
     };
     let mut world = World::new();
 
@@ -112,10 +123,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Event::Keyboard { keycode: key, .. } if key == keycode::SDLK_ESCAPE => {
                     break 'game_loop
                 }
-                Event::MouseButton { button: mouse_button, win_x: mouse_x, win_y: mouse_y, is_pressed: pressed, ..} => {
-                    world.input.mouse_x = mouse_x as u32;
-                    world.input.mouse_y = HEIGHT - 1 - mouse_y as u32;
-                    println!("mouse button {0}", mouse_button);
+                Event::MouseButton { button: mouse_button, is_pressed: pressed, ..} => {
                     if mouse_button == 1 {
                         world.input.left_click_down = pressed;
                     }
@@ -127,8 +135,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 Event::MouseMotion { win_x: mouse_x, win_y: mouse_y, ..} => {
-                    world.input.mouse_x = mouse_x as u32;
-                    world.input.mouse_y = HEIGHT - 1 - mouse_y as u32;
+                    world.input.mouse_screen_pos = ScreenPos{x: mouse_x as u32, y: SCREEN_HEIGHT - mouse_y as u32 - 1};
+                    world.input.mouse_world_pos = World::screen_to_world(world.input.mouse_screen_pos);
                 }
                 // Resize the window
                 Event::WindowResized { width, height, .. } => pixels.resize_surface(width, height),
@@ -151,44 +159,68 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 impl World {
     fn new() -> Self {
         let created: World = World {
-            particles: [Particle::default(); WIDTH as usize * HEIGHT as usize],
-            input: InputState { mouse_x: WIDTH / 2, mouse_y: HEIGHT / 2, left_click_down: false, middle_click_down: false, right_click_down: false, brush_radius: 10 },
+            particles: [Particle::default(); WORLD_WIDTH as usize * WORLD_HEIGHT as usize],
+            input: InputState { 
+                mouse_screen_pos: ScreenPos{x: 0, y: 0}, 
+                mouse_world_pos: GridPos{x: 0, y: 0}, 
+                left_click_down: false, 
+                middle_click_down: false, 
+                right_click_down: false, 
+                brush_radius: 10 },
         };
 
         return created;
     }
 
+    fn screen_to_world(screen: ScreenPos) -> GridPos {
+        GridPos { x: screen.x / SCALE_FACTOR, y: screen.y / SCALE_FACTOR }
+    }
+
+    fn world_to_screen(world: GridPos) -> ScreenPos {
+        ScreenPos { x: world.x * SCALE_FACTOR, y: world.y * SCALE_FACTOR }
+    }
+
     fn get_index(pos: GridPos) -> usize {
-        return pos.y as usize * WIDTH as usize + pos.x as usize;
+        return pos.y as usize * WORLD_WIDTH as usize + pos.x as usize;
     }
 
     fn get_particle(&self, pos: GridPos) -> Particle {
-        if pos.x <= 0 || pos.x >= WIDTH - 2 || pos.y <= 0 || pos.y >= HEIGHT - 2 {
+        if pos.x <= 0 || pos.x >= WORLD_WIDTH - 2 || pos.y <= 0 || pos.y >= WORLD_HEIGHT - 2 {
             return Particle { particle_type: ParticleType::Boundary };
         }
         return self.particles[World::get_index(pos)];
     }
 
-    fn set_particle(&mut self, pos: GridPos, new_val: Particle) {
-        if pos.x <= 0 || pos.x >= WIDTH - 2 || pos.y <= 0 || pos.y >= HEIGHT - 2 {
+    fn replace_particle(&mut self, pos: GridPos, new_val: Particle) {
+        if pos.x <= 0 || pos.x >= WORLD_WIDTH - 2 || pos.y <= 0 || pos.y >= WORLD_HEIGHT - 2 {
             return;
         }
         self.particles[World::get_index(pos)] = new_val;
     }
 
-    fn clear_circle(&mut self, pos: GridPos, radius: u32) {
-        self.place_circle(pos, radius, Particle{particle_type:ParticleType::Air});
+    fn add_particle(&mut self, pos: GridPos, new_val: Particle) {
+        if pos.x <= 0 || pos.x >= WORLD_WIDTH - 2 || pos.y <= 0 || pos.y >= WORLD_HEIGHT - 2 {
+            return;
+        }
+        if self.get_particle(pos).particle_type == ParticleType::Air {
+            self.particles[World::get_index(pos)] = new_val;
+        }
     }
 
-    fn place_circle(&mut self, pos: GridPos, radius: u32, new_val: Particle) {
+    fn clear_circle(&mut self, pos: GridPos, radius: u32) {
+        self.place_circle(pos, radius, Particle{particle_type:ParticleType::Air}, true);
+    }
+
+    fn place_circle(&mut self, pos: GridPos, radius: u32, new_val: Particle, replace: bool) {
         let left = if pos.x <= radius { 0 } else { pos.x - radius };
-        let right = if pos.x >= WIDTH - radius { WIDTH - 1 } else { pos.x + radius };
+        let right = if pos.x >= WORLD_WIDTH - radius { WORLD_WIDTH - 1 } else { pos.x + radius };
         let bottom = if pos.y <= radius { 0 } else { pos.y - radius };
-        let top = if pos.y >= HEIGHT - radius { HEIGHT - 1 } else { pos.y + radius };
+        let top = if pos.y >= WORLD_HEIGHT - radius { WORLD_HEIGHT - 1 } else { pos.y + radius };
 
         for y in bottom..top {
             for x in left..right {
-                self.set_particle(GridPos{x, y}, new_val.clone());
+                if replace { self.replace_particle(GridPos{x, y}, new_val.clone()); }
+                else { self.add_particle(GridPos{x, y}, new_val.clone()); }
             }
         }
     }
@@ -203,11 +235,11 @@ impl World {
 
     fn update(&mut self) {
         let mut rng = rand::thread_rng();
-        for y in 0..HEIGHT {
+        for y in 0..WORLD_HEIGHT {
             // flip processing order for a random half of rows
             let flip = rng.gen_bool(0.5);
-            for mut x in 0..WIDTH {
-                if flip { x = WIDTH - x - 1; }
+            for mut x in 0..WORLD_WIDTH {
+                if flip { x = WORLD_WIDTH - x - 1; }
 
                 let base_pos = GridPos{x, y};
                 let cur_part = self.get_particle(base_pos);
@@ -225,8 +257,8 @@ impl World {
                         if possible_moves.len() > 0 {
                             let chosen_vec = possible_moves[rng.gen_range(0..possible_moves.len())];
                             let chosen_pos = base_pos.moved_by(chosen_vec);
-                            self.set_particle(base_pos, self.get_particle(chosen_pos));
-                            self.set_particle(chosen_pos, cur_part);
+                            self.replace_particle(base_pos, self.get_particle(chosen_pos));
+                            self.replace_particle(chosen_pos, cur_part);
                         }
                     }
                 }
@@ -252,21 +284,21 @@ impl World {
                     if possible_moves.len() > 0 {
                         let chosen_vec = possible_moves[rng.gen_range(0..possible_moves.len())];
                         let chosen_pos = base_pos.moved_by(chosen_vec);
-                        self.set_particle(base_pos, self.get_particle(chosen_pos));
-                        self.set_particle(chosen_pos, cur_part);
+                        self.replace_particle(base_pos, self.get_particle(chosen_pos));
+                        self.replace_particle(chosen_pos, cur_part);
                     }
                 }
             }
         }
 
         if self.input.left_click_down {
-            self.place_circle(GridPos{x: self.input.mouse_x, y: self.input.mouse_y}, self.input.brush_radius, Particle{particle_type:ParticleType::Sand});
+            self.place_circle(self.input.mouse_world_pos, self.input.brush_radius, Particle{particle_type:ParticleType::Sand}, false);
         }
         else if self.input.middle_click_down {
-            self.place_circle(GridPos{x: self.input.mouse_x, y: self.input.mouse_y}, self.input.brush_radius, Particle{particle_type:ParticleType::Water});
+            self.place_circle(self.input.mouse_world_pos, self.input.brush_radius, Particle{particle_type:ParticleType::Water}, false);
         }
         else if self.input.right_click_down {
-            self.clear_circle(GridPos{x: self.input.mouse_x, y: self.input.mouse_y}, self.input.brush_radius);
+            self.clear_circle(self.input.mouse_world_pos, self.input.brush_radius);
         }
 
     }
@@ -276,13 +308,14 @@ impl World {
     /// Assumes the default texture format: `wgpu::TextureFormat::Rgba8UnormSrgb`
     fn draw(&self, frame: &mut [u8]) {
         for (i, pixel) in frame.chunks_exact_mut(4).enumerate() {
-            let x = (i % WIDTH as usize) as u32;
-            let y = HEIGHT - (i / WIDTH as usize) as u32 - 1;
+            let x = (i % SCREEN_WIDTH as usize) as u32;
+            let y = SCREEN_HEIGHT - (i / SCREEN_WIDTH as usize) as u32 - 1;
 
-            let pos = GridPos{x, y};
+            let screen_pos = ScreenPos{x, y};
+            let world_pos = World::screen_to_world(screen_pos);
 
-            let is_sand = self.get_particle(pos).particle_type == ParticleType::Sand;
-            let is_water = self.get_particle(pos).particle_type == ParticleType::Water;
+            let is_sand = self.get_particle(world_pos).particle_type == ParticleType::Sand;
+            let is_water = self.get_particle(world_pos).particle_type == ParticleType::Water;
 
             let rgba = if is_sand {
                 [0xfe, 0xf8, 0xf8, 0xff]
