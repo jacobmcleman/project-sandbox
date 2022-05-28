@@ -23,6 +23,7 @@ const SCREEN_HEIGHT: u32 = WORLD_HEIGHT * SCALE_FACTOR;
 struct InputState {
     mouse_screen_pos: ScreenPos,
     mouse_world_pos: GridPos,
+    space_pressed: bool,
     left_click_down: bool,
     middle_click_down: bool,
     right_click_down: bool,
@@ -86,6 +87,7 @@ enum ParticleType {
     Air,
     Sand,
     Water,
+    Stone,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -120,9 +122,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             match event {
                 // Close events
                 Event::Quit { .. } => break 'game_loop,
-                Event::Keyboard { keycode: key, .. } if key == keycode::SDLK_ESCAPE => {
-                    break 'game_loop
-                }
+                Event::Keyboard { keycode: key, is_pressed: pressed, .. } => match key {
+                    keycode::SDLK_ESCAPE => {
+                        break 'game_loop
+                    },
+                    keycode::SDLK_SPACE => {
+                        world.input.space_pressed = pressed;
+                    },
+                    _ => (),
+                } 
                 Event::MouseButton { button: mouse_button, is_pressed: pressed, ..} => {
                     if mouse_button == 1 {
                         world.input.left_click_down = pressed;
@@ -163,6 +171,7 @@ impl World {
             input: InputState { 
                 mouse_screen_pos: ScreenPos{x: 0, y: 0}, 
                 mouse_world_pos: GridPos{x: 0, y: 0}, 
+                space_pressed: false,
                 left_click_down: false, 
                 middle_click_down: false, 
                 right_click_down: false, 
@@ -300,6 +309,9 @@ impl World {
         else if self.input.right_click_down {
             self.clear_circle(self.input.mouse_world_pos, self.input.brush_radius);
         }
+        else if self.input.space_pressed {
+            self.place_circle(self.input.mouse_world_pos, self.input.brush_radius, Particle{particle_type:ParticleType::Stone}, false);
+        }
 
     }
 
@@ -314,15 +326,11 @@ impl World {
             let screen_pos = ScreenPos{x, y};
             let world_pos = World::screen_to_world(screen_pos);
 
-            let is_sand = self.get_particle(world_pos).particle_type == ParticleType::Sand;
-            let is_water = self.get_particle(world_pos).particle_type == ParticleType::Water;
-
-            let rgba = if is_sand {
-                [0xfe, 0xf8, 0xf8, 0xff]
-            } else if is_water {
-                [0x0e, 0x08, 0xf8, 0xff]
-            } else {
-                [0x0, 0x0, 0x0, 0xff]
+            let rgba = match self.get_particle(world_pos).particle_type {
+                ParticleType::Sand => [0xdc, 0xcd, 0x79, 0xff],
+                ParticleType::Water => [0x56, 0x9c, 0xd6, 0xff],
+                ParticleType::Stone => [0xd4, 0xd4, 0xd4, 0xff],
+                _ => [0x1e, 0x1e, 0x1e, 0xff],
             };
 
             pixel.copy_from_slice(&rgba);
