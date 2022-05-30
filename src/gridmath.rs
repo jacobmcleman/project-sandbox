@@ -1,7 +1,9 @@
-pub const WORLD_WIDTH: u32 = 720;
-pub const WORLD_HEIGHT: u32 = 480;
+use std::ops;
 
-pub const SCALE_FACTOR: u32 = 2;
+pub const WORLD_WIDTH: i32 = 720;
+pub const WORLD_HEIGHT: i32 = 480;
+
+pub const SCALE_FACTOR: i32 = 2;
 
 #[derive(PartialEq, Debug, Copy, Clone)]
 pub struct GridVec {
@@ -10,44 +12,21 @@ pub struct GridVec {
 }
 
 #[derive(PartialEq, Debug, Copy, Clone)]
-pub struct GridPos {
-    pub x: u32,
-    pub y: u32,
-}
-
-#[derive(PartialEq, Debug, Copy, Clone)]
 pub struct ScreenPos {
     pub x: u32,
     pub y: u32,
 }
 
-impl GridPos {
-    pub fn new(x:u32, y:u32) -> Self {
-        GridPos {x, y}
+impl GridVec {
+    pub fn new(x:i32, y:i32) -> Self {
+        GridVec {x, y}
     }
+}
 
-    pub fn moved_by(&self, mut vec: GridVec) -> GridPos {
-        let mut result = self.clone();
-        if self.x as i32 + vec.x <= 0 { 
-            vec.x = 0;
-            vec.y = 0;
-        }
-        else if (self.x as i32 + vec.x) as u32 >= WORLD_WIDTH - 1 { 
-            vec.x = 0; 
-            vec.y = 0;
-        }
-        if self.y as i32 + vec.y <= 0 { 
-            vec.x = 0; 
-            vec.y = 0;
-        }
-        if (self.y as i32 + vec.y) as u32 >= WORLD_HEIGHT - 1 { 
-            vec.x = 0; 
-            vec.y = 0;
-        }
+impl ops::Add<GridVec> for GridVec {
+    type Output = GridVec;
 
-        result.x = (self.x as i32 + vec.x) as u32;
-        result.y = (self.y as i32 + vec.y) as u32;
-
-        return result;
+    fn add(self, rhs: GridVec) -> GridVec {
+        GridVec{x: self.x + rhs.x, y: self.y + rhs.y}
     }
 }

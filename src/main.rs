@@ -14,13 +14,15 @@ use zstring::zstr;
 mod sandworld;
 mod input;
 mod gridmath;
+mod camera;
 
 use crate::gridmath::*;
 use crate::sandworld::*;
 use crate::input::*;
+use crate::camera::*;
 
-const SCREEN_WIDTH: u32 = WORLD_WIDTH * SCALE_FACTOR;
-const SCREEN_HEIGHT: u32 = WORLD_HEIGHT * SCALE_FACTOR;
+const SCREEN_WIDTH: u32 = (WORLD_WIDTH * SCALE_FACTOR) as u32;
+const SCREEN_HEIGHT: u32 = (WORLD_HEIGHT * SCALE_FACTOR) as u32;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
@@ -40,6 +42,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let mut world = World::new();
     let mut input = InputState::new();
+    let mut camera = Camera::new(SCREEN_WIDTH, SCREEN_HEIGHT, 2);
 
     'game_loop: loop {
         while let Some(event) = sdl.poll_event() {
@@ -52,6 +55,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     },
                     keycode::SDLK_SPACE => {
                         input.space_pressed = pressed;
+                    },
+                    keycode::SDLK_LEFT => {
+                        input.left_pressed = pressed;
+                    },
+                    keycode::SDLK_RIGHT => {
+                        input.right_pressed = pressed;
+                    },
+                    keycode::SDLK_DOWN => {
+                        input.down_pressed = pressed;
+                    },
+                    keycode::SDLK_UP => {
+                        input.up_pressed = pressed;
                     },
                     _ => (),
                 } 
@@ -68,7 +83,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 Event::MouseMotion { win_x: mouse_x, win_y: mouse_y, ..} => {
                     input.mouse_screen_pos = ScreenPos{x: mouse_x as u32, y: SCREEN_HEIGHT - mouse_y as u32 - 1};
-                    input.mouse_world_pos = World::screen_to_world(input.mouse_screen_pos);
+                    input.mouse_world_pos = camera.screen_to_world(input.mouse_screen_pos);
                 }
                 // Resize the window
                 Event::WindowResized { width, height, .. } => pixels.resize_surface(width, height),
@@ -76,20 +91,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 _ => (),
             }
         }
+        
+        input.directional_input = GridVec::new(0, 0);
+        if input.left_pressed { input.directional_input.x += -1; }
+        if input.right_pressed { input.directional_input.x += 1; }
+        if input.up_pressed { input.directional_input.y += 1; }
+        if input.down_pressed { input.directional_input.y += -1; }
 
-        // Update internal state
-        update(&mut world, &input);
+        // Process inputs
+        update(&mut world, &mut camera, &input);
+
+        // Update world
         world.update();
 
         // Draw the current frame
-        draw(&world, pixels.get_frame());
+        draw(&world, &camera, pixels.get_frame());
         pixels.render()?;
     }
 
     Ok(())
 }
 
-fn update(world: &mut World, input: &InputState) {
+fn update(world: &mut World, cam: &mut Camera, input: &InputState) {
     if input.left_click_down {
         world.place_circle(input.mouse_world_pos, input.brush_radius, Particle::new(ParticleType::Sand), false);
     }
@@ -102,22 +125,28 @@ fn update(world: &mut World, input: &InputState) {
     else if input.space_pressed {
         world.place_circle(input.mouse_world_pos, input.brush_radius, Particle::new(ParticleType::Stone), false);
     }
+
+    cam.move_by(input.directional_input);
 }
 
-fn draw(world: &World, frame: &mut [u8]) {
+fn draw(world: &World, cam: &Camera, frame: &mut [u8]) {
     for (i, pixel) in frame.chunks_exact_mut(4).enumerate() {
         let x = (i % SCREEN_WIDTH as usize) as u32;
         let y = SCREEN_HEIGHT - (i / SCREEN_WIDTH as usize) as u32 - 1;
 
         let screen_pos = ScreenPos{x, y};
-        let world_pos = World::screen_to_world(screen_pos);
+        let world_pos = cam.screen_to_world(screen_pos);
 
-        let rgba = match world.get_particle(world_pos).particle_type {
-            sandworld::ParticleType::Sand => [0xdc, 0xcd, 0x79, 0xff],
-            sandworld::ParticleType::Water => [0x56, 0x9c, 0xd6, 0xff],
-            sandworld::ParticleType::Stone => [0xd4, 0xd4, 0xd4, 0xff],
-            _ => [0x1e, 0x1e, 0x1e, 0xff],
-        };
+        let mut rgba = [0x00, 0x00, 0x00, 0xff];
+
+        if world.contains(world_pos) {
+            rgba = match world.get_particle(world_pos).particle_type {
+                sandworld::ParticleType::Sand => [0xdc, 0xcd, 0x79, 0xff],
+                sandworld::ParticleType::Water => [0x56, 0x9c, 0xd6, 0xff],
+                sandworld::ParticleType::Stone => [0xd4, 0xd4, 0xd4, 0xff],
+                _ => [0x1e, 0x1e, 0x1e, 0xff],
+            };
+        }
 
         pixel.copy_from_slice(&rgba);
     }

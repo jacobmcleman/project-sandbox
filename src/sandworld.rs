@@ -39,33 +39,41 @@ impl World {
         return created;
     }
 
-    pub fn screen_to_world(screen: ScreenPos) -> GridPos {
-        GridPos { x: screen.x / SCALE_FACTOR, y: screen.y / SCALE_FACTOR }
+    pub fn contains(&self, pos: GridVec) -> bool {
+        return pos.x >= 0 && pos.x < WORLD_WIDTH && pos.y >= 0 && pos.y < WORLD_HEIGHT;
     }
 
-    pub fn world_to_screen(world: GridPos) -> ScreenPos {
-        ScreenPos { x: world.x * SCALE_FACTOR, y: world.y * SCALE_FACTOR }
+    pub fn clamp(&self, pos: GridVec) -> GridVec {
+        if self.contains(pos) { return pos; }
+
+        let mut modified = pos;
+        if pos.x < 0 { modified.x = 0; }
+        else if pos.x >= WORLD_WIDTH { modified.x = WORLD_WIDTH - 1; }
+        if pos.y < 0 { modified.y = 0; }
+        else if pos.y >= WORLD_HEIGHT { modified.y = WORLD_HEIGHT - 1; }
+
+        return modified;
     }
 
-    fn get_index(pos: GridPos) -> usize {
+    fn get_index(pos: GridVec) -> usize {
         return pos.y as usize * WORLD_WIDTH as usize + pos.x as usize;
     }
 
-    pub fn get_particle(&self, pos: GridPos) -> Particle {
+    pub fn get_particle(&self, pos: GridVec) -> Particle {
         if pos.x <= 0 || pos.x >= WORLD_WIDTH - 2 || pos.y <= 0 || pos.y >= WORLD_HEIGHT - 2 {
             return Particle { particle_type: ParticleType::Boundary };
         }
         return self.particles[World::get_index(pos)];
     }
 
-    pub fn replace_particle(&mut self, pos: GridPos, new_val: Particle) {
+    pub fn replace_particle(&mut self, pos: GridVec, new_val: Particle) {
         if pos.x <= 0 || pos.x >= WORLD_WIDTH - 2 || pos.y <= 0 || pos.y >= WORLD_HEIGHT - 2 {
             return;
         }
         self.particles[World::get_index(pos)] = new_val;
     }
 
-    pub fn add_particle(&mut self, pos: GridPos, new_val: Particle) {
+    pub fn add_particle(&mut self, pos: GridVec, new_val: Particle) {
         if pos.x <= 0 || pos.x >= WORLD_WIDTH - 2 || pos.y <= 0 || pos.y >= WORLD_HEIGHT - 2 {
             return;
         }
@@ -74,27 +82,30 @@ impl World {
         }
     }
 
-    pub fn clear_circle(&mut self, pos: GridPos, radius: u32) {
+    pub fn clear_circle(&mut self, pos: GridVec, radius: i32) {
         self.place_circle(pos, radius, Particle{particle_type:ParticleType::Air}, true);
     }
 
-    pub fn place_circle(&mut self, pos: GridPos, radius: u32, new_val: Particle, replace: bool) {
-        let left = if pos.x <= radius { 0 } else { pos.x - radius };
-        let right = if pos.x >= WORLD_WIDTH - radius { WORLD_WIDTH - 1 } else { pos.x + radius };
-        let bottom = if pos.y <= radius { 0 } else { pos.y - radius };
-        let top = if pos.y >= WORLD_HEIGHT - radius { WORLD_HEIGHT - 1 } else { pos.y + radius };
+    pub fn place_circle(&mut self, pos: GridVec, radius: i32, new_val: Particle, replace: bool) {
+        let left = self.clamp(pos + GridVec::new(-radius, 0));
+        let right = self.clamp(pos + GridVec::new(radius, 0));
+        let bottom = self.clamp(pos + GridVec::new(0, -radius));
+        let top = self.clamp(pos + GridVec::new(0, radius));
 
-        for y in bottom..top {
-            for x in left..right {
-                if replace { self.replace_particle(GridPos{x, y}, new_val.clone()); }
-                else { self.add_particle(GridPos{x, y}, new_val.clone()); }
+        for y in bottom.y..top.y {
+            for x in left.x..right.x {
+                if replace { self.replace_particle(GridVec{x, y}, new_val.clone()); }
+                else { self.add_particle(GridVec{x, y}, new_val.clone()); }
             }
         }
     }
 
-    fn test_vec(&self, base_pos: GridPos, test_vec: GridVec, replace_water: bool) -> bool {
-        let test_pos = base_pos.moved_by(test_vec);
+    fn test_vec(&self, base_pos: GridVec, test_vec: GridVec, replace_water: bool) -> bool {
+        let test_pos = base_pos + test_vec;
+        if !self.contains(test_pos) { return false; }
+
         let material_at_test = self.get_particle(test_pos).particle_type;
+
         if material_at_test == ParticleType::Air { return true; }
         else if replace_water && material_at_test == ParticleType::Water { return true; }
         return false;
@@ -108,7 +119,7 @@ impl World {
             for mut x in 0..WORLD_WIDTH {
                 if flip { x = WORLD_WIDTH - x - 1; }
 
-                let base_pos = GridPos{x, y};
+                let base_pos = GridVec{x, y};
                 let cur_part = self.get_particle(base_pos);
                 if cur_part.particle_type == ParticleType::Sand {
                     if y >= 1 {
@@ -123,7 +134,7 @@ impl World {
 
                         if possible_moves.len() > 0 {
                             let chosen_vec = possible_moves[rng.gen_range(0..possible_moves.len())];
-                            let chosen_pos = base_pos.moved_by(chosen_vec);
+                            let chosen_pos = base_pos + chosen_vec;
                             self.replace_particle(base_pos, self.get_particle(chosen_pos));
                             self.replace_particle(chosen_pos, cur_part);
                         }
@@ -150,7 +161,7 @@ impl World {
 
                     if possible_moves.len() > 0 {
                         let chosen_vec = possible_moves[rng.gen_range(0..possible_moves.len())];
-                        let chosen_pos = base_pos.moved_by(chosen_vec);
+                        let chosen_pos = base_pos + chosen_vec;
                         self.replace_particle(base_pos, self.get_particle(chosen_pos));
                         self.replace_particle(chosen_pos, cur_part);
                     }
