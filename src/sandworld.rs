@@ -2,7 +2,7 @@ use crate::gridmath::*;
 use rand::Rng;
 use std::collections::HashMap;
 
-const CHUNK_SIZE: usize = 64;
+const CHUNK_SIZE: u8 = 64;
 
 pub struct World {
     chunks: HashMap<u64, Chunk>,
@@ -10,16 +10,16 @@ pub struct World {
 
 struct Chunk {
     position: GridVec,
-    particles: [Particle; CHUNK_SIZE * CHUNK_SIZE],
+    particles: [Particle; CHUNK_SIZE as usize * CHUNK_SIZE as usize],
 }
 
 #[derive(PartialEq, Debug, Copy, Clone)]
 pub enum ParticleType {
-    Boundary,
     Air,
     Sand,
     Water,
     Stone,
+    Boundary,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -54,39 +54,54 @@ impl Default for Particle {
 
 impl Chunk {
     fn new(position: GridVec) -> Self {
-        Chunk {
+        let mut created = Chunk {
             position,
-            particles: [Particle::default(); CHUNK_SIZE *  CHUNK_SIZE],
-        }
+            particles: [Particle::default(); CHUNK_SIZE as usize *  CHUNK_SIZE as usize],
+        };
+
+        created.particles[16] = Particle::new(ParticleType::Sand);
+        return created;
     }
     
-    fn get_index_in_chunk(pos: GridVec) -> usize {
-        return pos.y as usize * CHUNK_SIZE as usize + pos.x as usize;
+    fn get_index_in_chunk(x: u8, y: u8) -> usize {
+        return y as usize * CHUNK_SIZE as usize + x as usize;
     }
 
-    fn get_particle(&self, pos: GridVec) -> Particle {
-        return self.particles[Chunk::get_index_in_chunk(pos)];
+    fn get_particle(&self, x: u8, y: u8) -> Particle {
+        #[cfg(debug_assertions)] {
+            if x >= CHUNK_SIZE {
+                println!("X VALUE OF {} IS TOO LARGE", x);
+                return Particle::default();
+            }
+            if y >= CHUNK_SIZE {
+                println!("Y VALUE OF {} IS TOO LARGE", y);
+                return Particle::default();
+            }
+        }
+
+        return self.particles[Chunk::get_index_in_chunk(x, y)];
     }
 
-    fn set_particle(&mut self, pos: GridVec, val: Particle) {
-        self.particles[Chunk::get_index_in_chunk(pos)] = val;
+    fn set_particle(&mut self, x: u8, y: u8, val: Particle) {
+        self.particles[Chunk::get_index_in_chunk(x, y)] = val;
     }
 
-    fn add_particle(&mut self, pos: GridVec, val: Particle) {
-        if self.get_particle(pos).particle_type == ParticleType::Air {
-            self.particles[Chunk::get_index_in_chunk(pos)] = val;
+    fn add_particle(&mut self, x: u8, y: u8, val: Particle) {
+        if self.get_particle(x, y).particle_type == ParticleType::Air {
+            self.particles[Chunk::get_index_in_chunk(x, y)] = val;
         }
     }
 
-    fn contains(&self, pos: GridVec) -> bool {
-        pos.x >= 0 && pos.x < CHUNK_SIZE as i32 && pos.y >= 0 && pos.y < CHUNK_SIZE as i32
+    fn contains(&self, x: i16, y: i16) -> bool {
+        x >= 0 && y >= 0 && x < CHUNK_SIZE as i16 && y < CHUNK_SIZE as i16
     }
 
-    fn test_vec(&self, base_pos: GridVec, test_vec: GridVec, replace_water: bool) -> bool {
-        let test_pos = base_pos + test_vec;
-        if !self.contains(test_pos) { return false; }
+    fn test_vec(&self, base_x: u8, base_y: u8, test_vec_x: i8, test_vec_y: i8, replace_water: bool) -> bool {
+        let test_pos_x = base_x as i16 + test_vec_x as i16;
+        let test_pos_y = base_y as i16 + test_vec_y as i16;
+        if !self.contains(test_pos_x, test_pos_y) { return false; }
 
-        let material_at_test = self.get_particle(test_pos).particle_type;
+        let material_at_test = self.get_particle(test_pos_x as u8, test_pos_y as u8).particle_type;
 
         if material_at_test == ParticleType::Air { return true; }
         else if replace_water && material_at_test == ParticleType::Water { return true; }
@@ -96,13 +111,12 @@ impl Chunk {
     fn update(&mut self) {
         let mut rng = rand::thread_rng();
         
-        for y in 0..CHUNK_SIZE as i32 {
+        for y in 0..CHUNK_SIZE {
             let flip = rng.gen_bool(0.5);
-            for mut x in 0..CHUNK_SIZE as i32 {
-                if flip { x = CHUNK_SIZE as i32 - x - 1; }
+            for mut x in 0..CHUNK_SIZE {
+                if flip { x = CHUNK_SIZE - x - 1; }
 
-                let base_pos = GridVec{x, y};
-                let cur_part = self.get_particle(base_pos);
+                let cur_part = self.get_particle(x, y);
 
                 let available_moves = Particle::get_possible_moves(cur_part.particle_type);
 
@@ -111,16 +125,17 @@ impl Chunk {
                     let can_replace_water = Particle::can_replace_water(cur_part.particle_type);
 
                     for vec in available_moves {
-                        if self.test_vec(base_pos, vec, can_replace_water) {
+                        if self.test_vec(x, y, vec.x as i8, vec.y as i8, can_replace_water) {
                             possible_moves.push(vec.clone());
                         }
                     }
 
                     if possible_moves.len() > 0 {
                         let chosen_vec = possible_moves[rng.gen_range(0..possible_moves.len())];
-                        let chosen_pos = base_pos + chosen_vec;
-                        self.set_particle(base_pos, self.get_particle(chosen_pos));
-                        self.set_particle(chosen_pos, cur_part);
+                        let chosen_x = (x as i16 + chosen_vec.x as i16) as u8;
+                        let chosen_y = (y as i16 + chosen_vec.y as i16) as u8;
+                        self.set_particle(x, y, self.get_particle(chosen_x, chosen_y));
+                        self.set_particle(chosen_x, chosen_y, cur_part);
                     }
                 }
             }
@@ -158,7 +173,14 @@ impl World {
     }
 
     fn get_chunklocal(pos: GridVec) -> GridVec {
-        GridVec::new(pos.x % CHUNK_SIZE as i32, pos.y % CHUNK_SIZE as i32)
+        let mut modded = GridVec::new(pos.x % CHUNK_SIZE as i32, pos.y % CHUNK_SIZE as i32);
+        if modded.x < 0 { 
+            modded.x += CHUNK_SIZE as i32; 
+        }
+        if modded.y < 0 { 
+            modded.y += CHUNK_SIZE as i32;
+        }
+        return modded;
     }
 
     pub fn get_particle(&self, pos: GridVec) -> Particle {
@@ -168,7 +190,7 @@ impl World {
 
         let chunk_pos = World::get_chunkpos(pos);
         let chunklocal = World::get_chunklocal(pos);
-        return self.chunks.get(&chunk_pos.combined()).unwrap().get_particle(chunklocal);
+        return self.chunks.get(&chunk_pos.combined()).unwrap().get_particle(chunklocal.x as u8, chunklocal.y as u8);
     }
 
     pub fn replace_particle(&mut self, pos: GridVec, new_val: Particle) {
@@ -178,7 +200,7 @@ impl World {
 
         let chunk_pos = World::get_chunkpos(pos);
         let chunklocal = World::get_chunklocal(pos);
-        self.chunks.get_mut(&chunk_pos.combined()).unwrap().set_particle(chunklocal, new_val);
+        self.chunks.get_mut(&chunk_pos.combined()).unwrap().set_particle(chunklocal.x as u8, chunklocal.y as u8, new_val);
     }
 
     pub fn add_particle(&mut self, pos: GridVec, new_val: Particle) {
@@ -188,7 +210,7 @@ impl World {
 
         let chunk_pos = World::get_chunkpos(pos);
         let chunklocal = World::get_chunklocal(pos);
-        self.chunks.get_mut(&chunk_pos.combined()).unwrap().add_particle(chunklocal, new_val);
+        self.chunks.get_mut(&chunk_pos.combined()).unwrap().add_particle(chunklocal.x as u8, chunklocal.y as u8, new_val);
     }
 
     pub fn clear_circle(&mut self, pos: GridVec, radius: i32) {
@@ -209,10 +231,34 @@ impl World {
         }
     }
 
+    pub fn render(&self, screen_bounds: &GridBounds) -> Vec<Particle> {
+        let mut outbuffer: Vec<Particle> = Vec::new();
+        let top_right = screen_bounds.top_right();
+        let bottom_left = screen_bounds.bottom_left();
+        let buffer_height = top_right.y - bottom_left.y;
+        let buffer_width = top_right.x - bottom_left.x;
+        outbuffer.resize(buffer_height as usize * buffer_width as usize, Particle::new(ParticleType::Boundary));
+
+        for (chunk_pos_combined, chunk) in self.chunks.iter() {
+            let chunk_pos = GridVec::decombined(*chunk_pos_combined);
+            let chunk_bottom_left = chunk_pos * CHUNK_SIZE as i32;
+            let chunk_bounds = GridBounds::new_from_corner(chunk_bottom_left, GridVec::new(CHUNK_SIZE as i32, CHUNK_SIZE as i32));
+
+            if let Some(overlap) = screen_bounds.intersect(chunk_bounds) {
+                for overlap_pos in overlap.iter() {
+                    let chunk_local = World::get_chunklocal(overlap_pos);
+                    let buffer_local = overlap_pos - bottom_left;
+                    let buffer_index = (buffer_local.x + (buffer_width * buffer_local.y)) as usize;
+
+                    outbuffer[buffer_index] = chunk.get_particle(chunk_local.x as u8, chunk_local.y as u8);
+                }
+            }
+        }
+
+        return outbuffer;
+    }
+
     pub fn update(&mut self) {
-        let mut rng = rand::thread_rng();
-        
-        
         for (_pos, chunk) in self.chunks.iter_mut() {
             chunk.update();
         }
