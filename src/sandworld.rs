@@ -5,11 +5,26 @@ use std::collections::HashMap;
 const CHUNK_SIZE: u8 = 64;
 
 pub struct World {
-    chunks: HashMap<u64, Chunk>,
+    // TODO keep chunks at consistent addresses once allocated
+    // option - box all the chunks, store the boxes?
+    // option - static self managed array with map of coord to index
+    chunks: HashMap<u64, Box<Chunk>>,
+}
+
+struct Neighbors {
+    top_left: Option<*mut Chunk>,
+    top_center: Option<*mut Chunk>,
+    top_right: Option<*mut Chunk>,
+    mid_left: Option<*mut Chunk>,
+    mid_right: Option<*mut Chunk>,
+    bottom_left: Option<*mut Chunk>,
+    bottom_center: Option<*mut Chunk>,
+    bottom_right: Option<*mut Chunk>,
 }
 
 struct Chunk {
     position: GridVec,
+    neighbors: Neighbors,
     particles: [Particle; CHUNK_SIZE as usize * CHUNK_SIZE as usize],
 }
 
@@ -25,6 +40,34 @@ pub enum ParticleType {
 #[derive(Debug, Copy, Clone)]
 pub struct Particle {
     pub particle_type: ParticleType
+}
+
+impl Neighbors {
+    fn new() -> Self {
+        Neighbors { 
+            top_left: None, 
+            top_center: None,
+            top_right: None, 
+            mid_left: None, 
+            mid_right: None, 
+            bottom_left: None, 
+            bottom_center: None, 
+            bottom_right: None 
+        }
+    }
+}
+
+impl Drop for Neighbors {
+    fn drop(&mut self) {
+        self.top_left = None;
+        self.top_center = None;
+        self.top_right = None;
+        self.mid_left = None;
+        self.mid_right = None; 
+        self.bottom_left = None; 
+        self.bottom_center = None; 
+        self.bottom_right = None;
+    }
 }
 
 impl Particle {
@@ -56,6 +99,7 @@ impl Chunk {
     fn new(position: GridVec) -> Self {
         let mut created = Chunk {
             position,
+            neighbors: Neighbors::new(),
             particles: [Particle::default(); CHUNK_SIZE as usize *  CHUNK_SIZE as usize],
         };
 
@@ -96,12 +140,68 @@ impl Chunk {
         x >= 0 && y >= 0 && x < CHUNK_SIZE as i16 && y < CHUNK_SIZE as i16
     }
 
+    fn get_neighbor(&self, dir: GridVec) -> Option<*mut Chunk> {
+        if dir.y < 0 {
+            if dir.x < 0 { 
+                return self.neighbors.bottom_left;
+            }
+            else if dir.x == 0 {
+                return self.neighbors.bottom_center;
+            }
+            else {
+                return self.neighbors.bottom_right;
+            }
+        }
+        else if dir.y == 0 {
+            if dir.x < 0  { 
+                return self.neighbors.mid_left;
+            }
+            else if dir.x > 0 {
+                return self.neighbors.mid_right;
+            }
+            else {
+                return None;
+            }
+        }
+        else {
+            if dir.x < 0 { 
+                return self.neighbors.top_left;
+            }
+            else if dir.x == 0 {
+                return self.neighbors.top_center;
+            }
+            else {
+                return self.neighbors.top_right;
+            }
+        }
+    }
+
     fn test_vec(&self, base_x: u8, base_y: u8, test_vec_x: i8, test_vec_y: i8, replace_water: bool) -> bool {
         let test_pos_x = base_x as i16 + test_vec_x as i16;
         let test_pos_y = base_y as i16 + test_vec_y as i16;
-        if !self.contains(test_pos_x, test_pos_y) { return false; }
 
-        let material_at_test = self.get_particle(test_pos_x as u8, test_pos_y as u8).particle_type;
+        let mut material_at_test = ParticleType::Boundary;
+        
+        if !self.contains(test_pos_x, test_pos_y) {
+            let neighbor = self.get_neighbor(GridVec::new(test_pos_x as i32, test_pos_y as i32));
+            if neighbor.is_none() {
+                //println!("no neighbor");
+                return false;
+            }
+            else {
+                let chunk = neighbor.unwrap();
+                let mut other_chunk_x = test_pos_x % (CHUNK_SIZE as i16);
+                let mut other_chunk_y = test_pos_y % (CHUNK_SIZE as i16);
+                if other_chunk_x < 0 { other_chunk_x += CHUNK_SIZE as i16; }
+                if other_chunk_y < 0 { other_chunk_y += CHUNK_SIZE as i16; }
+                unsafe {
+                    material_at_test = (*chunk).get_particle(other_chunk_x as u8, other_chunk_y as u8).particle_type;
+                }
+            }
+        }
+        else {
+            material_at_test = self.get_particle(test_pos_x as u8, test_pos_y as u8).particle_type;
+        }
 
         if material_at_test == ParticleType::Air { return true; }
         else if replace_water && material_at_test == ParticleType::Water { return true; }
@@ -132,12 +232,113 @@ impl Chunk {
 
                     if possible_moves.len() > 0 {
                         let chosen_vec = possible_moves[rng.gen_range(0..possible_moves.len())];
-                        let chosen_x = (x as i16 + chosen_vec.x as i16) as u8;
-                        let chosen_y = (y as i16 + chosen_vec.y as i16) as u8;
-                        self.set_particle(x, y, self.get_particle(chosen_x, chosen_y));
-                        self.set_particle(chosen_x, chosen_y, cur_part);
+                        let chosen_x = (x as i16 + chosen_vec.x as i16);
+                        let chosen_y = (y as i16 + chosen_vec.y as i16);
+                        if self.contains(chosen_x, chosen_y) {
+                            self.set_particle(x, y, self.get_particle(chosen_x as u8, chosen_y as u8));
+                            self.set_particle(chosen_x as u8, chosen_y as u8, cur_part);
+                        }
+                        else {
+                            let neighbor = self.get_neighbor(GridVec::new(chosen_x as i32, chosen_x as i32));
+                            if let Some(chunk) = neighbor {
+                                let mut other_chunk_x = (chosen_x % (CHUNK_SIZE as i16));
+                                let mut other_chunk_y = (chosen_y % (CHUNK_SIZE as i16));
+                                if other_chunk_x < 0 { other_chunk_x += CHUNK_SIZE as i16; }
+                                if other_chunk_y < 0 { other_chunk_y += CHUNK_SIZE as i16; }
+                                unsafe {
+                                    self.set_particle(x, y, (*chunk).get_particle(other_chunk_x as u8, other_chunk_y as u8));
+                                    (*chunk).set_particle(other_chunk_x as u8, other_chunk_y as u8, cur_part);
+                                }
+                            }
+                        }
                     }
                 }
+            }
+        }
+    }
+
+    fn check_add_neighbor(&mut self, new_chunk: &mut Chunk) {
+        if !self.position.is_adjacent(new_chunk.position) {
+            return;
+        }
+
+        let delta = new_chunk.position - self.position;
+
+        if delta.y == -1 {
+            if delta.x == -1 { 
+                self.neighbors.bottom_left = Some(new_chunk);
+                new_chunk.neighbors.top_right = Some(self);
+            }
+            else if delta.x == 0 {
+                self.neighbors.bottom_center = Some(new_chunk);
+                new_chunk.neighbors.top_center = Some(self);
+            }
+            else if delta.x == 1 {
+                self.neighbors.bottom_right = Some(new_chunk);
+                new_chunk.neighbors.top_left = Some(self);
+            }
+        }
+        else if delta.y == 0 {
+            if delta.x == -1 { 
+                self.neighbors.mid_left = Some(new_chunk);
+                new_chunk.neighbors.mid_right = Some(self);
+            }
+            else if delta.x == 1 {
+                self.neighbors.mid_right = Some(new_chunk);
+                new_chunk.neighbors.mid_left = Some(self);
+            }
+        }
+        else if delta.y == 1 {
+            if delta.x == -1 { 
+                self.neighbors.top_left = Some(new_chunk);
+                new_chunk.neighbors.bottom_right = Some(self);
+            }
+            else if delta.x == 0 {
+                self.neighbors.top_center = Some(new_chunk);
+                new_chunk.neighbors.bottom_center = Some(self);
+            }
+            else if delta.x == 1 {
+                self.neighbors.top_right = Some(new_chunk);
+                new_chunk.neighbors.bottom_left = Some(self);
+            }
+        }
+    }
+
+    fn check_remove_neighbor(&mut self, removed_position: GridVec) {
+        if !self.position.is_adjacent(removed_position) {
+            return;
+        }
+
+        let delta = removed_position - self.position;
+
+        if delta.y == -1 {
+            if delta.x == -1 { 
+                self.neighbors.bottom_left = None;
+            }
+            else if delta.x == 0 {
+                self.neighbors.bottom_center = None;
+            }
+            else if delta.x == 1 {
+                self.neighbors.bottom_right = None;
+            }
+        }
+        else if delta.y == 0 {
+            if delta.x == -1 { 
+                self.neighbors.mid_left = None;
+            }
+            else if delta.x == 1 {
+                self.neighbors.mid_right = None;
+            }
+        }
+        else if delta.y == 1 {
+            if delta.x == -1 { 
+                self.neighbors.top_left = None;
+            }
+            else if delta.x == 0 {
+                self.neighbors.top_center = None;
+            }
+            else if delta.x == 1 {
+                self.neighbors.top_right = None;
             }
         }
     }
@@ -155,7 +356,7 @@ impl World {
         for y in 0..world_height_chunks {
             for x in 0..world_width_chunks {
                 let chunkpos = GridVec::new(x, y);
-                created.chunks.insert(chunkpos.combined(), Chunk::new(chunkpos));
+                created.add_chunk(chunkpos);
             }
         }
 
@@ -166,6 +367,16 @@ impl World {
     pub fn contains(&self, pos: GridVec) -> bool {
         let chunk_pos = World::get_chunkpos(pos);
         return self.chunks.contains_key(&chunk_pos.combined());
+    }
+
+    fn add_chunk(&mut self, chunkpos: GridVec) {
+        let mut added = Box::new(Chunk::new(chunkpos));
+
+        for (_pos, chunk) in self.chunks.iter_mut() {
+            chunk.check_add_neighbor(&mut added);
+        }
+
+        self.chunks.insert(chunkpos.combined(), added);
     }
 
     fn get_chunkpos(pos: GridVec) -> GridVec {

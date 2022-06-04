@@ -27,6 +27,18 @@ impl GridVec {
         GridVec {x, y}
     }
 
+    pub fn manhattan_distance(&self, other: GridVec) -> i32 {
+        (self.x - other.x).abs() + (self.y - other.y).abs()
+    }
+
+    pub fn is_adjacent(&self, other: GridVec) -> bool {
+        match self.manhattan_distance(other) {
+            1 => true,
+            2 => (self.x - other.x).abs() == 1,
+            _ => false
+        }
+    }
+
     /*
         Concatenate the bits of the 2 coordinates into a single 64 bit value
         Used for hashing and storage
@@ -199,6 +211,51 @@ mod tests {
         let a = GridVec::new(1, 2);
         let result = a/ 2;
         let expected = GridVec::new(0, 1);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn manhattan_distance() {
+        let a = GridVec::new(1, 1);
+        let b = GridVec::new(-1, 0);
+        let result = a.manhattan_distance(b);
+        let expected = 3;
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn manhattan_distance_zero() {
+        let a = GridVec::new(1, 1);
+        let b = GridVec::new(1, 1);
+        let result = a.manhattan_distance(b);
+        let expected = 0;
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn adjacency_orthogonal() {
+        let a = GridVec::new(0, 0);
+        let b = GridVec::new(0, -1);
+        let result = a.is_adjacent(b);
+        let expected = true;
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn adjacency_diagonal() {
+        let a = GridVec::new(0, 0);
+        let b = GridVec::new(1, 1);
+        let result = a.is_adjacent(b);
+        let expected = true;
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn adjacency_miss() {
+        let a = GridVec::new(0, 0);
+        let b = GridVec::new(0, 2);
+        let result = a.is_adjacent(b);
+        let expected = false;
         assert_eq!(result, expected);
     }
 
