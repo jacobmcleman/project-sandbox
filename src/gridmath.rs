@@ -1,8 +1,8 @@
 use std::ops;
 use std::cmp;
 
-pub const WORLD_WIDTH: i32 = 720;
-pub const WORLD_HEIGHT: i32 = 480;
+pub const WORLD_WIDTH: i32 = 1920;
+pub const WORLD_HEIGHT: i32 = 1080;
 
 #[derive(PartialEq, Debug, Copy, Clone)]
 pub struct GridVec {

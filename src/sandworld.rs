@@ -103,7 +103,6 @@ impl Chunk {
             particles: [Particle::default(); CHUNK_SIZE as usize *  CHUNK_SIZE as usize],
         };
 
-        created.particles[16] = Particle::new(ParticleType::Sand);
         return created;
     }
     
@@ -176,16 +175,24 @@ impl Chunk {
         }
     }
 
+    fn get_oob_direction(test_pos_x: i16, test_pos_y: i16) -> GridVec {
+        GridVec { x: if test_pos_x < 0 { -1 } else if test_pos_x >= CHUNK_SIZE as i16 { 1 } else { 0 }, 
+                y: if test_pos_y < 0 { -1 } else if test_pos_y >= CHUNK_SIZE as i16 { 1 } else { 0 } }
+    }
+
     fn test_vec(&self, base_x: u8, base_y: u8, test_vec_x: i8, test_vec_y: i8, replace_water: bool) -> bool {
         let test_pos_x = base_x as i16 + test_vec_x as i16;
         let test_pos_y = base_y as i16 + test_vec_y as i16;
 
-        let mut material_at_test = ParticleType::Boundary;
+        let material_at_test;
         
-        if !self.contains(test_pos_x, test_pos_y) {
-            let neighbor = self.get_neighbor(GridVec::new(test_pos_x as i32, test_pos_y as i32));
+        if self.contains(test_pos_x, test_pos_y) {
+            material_at_test = self.get_particle(test_pos_x as u8, test_pos_y as u8).particle_type;
+        }
+        else {
+            let neighbor_direction = Chunk::get_oob_direction(test_pos_x, test_pos_y);
+            let neighbor = self.get_neighbor(neighbor_direction);
             if neighbor.is_none() {
-                //println!("no neighbor");
                 return false;
             }
             else {
@@ -198,9 +205,6 @@ impl Chunk {
                     material_at_test = (*chunk).get_particle(other_chunk_x as u8, other_chunk_y as u8).particle_type;
                 }
             }
-        }
-        else {
-            material_at_test = self.get_particle(test_pos_x as u8, test_pos_y as u8).particle_type;
         }
 
         if material_at_test == ParticleType::Air { return true; }
@@ -239,7 +243,8 @@ impl Chunk {
                             self.set_particle(chosen_x as u8, chosen_y as u8, cur_part);
                         }
                         else {
-                            let neighbor = self.get_neighbor(GridVec::new(chosen_x as i32, chosen_x as i32));
+                            let neighbor_direction = Chunk::get_oob_direction(chosen_x, chosen_y);
+                            let neighbor = self.get_neighbor(neighbor_direction);
                             if let Some(chunk) = neighbor {
                                 let mut other_chunk_x = (chosen_x % (CHUNK_SIZE as i16));
                                 let mut other_chunk_y = (chosen_y % (CHUNK_SIZE as i16));
