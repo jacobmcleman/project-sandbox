@@ -20,8 +20,8 @@ use crate::sandworld::*;
 use crate::input::*;
 use crate::camera::*;
 
-const SCREEN_WIDTH: u32 = 1920;
-const SCREEN_HEIGHT: u32 = 1080;
+const SCREEN_WIDTH: u32 = 720;
+const SCREEN_HEIGHT: u32 = 480;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
