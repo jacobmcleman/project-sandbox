@@ -467,10 +467,6 @@ impl World {
                     let buffer_index = (buffer_local.x + (buffer_width * buffer_local.y)) as usize;
 
                     outbuffer[buffer_index] = chunk.get_particle(chunk_local.x as u8, chunk_local.y as u8);
-
-                    if chunk_local.x == 0 || chunk_local.y == 0 || chunk_local.x as u8 == CHUNK_SIZE - 1 || chunk_local.y as u8 == CHUNK_SIZE - 1 {
-                        outbuffer[buffer_index] = Particle::new(ParticleType::Boundary);
-                    }
                 }
             }
         }
