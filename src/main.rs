@@ -1,5 +1,4 @@
 #![deny(clippy::all)]
-#![forbid(unsafe_code)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use beryllium::{
@@ -21,8 +20,8 @@ use crate::sandworld::*;
 use crate::input::*;
 use crate::camera::*;
 
-const SCREEN_WIDTH: u32 = (WORLD_WIDTH * SCALE_FACTOR) as u32;
-const SCREEN_HEIGHT: u32 = (WORLD_HEIGHT * SCALE_FACTOR) as u32;
+const SCREEN_WIDTH: u32 = 720;
+const SCREEN_HEIGHT: u32 = 480;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
@@ -42,7 +41,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let mut world = World::new();
     let mut input = InputState::new();
-    let mut camera = Camera::new(SCREEN_WIDTH, SCREEN_HEIGHT, 2);
+    let mut camera = Camera::new(SCREEN_WIDTH, SCREEN_HEIGHT);
 
     'game_loop: loop {
         while let Some(event) = sdl.poll_event() {
@@ -130,23 +129,22 @@ fn update(world: &mut World, cam: &mut Camera, input: &InputState) {
 }
 
 fn draw(world: &World, cam: &Camera, frame: &mut [u8]) {
+    let cam_bounds = cam.bounds();
+    let visible_part_buffer = world.render(&cam_bounds);
+
     for (i, pixel) in frame.chunks_exact_mut(4).enumerate() {
         let x = (i % SCREEN_WIDTH as usize) as u32;
         let y = SCREEN_HEIGHT - (i / SCREEN_WIDTH as usize) as u32 - 1;
 
-        let screen_pos = ScreenPos{x, y};
-        let world_pos = cam.screen_to_world(screen_pos);
+        let buffer_index = (x + y * cam_bounds.width()) as usize;
 
-        let mut rgba = [0x00, 0x00, 0x00, 0xff];
-
-        if world.contains(world_pos) {
-            rgba = match world.get_particle(world_pos).particle_type {
+        let rgba = match visible_part_buffer[buffer_index].particle_type {
                 sandworld::ParticleType::Sand => [0xdc, 0xcd, 0x79, 0xff],
                 sandworld::ParticleType::Water => [0x56, 0x9c, 0xd6, 0xff],
                 sandworld::ParticleType::Stone => [0xd4, 0xd4, 0xd4, 0xff],
-                _ => [0x1e, 0x1e, 0x1e, 0xff],
-            };
-        }
+                sandworld::ParticleType::Air => [0x1e, 0x1e, 0x1e, 0xff],
+                _ => [0x00, 0x00, 0x00, 0xff],
+        };
 
         pixel.copy_from_slice(&rgba);
     }
