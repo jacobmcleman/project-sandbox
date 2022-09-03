@@ -26,6 +26,8 @@ struct Chunk {
     position: GridVec,
     neighbors: Neighbors,
     particles: [Particle; CHUNK_SIZE as usize * CHUNK_SIZE as usize],
+    dirty: bool,
+    updated_this_frame: bool,
 }
 
 #[derive(PartialEq, Debug, Copy, Clone)]
@@ -35,6 +37,7 @@ pub enum ParticleType {
     Water,
     Stone,
     Boundary,
+    Dirty,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -78,7 +81,7 @@ impl Particle {
     fn get_possible_moves(particle_type: ParticleType) -> Vec::<GridVec> {
         match particle_type {
             ParticleType::Sand => vec![GridVec{x: 1, y: -1}, GridVec{x: -1, y: -1}, GridVec{x: 0, y: -1}],
-            ParticleType::Water => vec![GridVec{x: 1, y: -1}, GridVec{x: 0, y: -1}, GridVec{x: -1, y: -1}, GridVec{x: 1, y: 0}, GridVec{x: 0, y: -2}, GridVec{x: -1, y: 0} ],
+            ParticleType::Water => vec![GridVec{x: 1, y: -1}, GridVec{x: 0, y: -1}, GridVec{x: -1, y: -1}, GridVec{x: 1, y: 0}, GridVec{x: -1, y: 0} ],
             _ => Vec::<GridVec>::new(),
         }
     }
@@ -101,6 +104,8 @@ impl Chunk {
             position,
             neighbors: Neighbors::new(),
             particles: [Particle::default(); CHUNK_SIZE as usize *  CHUNK_SIZE as usize],
+            dirty: false,
+            updated_this_frame: true,
         };
 
         return created;
@@ -127,16 +132,32 @@ impl Chunk {
 
     fn set_particle(&mut self, x: u8, y: u8, val: Particle) {
         self.particles[Chunk::get_index_in_chunk(x, y)] = val;
+        self.dirty = true;
+
+        if Chunk::is_border(x, y) {
+            let neighbor_dir = GridVec { x: if x == 0 { -1 } else if x >= CHUNK_SIZE - 1 { 1 } else { 0 }, 
+                y: if y == 0 { -1 } else if y >= CHUNK_SIZE - 1 { 1 } else { 0 } };
+            if let Some(neighbor) = self.get_neighbor(neighbor_dir) {
+                unsafe {
+                    (*neighbor).dirty = true;
+                }
+            }
+        }
     }
 
     fn add_particle(&mut self, x: u8, y: u8, val: Particle) {
         if self.get_particle(x, y).particle_type == ParticleType::Air {
             self.particles[Chunk::get_index_in_chunk(x, y)] = val;
+            self.dirty = true;
         }
     }
 
     fn contains(&self, x: i16, y: i16) -> bool {
         x >= 0 && y >= 0 && x < CHUNK_SIZE as i16 && y < CHUNK_SIZE as i16
+    }
+
+    fn is_border(x: u8, y: u8) -> bool {
+        x == 0 || y == 0 || x >= CHUNK_SIZE - 1 || y >= CHUNK_SIZE - 1
     }
 
     fn get_neighbor(&self, dir: GridVec) -> Option<*mut Chunk> {
@@ -214,6 +235,7 @@ impl Chunk {
 
     fn update(&mut self) {
         let mut rng = rand::thread_rng();
+        self.dirty = false;
         
         for y in 0..CHUNK_SIZE {
             let flip = rng.gen_bool(0.5);
@@ -236,8 +258,8 @@ impl Chunk {
 
                     if possible_moves.len() > 0 {
                         let chosen_vec = possible_moves[rng.gen_range(0..possible_moves.len())];
-                        let chosen_x = (x as i16 + chosen_vec.x as i16);
-                        let chosen_y = (y as i16 + chosen_vec.y as i16);
+                        let chosen_x = x as i16 + chosen_vec.x as i16;
+                        let chosen_y = y as i16 + chosen_vec.y as i16;
                         if self.contains(chosen_x, chosen_y) {
                             self.set_particle(x, y, self.get_particle(chosen_x as u8, chosen_y as u8));
                             self.set_particle(chosen_x as u8, chosen_y as u8, cur_part);
@@ -246,8 +268,8 @@ impl Chunk {
                             let neighbor_direction = Chunk::get_oob_direction(chosen_x, chosen_y);
                             let neighbor = self.get_neighbor(neighbor_direction);
                             if let Some(chunk) = neighbor {
-                                let mut other_chunk_x = (chosen_x % (CHUNK_SIZE as i16));
-                                let mut other_chunk_y = (chosen_y % (CHUNK_SIZE as i16));
+                                let mut other_chunk_x = chosen_x % (CHUNK_SIZE as i16);
+                                let mut other_chunk_y = chosen_y % (CHUNK_SIZE as i16);
                                 if other_chunk_x < 0 { other_chunk_x += CHUNK_SIZE as i16; }
                                 if other_chunk_y < 0 { other_chunk_y += CHUNK_SIZE as i16; }
                                 unsafe {
@@ -309,7 +331,7 @@ impl Chunk {
         }
     }
 
-    fn check_remove_neighbor(&mut self, removed_position: GridVec) {
+    fn _check_remove_neighbor(&mut self, removed_position: GridVec) {
         if !self.position.is_adjacent(removed_position) {
             return;
         }
@@ -399,7 +421,7 @@ impl World {
         return modded;
     }
 
-    pub fn get_particle(&self, pos: GridVec) -> Particle {
+    pub fn _get_particle(&self, pos: GridVec) -> Particle {
         if !self.contains(pos) {
             return Particle { particle_type: ParticleType::Boundary };
         }
@@ -447,7 +469,7 @@ impl World {
         }
     }
 
-    pub fn render(&self, screen_bounds: &GridBounds) -> Vec<Particle> {
+    pub fn render(&self, screen_bounds: &GridBounds, draw_debug: bool) -> Vec<Particle> {
         let mut outbuffer: Vec<Particle> = Vec::new();
         let top_right = screen_bounds.top_right();
         let bottom_left = screen_bounds.bottom_left();
@@ -468,8 +490,8 @@ impl World {
 
                     outbuffer[buffer_index] = chunk.get_particle(chunk_local.x as u8, chunk_local.y as u8);
 
-                    if chunk_local.x == 0 || chunk_local.y == 0 || chunk_local.x as u8 == CHUNK_SIZE - 1 || chunk_local.y as u8 == CHUNK_SIZE - 1 {
-                        outbuffer[buffer_index] = Particle::new(ParticleType::Boundary);
+                    if draw_debug && (chunk_local.x == 0 || chunk_local.y == 0 || chunk_local.x as u8 == CHUNK_SIZE - 1 || chunk_local.y as u8 == CHUNK_SIZE - 1) {
+                        outbuffer[buffer_index] = Particle::new(if chunk.updated_this_frame { ParticleType::Dirty } else { ParticleType::Boundary });
                     }
                 }
             }
@@ -478,9 +500,18 @@ impl World {
         return outbuffer;
     }
 
-    pub fn update(&mut self) {
+    pub fn update(&mut self) -> u64 {
+        let mut updated_count = 0;
         for (_pos, chunk) in self.chunks.iter_mut() {
-            chunk.update();
+            if chunk.dirty { 
+                updated_count += 1;
+                chunk.updated_this_frame = true;
+                chunk.update(); 
+            }
+            else {
+                chunk.updated_this_frame = false;
+            }
         }
+        updated_count
     }
 }

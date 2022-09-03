@@ -43,6 +43,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut input = InputState::new();
     let mut camera = Camera::new(SCREEN_WIDTH, SCREEN_HEIGHT);
 
+    let mut debug_draw = false;
+
     'game_loop: loop {
         while let Some(event) = sdl.poll_event() {
             match event {
@@ -66,6 +68,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     },
                     keycode::SDLK_UP => {
                         input.up_pressed = pressed;
+                    },
+                    keycode::SDLK_F3 => {
+                        if pressed { debug_draw = !debug_draw; }
                     },
                     _ => (),
                 } 
@@ -101,11 +106,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         update(&mut world, &mut camera, &input);
 
         // Update world
-        world.update();
+        let _updated_chunks = world.update();
 
         // Draw the current frame
-        draw(&world, &camera, pixels.get_frame());
+        draw(&world, &camera, pixels.get_frame(), debug_draw);
         pixels.render()?;
+        
+        //println!("Chunk updates: {}", updated_chunks);
     }
 
     Ok(())
@@ -128,9 +135,9 @@ fn update(world: &mut World, cam: &mut Camera, input: &InputState) {
     cam.move_by(input.directional_input);
 }
 
-fn draw(world: &World, cam: &Camera, frame: &mut [u8]) {
+fn draw(world: &World, cam: &Camera, frame: &mut [u8], debug_draw: bool) {
     let cam_bounds = cam.bounds();
-    let visible_part_buffer = world.render(&cam_bounds);
+    let visible_part_buffer = world.render(&cam_bounds, debug_draw);
 
     for (i, pixel) in frame.chunks_exact_mut(4).enumerate() {
         let x = (i % SCREEN_WIDTH as usize) as u32;
@@ -143,6 +150,7 @@ fn draw(world: &World, cam: &Camera, frame: &mut [u8]) {
                 sandworld::ParticleType::Water => [0x56, 0x9c, 0xd6, 0xff],
                 sandworld::ParticleType::Stone => [0xd4, 0xd4, 0xd4, 0xff],
                 sandworld::ParticleType::Air => [0x1e, 0x1e, 0x1e, 0xff],
+                sandworld::ParticleType::Dirty => [0x11, 0x00, 0xFF, 0xff],
                 _ => [0x00, 0x00, 0x00, 0xff],
         };
 

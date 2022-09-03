@@ -113,11 +113,11 @@ impl GridBounds {
         self.half_extent.x as u32 * 2
     }
 
-    pub fn height(&self) -> u32 {
+    pub fn _height(&self) -> u32 {
         self.half_extent.y as u32 * 2
     }
 
-    pub fn contains(&self, point: GridVec) -> bool {
+    pub fn _contains(&self, point: GridVec) -> bool {
         let delta = point - self.center;
         return delta.x.abs() <= self.half_extent.x && delta.y.abs() <= self.half_extent.y;
     }
