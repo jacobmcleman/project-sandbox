@@ -150,7 +150,7 @@ fn draw(world: &World, cam: &Camera, frame: &mut [u8], debug_draw: bool) {
                 sandworld::ParticleType::Water => [0x56, 0x9c, 0xd6, 0xff],
                 sandworld::ParticleType::Stone => [0xd4, 0xd4, 0xd4, 0xff],
                 sandworld::ParticleType::Air => [0x1e, 0x1e, 0x1e, 0xff],
-                sandworld::ParticleType::Dirty => [0x11, 0x00, 0xFF, 0xff],
+                sandworld::ParticleType::Dirty => [0xFF, 0x00, 0xFF, 0xff],
                 _ => [0x00, 0x00, 0x00, 0xff],
         };
 
