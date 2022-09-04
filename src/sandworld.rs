@@ -42,6 +42,7 @@ pub enum ParticleType {
     Sand,
     Water,
     Stone,
+    Source,
     Boundary,
     Dirty,
 }
@@ -307,6 +308,13 @@ impl Chunk {
                 
                 let available_moves = Particle::get_possible_moves(cur_part.particle_type);
                 
+                if cur_part.particle_type == ParticleType::Source {
+                    if x > 0 { self.add_particle(x - 1, y, Particle::new(ParticleType::Water)); }
+                    if x < CHUNK_SIZE - 1 { self.add_particle(x + 1, y, Particle::new(ParticleType::Water)); }
+                    if y > 0 { self.add_particle(x, y - 1, Particle::new(ParticleType::Water)); }
+                    if y < CHUNK_SIZE - 1 { self.add_particle(x, y + 1, Particle::new(ParticleType::Water)); }
+                }
+
                 if available_moves.len() > 0 {
                     let mut possible_moves = Vec::<GridVec>::new();
                     let can_replace_water = Particle::can_replace_water(cur_part.particle_type);

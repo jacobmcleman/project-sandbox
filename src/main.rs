@@ -57,6 +57,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     keycode::SDLK_SPACE => {
                         input.space_pressed = pressed;
                     },
+                    keycode::SDLK_1 => {
+                        input.num1_pressed = pressed;
+                    },
                     keycode::SDLK_LEFT => {
                         input.left_pressed = pressed;
                     },
@@ -131,6 +134,9 @@ fn update(world: &mut World, cam: &mut Camera, input: &InputState) {
     else if input.space_pressed {
         world.place_circle(input.mouse_world_pos, input.brush_radius, Particle::new(ParticleType::Stone), false);
     }
+    else if input.num1_pressed {
+        world.place_circle(input.mouse_world_pos, 1, Particle::new(ParticleType::Source), false)
+    }
 
     cam.move_by(input.directional_input);
 }
@@ -149,6 +155,7 @@ fn draw(world: &World, cam: &Camera, frame: &mut [u8], debug_draw: bool) {
                 sandworld::ParticleType::Sand => [0xdc, 0xcd, 0x79, 0xff],
                 sandworld::ParticleType::Water => [0x56, 0x9c, 0xd6, 0xff],
                 sandworld::ParticleType::Stone => [0xd4, 0xd4, 0xd4, 0xff],
+                sandworld::ParticleType::Source => [0xf7, 0xdf, 0x00, 0xff],
                 sandworld::ParticleType::Air => [0x1e, 0x1e, 0x1e, 0xff],
                 sandworld::ParticleType::Dirty => [0xFF, 0x00, 0xFF, 0xff],
                 _ => [0x00, 0x00, 0x00, 0xff],
