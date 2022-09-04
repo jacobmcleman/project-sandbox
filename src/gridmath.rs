@@ -153,7 +153,7 @@ impl GridBounds {
     pub fn slide_iter(&self) -> SlideGridIterator {
         SlideGridIterator { 
             bounds: self.clone(), 
-            current: self.bottom_left() + GridVec::new(-1, 0),
+            current: self.bottom_left(),
             rng: rand::thread_rng(),
             flipped_x: false,    
         }
@@ -250,7 +250,7 @@ impl Iterator for SlideGridIterator {
         self.current.x += if self.flipped_x { -1 } else { 1 };
         if (self.flipped_x && self.current.x < self.bounds.bottom_left().x) 
         || (!self.flipped_x && self.current.x >= self.bounds.top_right().x) {
-            self.flipped_x = self.rng.gen_bool(0.5);
+            self.flipped_x = self.bounds.width() != 0 && self.rng.gen_bool(0.5);
 
             self.current.x = if self.flipped_x { self.bounds.top_right().x - 1 } else { self.bounds.bottom_left().x };
             self.current.y += 1;
