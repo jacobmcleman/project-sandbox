@@ -2,6 +2,9 @@ use std::ops;
 use std::cmp;
 use std::fmt;
 
+use rand::Rng;
+use rand::rngs::ThreadRng;
+
 pub const WORLD_WIDTH: i32 = 1920;
 pub const WORLD_HEIGHT: i32 = 1080;
 
@@ -147,6 +150,15 @@ impl GridBounds {
         GridIterator { bounds: self.clone(), current: self.bottom_left() + GridVec::new(-1, 0) }
     }
 
+    pub fn slide_iter(&self) -> SlideGridIterator {
+        SlideGridIterator { 
+            bounds: self.clone(), 
+            current: self.bottom_left() + GridVec::new(-1, 0),
+            rng: rand::thread_rng(),
+            flipped_x: false,    
+        }
+    }
+
     // Returns a bounds that exactly contains both input bounds
     pub fn union(&self, other: GridBounds) -> GridBounds {
         let bottom_left = GridVec::new(
@@ -158,6 +170,21 @@ impl GridBounds {
             cmp::max(self.top_right().y, other.top_right().y)
         );
         GridBounds::new_from_extents(bottom_left, top_right)
+    }
+
+    pub fn option_union(a: Option<GridBounds>, b: Option<GridBounds>) -> Option<GridBounds> {
+        if a.is_none() && b.is_none() { None }
+        else if let Some(bound_a) = a {
+            if let Some(bound_b) = b {
+                Some(bound_a.union(bound_b))
+            }
+            else {
+                a
+            }
+        }
+        else {
+            b
+        }
     }
 
     // If there is an intersection, returns the bounds of the overlapping area
@@ -191,6 +218,13 @@ pub struct GridIterator {
     current: GridVec,
 }
 
+pub struct SlideGridIterator {
+    bounds: GridBounds,
+    current: GridVec,
+    rng: ThreadRng,
+    flipped_x: bool,
+}
+
 impl Iterator for GridIterator {
     type Item = GridVec;
 
@@ -199,6 +233,28 @@ impl Iterator for GridIterator {
         if self.current.x >= self.bounds.top_right().x {
             self.current.x = self.bounds.bottom_left().x;
             self.current.y += 1;
+
+            if self.current.y >= self.bounds.top_right().y {
+                return None
+            }
+        }
+
+        return Some(self.current);
+    }
+}
+
+impl Iterator for SlideGridIterator {
+    type Item = GridVec;
+
+    fn next(&mut self) -> Option<GridVec> {
+        self.current.x += if self.flipped_x { -1 } else { 1 };
+        if (self.flipped_x && self.current.x < self.bounds.bottom_left().x) 
+        || (!self.flipped_x && self.current.x >= self.bounds.top_right().x) {
+            self.flipped_x = self.rng.gen_bool(0.5);
+
+            self.current.x = if self.flipped_x { self.bounds.top_right().x - 1 } else { self.bounds.bottom_left().x };
+            self.current.y += 1;
+
 
             if self.current.y >= self.bounds.top_right().y {
                 return None

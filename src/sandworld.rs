@@ -165,7 +165,7 @@ impl Chunk {
                 return Particle::default();
             }
         }
-        
+
         return self.particles[Chunk::get_index_in_chunk(x, y)];
     }
 
@@ -176,7 +176,7 @@ impl Chunk {
 
     fn mark_dirty(&mut self, x: i32, y: i32) {
         let chunk_bounds = GridBounds::new_from_corner(GridVec::new(0, 0), GridVec::new(CHUNK_SIZE as i32, CHUNK_SIZE as i32));
-        let dirty_bounds = chunk_bounds.intersect(GridBounds::new(GridVec { x, y }, GridVec { x: 3, y: 3 }));
+        let dirty_bounds = chunk_bounds.intersect(GridBounds::new(GridVec { x, y }, GridVec { x: 2, y: 2 }));
 
         if let Some(cur_bounds) = self.dirty {
             if let Some(add_bounds) = dirty_bounds {
@@ -295,18 +295,12 @@ impl Chunk {
         self.dirty = None;
     }
 
-    fn update(&mut self) {
+    fn update(&mut self) {      
         let mut rng = rand::thread_rng();
-        self.dirty = None;
-        
-        if let Some(mut to_update) = self.update_this_frame {
-            if let Some(updated_last) = self.updated_last_frame {
-                to_update = to_update.union(updated_last);
-            }
 
-            let flip = rng.gen_bool(0.5);
-            for point in to_update.iter() {
-                let x = if flip { CHUNK_SIZE - point.x as u8 - 1 } else { point.x as u8 };
+        if let Some(to_update) = GridBounds::option_union(self.update_this_frame, self.updated_last_frame) {
+            for point in to_update.slide_iter() {
+                let x = point.x as u8;
                 let y = point.y as u8;
                 
                 let cur_part = self.get_particle(x, y);
