@@ -19,6 +19,7 @@ use crate::gridmath::*;
 use crate::sandworld::*;
 use crate::input::*;
 use crate::camera::*;
+use std::time::{Duration, Instant};
 
 const SCREEN_WIDTH: u32 = 720;
 const SCREEN_HEIGHT: u32 = 480;
@@ -44,6 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut camera = Camera::new(SCREEN_WIDTH, SCREEN_HEIGHT);
 
     let mut debug_draw = false;
+    let mut debug_perf = false;
 
     'game_loop: loop {
         while let Some(event) = sdl.poll_event() {
@@ -71,6 +73,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     },
                     keycode::SDLK_UP => {
                         input.up_pressed = pressed;
+                    },
+                    keycode::SDLK_F2 => {
+                        if pressed { debug_perf = !debug_perf; }
                     },
                     keycode::SDLK_F3 => {
                         if pressed { debug_draw = !debug_draw; }
@@ -105,6 +110,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if input.up_pressed { input.directional_input.y += 1; }
         if input.down_pressed { input.directional_input.y += -1; }
 
+        let frame_start = Instant::now();
+
         // Process inputs
         update(&mut world, &mut camera, &input);
 
@@ -113,8 +120,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Draw the current frame
         draw(&world, &camera, pixels.get_frame(), debug_draw);
+
         pixels.render()?;
         
+        if debug_perf {
+            let frame_finished = Instant::now();
+
+            println!("Frame processed in {}μs", frame_finished.duration_since(frame_start).as_micros());
+        }
         //println!("Chunk updates: {}", updated_chunks);
     }
 
