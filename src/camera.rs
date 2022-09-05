@@ -8,7 +8,7 @@ pub struct Camera {
 impl Camera {
     pub fn new(width: u32, height: u32) -> Self {
         Camera { 
-            center: GridVec::new(0, 0),
+            center: GridVec::new(width as i32 / 2, height as i32 / 2),
             screen_size: GridVec::new(width as i32, height as i32),
         }
     }

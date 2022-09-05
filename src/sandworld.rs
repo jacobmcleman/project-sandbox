@@ -289,45 +289,6 @@ impl Chunk {
         }
     }
 
-    fn check_remove_neighbor(&mut self, removed_position: GridVec) {
-        if !self.position.is_adjacent(removed_position) {
-            return;
-        }
-
-        let delta = removed_position - self.position;
-
-        if delta.y == -1 {
-            if delta.x == -1 { 
-                self.neighbors.bottom_left = None;
-            }
-            else if delta.x == 0 {
-                self.neighbors.bottom_center = None;
-            }
-            else if delta.x == 1 {
-                self.neighbors.bottom_right = None;
-            }
-        }
-        else if delta.y == 0 {
-            if delta.x == -1 { 
-                self.neighbors.mid_left = None;
-            }
-            else if delta.x == 1 {
-                self.neighbors.mid_right = None;
-            }
-        }
-        else if delta.y == 1 {
-            if delta.x == -1 { 
-                self.neighbors.top_left = None;
-            }
-            else if delta.x == 0 {
-                self.neighbors.top_center = None;
-            }
-            else if delta.x == 1 {
-                self.neighbors.top_right = None;
-            }
-        }
-    }
-
     fn chunkpos_to_local_chunkpos(&self, from_chunk: &Chunk, from_x: u8, from_y: u8) -> GridVec {
         let chunk_diff = (from_chunk.position - self.position) * CHUNK_SIZE as i32;
         GridVec::new(from_x as i32, from_y as i32) + chunk_diff
@@ -499,7 +460,7 @@ impl World {
 
         return created;
     }
-    
+
     pub fn contains(&self, pos: GridVec) -> bool {
         let chunk_pos = World::get_chunkpos(pos);
         return self.chunks.contains_key(&chunk_pos.combined());
