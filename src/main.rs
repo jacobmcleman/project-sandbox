@@ -19,6 +19,7 @@ use crate::gridmath::*;
 use crate::sandworld::*;
 use crate::input::*;
 use crate::camera::*;
+use std::time::{Instant};
 
 const SCREEN_WIDTH: u32 = 720;
 const SCREEN_HEIGHT: u32 = 480;
@@ -43,6 +44,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut input = InputState::new();
     let mut camera = Camera::new(SCREEN_WIDTH, SCREEN_HEIGHT);
 
+    let mut debug_draw = false;
+    let mut debug_perf = false;
+
     'game_loop: loop {
         while let Some(event) = sdl.poll_event() {
             match event {
@@ -55,6 +59,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     keycode::SDLK_SPACE => {
                         input.space_pressed = pressed;
                     },
+                    keycode::SDLK_1 => {
+                        input.num1_pressed = pressed;
+                    },
                     keycode::SDLK_LEFT => {
                         input.left_pressed = pressed;
                     },
@@ -66,6 +73,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     },
                     keycode::SDLK_UP => {
                         input.up_pressed = pressed;
+                    },
+                    keycode::SDLK_F2 => {
+                        if pressed { debug_perf = !debug_perf; }
+                    },
+                    keycode::SDLK_F3 => {
+                        if pressed { debug_draw = !debug_draw; }
                     },
                     _ => (),
                 } 
@@ -97,15 +110,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if input.up_pressed { input.directional_input.y += 1; }
         if input.down_pressed { input.directional_input.y += -1; }
 
+        let frame_start = Instant::now();
+
         // Process inputs
         update(&mut world, &mut camera, &input);
 
         // Update world
-        world.update();
+        let _updated_chunks = world.update();
 
         // Draw the current frame
-        draw(&world, &camera, pixels.get_frame());
+        draw(&world, &camera, pixels.get_frame(), debug_draw);
+
         pixels.render()?;
+        
+        if debug_perf {
+            let frame_finished = Instant::now();
+
+            println!("Frame processed in {}μs", frame_finished.duration_since(frame_start).as_micros());
+        }
+        //println!("Chunk updates: {}", updated_chunks);
     }
 
     Ok(())
@@ -124,13 +147,16 @@ fn update(world: &mut World, cam: &mut Camera, input: &InputState) {
     else if input.space_pressed {
         world.place_circle(input.mouse_world_pos, input.brush_radius, Particle::new(ParticleType::Stone), false);
     }
+    else if input.num1_pressed {
+        world.place_circle(input.mouse_world_pos, 1, Particle::new(ParticleType::Source), false)
+    }
 
     cam.move_by(input.directional_input);
 }
 
-fn draw(world: &World, cam: &Camera, frame: &mut [u8]) {
+fn draw(world: &World, cam: &Camera, frame: &mut [u8], debug_draw: bool) {
     let cam_bounds = cam.bounds();
-    let visible_part_buffer = world.render(&cam_bounds);
+    let visible_part_buffer = world.render(&cam_bounds, debug_draw);
 
     for (i, pixel) in frame.chunks_exact_mut(4).enumerate() {
         let x = (i % SCREEN_WIDTH as usize) as u32;
@@ -143,6 +169,8 @@ fn draw(world: &World, cam: &Camera, frame: &mut [u8]) {
                 sandworld::ParticleType::Water => [0x56, 0x9c, 0xd6, 0xff],
                 sandworld::ParticleType::Stone => [0xd4, 0xd4, 0xd4, 0xff],
                 sandworld::ParticleType::Air => [0x1e, 0x1e, 0x1e, 0xff],
+                sandworld::ParticleType::Source => [0xf7, 0xdf, 0x00, 0xff],
+                sandworld::ParticleType::Dirty => [0xFF, 0x00, 0xFF, 0xff],
                 _ => [0x00, 0x00, 0x00, 0xff],
         };
 

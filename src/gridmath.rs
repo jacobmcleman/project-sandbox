@@ -1,5 +1,9 @@
 use std::ops;
 use std::cmp;
+use std::fmt;
+
+use rand::Rng;
+use rand::rngs::ThreadRng;
 
 pub const WORLD_WIDTH: i32 = 1920;
 pub const WORLD_HEIGHT: i32 = 1080;
@@ -91,6 +95,12 @@ impl ops::Div<i32> for GridVec {
     }
 }
 
+impl fmt::Display for GridVec {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[{}, {}]", self.x, self.y)
+    }
+}
+
 impl GridBounds {
     pub fn new(center: GridVec, half_extent: GridVec) -> Self {
         GridBounds { center, half_extent }
@@ -99,6 +109,11 @@ impl GridBounds {
     pub fn new_from_corner(bottom_left: GridVec, size: GridVec) -> Self {
         let half_extent = size / 2;
         GridBounds { center: bottom_left + half_extent, half_extent }
+    }
+
+    pub fn new_from_extents(bottom_left: GridVec, top_right: GridVec) -> Self {
+        let size = top_right - bottom_left;
+        return GridBounds::new_from_corner(bottom_left, size);
     }
 
     pub fn bottom_left(&self) -> GridVec {
@@ -113,7 +128,7 @@ impl GridBounds {
         self.half_extent.x as u32 * 2
     }
 
-    pub fn height(&self) -> u32 {
+    pub fn _height(&self) -> u32 {
         self.half_extent.y as u32 * 2
     }
 
@@ -122,8 +137,54 @@ impl GridBounds {
         return delta.x.abs() <= self.half_extent.x && delta.y.abs() <= self.half_extent.y;
     }
 
+    pub fn is_boundary(&self, point: GridVec) -> bool {
+        self.contains(point) 
+        && (point.x == self.bottom_left().x 
+            || point.x == self.top_right().x - 1
+            || point.y == self.bottom_left().y
+            || point.y == self.top_right().y - 1
+        )
+    }
+
     pub fn iter(&self) -> GridIterator {
         GridIterator { bounds: self.clone(), current: self.bottom_left() + GridVec::new(-1, 0) }
+    }
+
+    pub fn slide_iter(&self) -> SlideGridIterator {
+        SlideGridIterator { 
+            bounds: self.clone(), 
+            current: self.bottom_left(),
+            rng: rand::thread_rng(),
+            flipped_x: false,    
+        }
+    }
+
+    // Returns a bounds that exactly contains both input bounds
+    pub fn union(&self, other: GridBounds) -> GridBounds {
+        let bottom_left = GridVec::new(
+            cmp::min(self.bottom_left().x, other.bottom_left().x),
+            cmp::min(self.bottom_left().y, other.bottom_left().y)
+        );
+        let top_right = GridVec::new(
+            cmp::max(self.top_right().x, other.top_right().x),
+            cmp::max(self.top_right().y, other.top_right().y)
+        );
+        GridBounds::new_from_extents(bottom_left, top_right)
+    }
+
+    pub fn option_union(a: Option<GridBounds>, b: Option<GridBounds>) -> Option<GridBounds> {
+        if a.is_none() && b.is_none() { None }
+        else if let Some(bound_a) = a {
+            if let Some(bound_b) = b {
+                Some(bound_a.union(bound_b))
+            }
+            else {
+                a
+            }
+        }
+        else {
+            b
+        }
     }
 
     // If there is an intersection, returns the bounds of the overlapping area
@@ -148,14 +209,20 @@ impl GridBounds {
             cmp::min(self.top_right().x, other.top_right().x),
             cmp::min(self.top_right().y, other.top_right().y)
         );
-        let size = top_right - bottom_left;
-        return Some(GridBounds::new_from_corner(bottom_left, size));
+        Some(GridBounds::new_from_extents(bottom_left, top_right))
     }
 }
 
 pub struct GridIterator {
     bounds: GridBounds,
     current: GridVec,
+}
+
+pub struct SlideGridIterator {
+    bounds: GridBounds,
+    current: GridVec,
+    rng: ThreadRng,
+    flipped_x: bool,
 }
 
 impl Iterator for GridIterator {
@@ -166,6 +233,28 @@ impl Iterator for GridIterator {
         if self.current.x >= self.bounds.top_right().x {
             self.current.x = self.bounds.bottom_left().x;
             self.current.y += 1;
+
+            if self.current.y >= self.bounds.top_right().y {
+                return None
+            }
+        }
+
+        return Some(self.current);
+    }
+}
+
+impl Iterator for SlideGridIterator {
+    type Item = GridVec;
+
+    fn next(&mut self) -> Option<GridVec> {
+        self.current.x += if self.flipped_x { -1 } else { 1 };
+        if (self.flipped_x && self.current.x < self.bounds.bottom_left().x) 
+        || (!self.flipped_x && self.current.x >= self.bounds.top_right().x) {
+            self.flipped_x = self.bounds.width() != 0 && self.rng.gen_bool(0.5);
+
+            self.current.x = if self.flipped_x { self.bounds.top_right().x - 1 } else { self.bounds.bottom_left().x };
+            self.current.y += 1;
+
 
             if self.current.y >= self.bounds.top_right().y {
                 return None
@@ -281,7 +370,7 @@ mod tests {
     }
 
     #[test]
-    fn overlap_none() {
+    fn intersection_overlap_none() {
         let a = GridBounds::new(GridVec::new(0, 0), GridVec::new(1, 1));
         let b = GridBounds::new(GridVec::new(3, 0), GridVec::new(1, 1));
 
@@ -291,7 +380,7 @@ mod tests {
     }
 
     #[test]
-    fn overlap_contained() {
+    fn intersection_overlap_contained() {
         let a = GridBounds::new(GridVec::new(0, 0), GridVec::new(1, 1));
         let b = GridBounds::new(GridVec::new(0, 0), GridVec::new(10, 10));
 
@@ -301,12 +390,42 @@ mod tests {
     }
 
     #[test]
-    fn overlap_partial() {
+    fn intersection_overlap_partial() {
         let a = GridBounds::new(GridVec::new(0, 0), GridVec::new(2, 2));
         let b = GridBounds::new(GridVec::new(1, 1), GridVec::new(2, 2));
 
         let result = a.intersect(b);
         let expected = Some(GridBounds::new(GridVec::new(0, 0), GridVec::new(1, 1)));
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn union_overlap_none() {
+        let a = GridBounds::new(GridVec::new(0, 0), GridVec::new(1, 1));
+        let b = GridBounds::new(GridVec::new(4, 0), GridVec::new(1, 1));
+
+        let result = a.union(b);
+        let expected = GridBounds::new(GridVec::new(2, 0), GridVec::new(3, 1));
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn union_overlap_contained() {
+        let a = GridBounds::new(GridVec::new(0, 0), GridVec::new(1, 1));
+        let b = GridBounds::new(GridVec::new(0, 0), GridVec::new(10, 10));
+
+        let result = a.union(b);
+        let expected = b;
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn union_overlap_partial() {
+        let a = GridBounds::new(GridVec::new(0, 0), GridVec::new(4, 4));
+        let b = GridBounds::new(GridVec::new(2, 2), GridVec::new(4, 4));
+
+        let result = a.union(b);
+        let expected = GridBounds::new(GridVec::new(1, 1), GridVec::new(5, 5));
         assert_eq!(result, expected);
     }
 }
