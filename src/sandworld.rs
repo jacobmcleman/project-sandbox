@@ -3,6 +3,8 @@ use rand::Rng;
 use std::collections::HashMap;
 
 const CHUNK_SIZE: u8 = 64;
+pub const WORLD_WIDTH: i32 = 720;
+pub const WORLD_HEIGHT: i32 = 480;
 
 pub struct World {
     // TODO keep chunks at consistent addresses once allocated
@@ -303,14 +305,7 @@ impl Chunk {
         let chunk_bounds = GridBounds::new_from_corner(GridVec::new(0, 0), GridVec::new(CHUNK_SIZE as i32, CHUNK_SIZE as i32));
         let dirty_bounds = chunk_bounds.intersect(GridBounds::new(GridVec { x, y }, GridVec { x: 4, y: 4 }));
 
-        if let Some(cur_bounds) = self.dirty {
-            if let Some(add_bounds) = dirty_bounds {
-                self.dirty = Some(cur_bounds.union(add_bounds));
-            }
-        }
-        else {
-            self.dirty = dirty_bounds;
-        }
+        self.dirty = chunk_bounds.intersect_option(GridBounds::option_union(self.dirty, dirty_bounds));
 
         if self.contains(x as i16, y as i16){
             let local_x = x as u8;
@@ -347,21 +342,21 @@ impl Chunk {
         let mut rng = rand::thread_rng();
 
         if let Some(to_update) = GridBounds::option_union(self.update_this_frame, self.updated_last_frame) {
-            for point in to_update.slide_iter() {
+            for point in to_update.slide_iter(rng.gen_bool(0.5)) {
                 let x = point.x as u8;
                 let y = point.y as u8;
                 
                 let cur_part = self.get_particle(x, y);
                 
                 let available_moves = Particle::get_possible_moves(cur_part.particle_type);
-                
+
                 if cur_part.particle_type == ParticleType::Source {
                     if x > 0 { self.add_particle(x - 1, y, Particle::new(ParticleType::Water)); }
                     if x < CHUNK_SIZE - 1 { self.add_particle(x + 1, y, Particle::new(ParticleType::Water)); }
                     if y > 0 { self.add_particle(x, y - 1, Particle::new(ParticleType::Water)); }
                     if y < CHUNK_SIZE - 1 { self.add_particle(x, y + 1, Particle::new(ParticleType::Water)); }
                 }
-
+                
                 if available_moves.len() > 0 {
                     let mut possible_moves = Vec::<GridVec>::new();
                     let can_replace_water = Particle::can_replace_water(cur_part.particle_type);
@@ -584,12 +579,9 @@ impl World {
         }
 
         for (_pos, chunk) in self.chunks.iter_mut() {
-            if chunk.update_this_frame.is_some() { 
+            if chunk.update_this_frame.is_some() || chunk.updated_last_frame.is_some() { 
                 updated_count += 1;
                 chunk.update(); 
-            }
-            else {
-                chunk.updated_last_frame = None;
             }
         }
         updated_count

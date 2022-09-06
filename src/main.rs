@@ -28,7 +28,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
     let sdl = Sdl::init(InitFlags::EVERYTHING)?;
     let window = sdl.create_vk_window(
-        zstr!("Hello Pixels"),
+        zstr!("Sandbox"),
         None,
         (SCREEN_WIDTH as i32, SCREEN_HEIGHT as i32),
         WindowFlags::ALLOW_HIGHDPI,
@@ -116,7 +116,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         update(&mut world, &mut camera, &input);
 
         // Update world
-        let _updated_chunks = world.update();
+        let updated_chunks = world.update();
 
         // Draw the current frame
         draw(&world, &camera, pixels.get_frame(), debug_draw);
@@ -125,10 +125,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         
         if debug_perf {
             let frame_finished = Instant::now();
-
-            println!("Frame processed in {}μs", frame_finished.duration_since(frame_start).as_micros());
+            println!("Frame processed in {}μs - Chunk updates: {}", frame_finished.duration_since(frame_start).as_micros(), updated_chunks);
         }
-        //println!("Chunk updates: {}", updated_chunks);
     }
 
     Ok(())
