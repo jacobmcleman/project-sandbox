@@ -15,10 +15,10 @@ jobs:
         include: 
           - os: ubuntu-latest
             artifact_name: sandgame
-            platform_name: linux_64
+            platform_name: linux_x64
           - os: windows-latest
             artifact_name: sandgame.exe
-            platform_name: windows_64
+            platform_name: windows_x64
         platform: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
@@ -32,6 +32,6 @@ jobs:
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: target/release/${{ matrix.artifact_name }}
-        asset_name: sandgame ${{ matrix.platform }}
+        asset_name: ${{ matrix.platform }}-${{ matrix.artifact_name }}
         overwrite: true
         
