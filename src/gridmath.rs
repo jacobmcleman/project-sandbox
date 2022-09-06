@@ -2,9 +2,6 @@ use std::ops;
 use std::cmp;
 use std::fmt;
 
-use rand::Rng;
-use rand::rngs::ThreadRng;
-
 #[derive(PartialEq, Debug, Copy, Clone)]
 pub struct GridVec {
     pub x: i32,
@@ -119,8 +116,32 @@ impl GridBounds {
         GridBounds { bottom_left, top_right }
     }
 
+    pub fn bottom(&self) -> i32 {
+        self.bottom_left.y
+    }
+
+    pub fn left(&self) -> i32 {
+        self.bottom_left.x
+    }
+
+    pub fn top(&self) -> i32 {
+        self.top_right.y
+    }
+
+    pub fn right(&self) -> i32 {
+        self.top_right.x
+    }
+
     pub fn bottom_left(&self) -> GridVec {
         self.bottom_left   
+    }
+
+    pub fn _bottom_right(&self) -> GridVec {
+        GridVec { x: self.top_right.x, y: self.bottom_left.y }   
+    }
+
+    pub fn top_left(&self) -> GridVec {
+        GridVec { x: self.bottom_left.x, y: self.top_right.y }      
     }
 
     pub fn top_right(&self) -> GridVec {
@@ -166,12 +187,11 @@ impl GridBounds {
         GridIterator { bounds: self.clone(), current: self.bottom_left() + GridVec::new(-1, 0) }
     }
 
-    pub fn slide_iter(&self) -> SlideGridIterator {
+    pub fn slide_iter(&self, flip_x: bool) -> SlideGridIterator {
         SlideGridIterator { 
             bounds: self.clone(), 
-            current: self.bottom_left(),
-            rng: rand::thread_rng(),
-            flipped_x: false,    
+            current: if flip_x { self.top_right() + GridVec::new(-1, 0) } else { self.top_left() },
+            flip_x,    
         }
     }
 
@@ -246,8 +266,7 @@ pub struct GridIterator {
 pub struct SlideGridIterator {
     bounds: GridBounds,
     current: GridVec,
-    rng: ThreadRng,
-    flipped_x: bool,
+    flip_x: bool,
 }
 
 impl Iterator for GridIterator {
@@ -271,21 +290,20 @@ impl Iterator for GridIterator {
 impl Iterator for SlideGridIterator {
     type Item = GridVec;
 
-    // TODO: iterate column-wise not row-wise
     fn next(&mut self) -> Option<GridVec> {
-        self.current.x += if self.flipped_x { -1 } else { 1 };
-        if (self.flipped_x && self.current.x < self.bounds.bottom_left().x) 
-        || (!self.flipped_x && self.current.x >= self.bounds.top_right().x) {
-            self.flipped_x = self.bounds.width() != 0 && self.rng.gen_bool(0.5);
+        self.current.y -= 1;
 
-            self.current.x = if self.flipped_x { self.bounds.top_right().x - 1 } else { self.bounds.bottom_left().x };
-            self.current.y += 1;
+        if self.current.y < self.bounds.bottom() {
+            self.current.y = self.bounds.top() - 1;
 
-            if self.current.y >= self.bounds.top_right().y {
+            self.current.x += if self.flip_x { -1 } else { 1 };
+
+            if (self.flip_x && self.current.x < self.bounds.left()) 
+                || (!self.flip_x && self.current.x >= self.bounds.right()) {
                 return None
             }
         }
-
+        
         return Some(self.current);
     }
 }

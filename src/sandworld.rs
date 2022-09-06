@@ -2,7 +2,7 @@ use crate::gridmath::*;
 use rand::Rng;
 use std::collections::HashMap;
 
-const CHUNK_SIZE: u8 = 128;
+const CHUNK_SIZE: u8 = 64;
 pub const WORLD_WIDTH: i32 = 720;
 pub const WORLD_HEIGHT: i32 = 480;
 
@@ -307,7 +307,7 @@ impl Chunk {
 
     fn mark_dirty(&mut self, x: i32, y: i32) {
         let chunk_bounds = GridBounds::new_from_corner(GridVec::new(0, 0), GridVec::new(CHUNK_SIZE as i32, CHUNK_SIZE as i32));
-        let dirty_bounds = chunk_bounds.intersect(GridBounds::new(GridVec { x, y }, GridVec { x: 2, y: 2 }));
+        let dirty_bounds = chunk_bounds.intersect(GridBounds::new(GridVec { x, y }, GridVec { x: 4, y: 4 }));
 
         self.dirty = chunk_bounds.intersect_option(GridBounds::option_union(self.dirty, dirty_bounds));
 
@@ -349,7 +349,7 @@ impl Chunk {
         let mut rng = rand::thread_rng();
 
         if let Some(to_update) = GridBounds::option_union(self.update_this_frame, self.updated_last_frame) {
-            for point in to_update.slide_iter() {
+            for point in to_update.slide_iter(rng.gen_bool(0.5)) {
                 let x = point.x as u8;
                 let y = point.y as u8;
                 
