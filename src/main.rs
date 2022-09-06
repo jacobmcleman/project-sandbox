@@ -75,7 +75,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         input.up_pressed = pressed;
                     },
                     keycode::SDLK_F2 => {
-                        if pressed { debug_perf = true; }
+                        if pressed { debug_perf = !debug_perf; }
                     },
                     keycode::SDLK_F3 => {
                         if pressed { debug_draw = !debug_draw; }
@@ -116,7 +116,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         update(&mut world, &mut camera, &input);
 
         // Update world
-        let _updated_chunks = world.update();
+        let updated_chunks = world.update();
 
         // Draw the current frame
         draw(&world, &camera, pixels.get_frame(), debug_draw);
@@ -125,15 +125,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         
         if debug_perf {
             let frame_finished = Instant::now();
-
-            println!("Frame processed in {}μs", frame_finished.duration_since(frame_start).as_micros());
-
-            let (import, export) = world.debug_chunk_io(input.mouse_world_pos);
-            println!("Selected chunk imported {} and exported {} this frame", import, export);
-
-            debug_perf = false;
+            println!("Frame processed in {}μs - Chunk updates: {}", frame_finished.duration_since(frame_start).as_micros(), updated_chunks);
         }
-        //println!("Chunk updates: {}", updated_chunks);
     }
 
     Ok(())

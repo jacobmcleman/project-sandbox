@@ -36,8 +36,6 @@ struct Chunk {
     dirty: Option<GridBounds>,
     update_this_frame: Option<GridBounds>,
     updated_last_frame: Option<GridBounds>,
-    export_count: u32,
-    import_count: u32,
 }
 
 #[derive(PartialEq, Debug, Copy, Clone)]
@@ -145,8 +143,6 @@ impl Chunk {
             dirty: None,
             update_this_frame: None,
             updated_last_frame: None,
-            export_count: 0,
-            import_count: 0,
         };
 
         return created;
@@ -340,9 +336,6 @@ impl Chunk {
     fn commit_updates(&mut self) {
         self.update_this_frame = self.dirty;
         self.dirty = None;
-
-        self.import_count = 0;
-        self.export_count = 0;
     }
 
     fn update(&mut self) {      
@@ -393,9 +386,6 @@ impl Chunk {
                                 unsafe {
                                     self.set_particle(x, y, (*chunk).get_particle(other_chunk_x as u8, other_chunk_y as u8));
                                     (*chunk).set_particle(other_chunk_x as u8, other_chunk_y as u8, cur_part);
-
-                                    self.export_count += 1;
-                                    (*chunk).import_count += 1;
                                 }
                             }
                         }
@@ -469,16 +459,6 @@ impl World {
     pub fn contains(&self, pos: GridVec) -> bool {
         let chunk_pos = World::get_chunkpos(pos);
         return self.chunks.contains_key(&chunk_pos.combined());
-    }
-
-    pub fn debug_chunk_io(&self, pos: GridVec) -> (u32, u32) {
-        let chunk_pos = World::get_chunkpos(pos);
-        if let Some(chunk) = self.chunks.get(&chunk_pos.combined()) {
-            (chunk.import_count, chunk.export_count)
-        }
-        else{
-            (0, 0)
-        }
     }
 
     fn add_chunk(&mut self, chunkpos: GridVec) {
