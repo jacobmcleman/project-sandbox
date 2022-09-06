@@ -5,9 +5,6 @@ use std::fmt;
 use rand::Rng;
 use rand::rngs::ThreadRng;
 
-pub const WORLD_WIDTH: i32 = 1920;
-pub const WORLD_HEIGHT: i32 = 1080;
-
 #[derive(PartialEq, Debug, Copy, Clone)]
 pub struct GridVec {
     pub x: i32,
@@ -92,6 +89,14 @@ impl ops::Div<i32> for GridVec {
 
     fn div(self, rhs: i32) -> GridVec {
         GridVec{x: self.x / rhs, y: self.y / rhs}
+    }
+}
+
+impl ops::Rem<i32> for GridVec {
+    type Output = GridVec;
+
+    fn rem(self, rhs: i32) -> Self::Output {
+        GridVec{x: self.x % rhs, y: self.y / rhs }
     }
 }
 
@@ -187,6 +192,15 @@ impl GridBounds {
         }
     }
 
+    pub fn intersect_option(&self, other: Option<GridBounds>) -> Option<GridBounds>  {
+        if let Some(bounds) = other {
+            self.intersect(bounds)
+        }
+        else {
+            None
+        }
+    }
+
     // If there is an intersection, returns the bounds of the overlapping area
     pub fn intersect(&self, other: GridBounds) -> Option<GridBounds> {
         let dx = other.center.x - self.center.x;
@@ -210,6 +224,24 @@ impl GridBounds {
             cmp::min(self.top_right().y, other.top_right().y)
         );
         Some(GridBounds::new_from_extents(bottom_left, top_right))
+    }
+
+    pub fn _shrink(&self) -> Option<GridBounds> {
+        if self.half_extent.x == 0 && self.half_extent.y == 0 {
+            None
+        }
+        else {
+            if self.half_extent.y > self.half_extent.x {
+                Some(GridBounds::new(self.center, GridVec::new(self.half_extent.x, self.half_extent.y - 1)))
+            }
+            else {
+                Some(GridBounds::new(self.center, GridVec::new(self.half_extent.x - 1, self.half_extent.y)))
+            }
+        }
+    }
+
+    pub fn _expand(&self) -> GridBounds {
+        GridBounds { center: self.center, half_extent: self.half_extent + GridVec { x: 1, y: 1 } }
     }
 }
 
@@ -246,6 +278,7 @@ impl Iterator for GridIterator {
 impl Iterator for SlideGridIterator {
     type Item = GridVec;
 
+    // TODO: iterate column-wise not row-wise
     fn next(&mut self) -> Option<GridVec> {
         self.current.x += if self.flipped_x { -1 } else { 1 };
         if (self.flipped_x && self.current.x < self.bounds.bottom_left().x) 
@@ -254,7 +287,6 @@ impl Iterator for SlideGridIterator {
 
             self.current.x = if self.flipped_x { self.bounds.top_right().x - 1 } else { self.bounds.bottom_left().x };
             self.current.y += 1;
-
 
             if self.current.y >= self.bounds.top_right().y {
                 return None
@@ -367,6 +399,28 @@ mod tests {
         let result = GridVec::decombined(GridVec::new(4, 10).combined());
         let expected = GridVec::new(4, 10);
         assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn bounds_corners() {
+        let a = GridBounds::new(GridVec::new(0, 0), GridVec::new(1, 1));
+        let bottom_left = a.bottom_left();
+        let top_right = a.top_right();
+
+        assert_eq!(bottom_left, GridVec::new(-1, -1));
+        assert_eq!(top_right, GridVec::new(1, 1));
+    }
+
+    #[test]
+    fn bounds_corners_from_corner() {
+        let bottom_left = GridVec::new(0, 0);
+        let size = GridVec::new(16, 16);
+        let top_right = size;
+        
+        let a = GridBounds::new_from_corner(bottom_left, size);
+        
+        assert_eq!(a.bottom_left(), bottom_left);
+        assert_eq!(a.top_right(), top_right);
     }
 
     #[test]

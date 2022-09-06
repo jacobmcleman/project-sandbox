@@ -2,7 +2,9 @@ use crate::gridmath::*;
 use rand::Rng;
 use std::collections::HashMap;
 
-const CHUNK_SIZE: u8 = 64;
+const CHUNK_SIZE: u8 = 128;
+pub const WORLD_WIDTH: i32 = 720;
+pub const WORLD_HEIGHT: i32 = 480;
 
 pub struct World {
     // TODO keep chunks at consistent addresses once allocated
@@ -34,6 +36,8 @@ struct Chunk {
     dirty: Option<GridBounds>,
     update_this_frame: Option<GridBounds>,
     updated_last_frame: Option<GridBounds>,
+    export_count: u32,
+    import_count: u32,
 }
 
 #[derive(PartialEq, Debug, Copy, Clone)]
@@ -141,6 +145,8 @@ impl Chunk {
             dirty: None,
             update_this_frame: None,
             updated_last_frame: None,
+            export_count: 0,
+            import_count: 0,
         };
 
         return created;
@@ -301,16 +307,9 @@ impl Chunk {
 
     fn mark_dirty(&mut self, x: i32, y: i32) {
         let chunk_bounds = GridBounds::new_from_corner(GridVec::new(0, 0), GridVec::new(CHUNK_SIZE as i32, CHUNK_SIZE as i32));
-        let dirty_bounds = chunk_bounds.intersect(GridBounds::new(GridVec { x, y }, GridVec { x: 4, y: 4 }));
+        let dirty_bounds = chunk_bounds.intersect(GridBounds::new(GridVec { x, y }, GridVec { x: 32, y: 32 }));
 
-        if let Some(cur_bounds) = self.dirty {
-            if let Some(add_bounds) = dirty_bounds {
-                self.dirty = Some(cur_bounds.union(add_bounds));
-            }
-        }
-        else {
-            self.dirty = dirty_bounds;
-        }
+        self.dirty = chunk_bounds.intersect_option(GridBounds::option_union(self.dirty, dirty_bounds));
 
         if self.contains(x as i16, y as i16){
             let local_x = x as u8;
@@ -341,6 +340,9 @@ impl Chunk {
     fn commit_updates(&mut self) {
         self.update_this_frame = self.dirty;
         self.dirty = None;
+
+        self.import_count = 0;
+        self.export_count = 0;
     }
 
     fn update(&mut self) {      
@@ -354,14 +356,14 @@ impl Chunk {
                 let cur_part = self.get_particle(x, y);
                 
                 let available_moves = Particle::get_possible_moves(cur_part.particle_type);
-                
+
                 if cur_part.particle_type == ParticleType::Source {
                     if x > 0 { self.add_particle(x - 1, y, Particle::new(ParticleType::Water)); }
                     if x < CHUNK_SIZE - 1 { self.add_particle(x + 1, y, Particle::new(ParticleType::Water)); }
                     if y > 0 { self.add_particle(x, y - 1, Particle::new(ParticleType::Water)); }
                     if y < CHUNK_SIZE - 1 { self.add_particle(x, y + 1, Particle::new(ParticleType::Water)); }
                 }
-
+                
                 if available_moves.len() > 0 {
                     let mut possible_moves = Vec::<GridVec>::new();
                     let can_replace_water = Particle::can_replace_water(cur_part.particle_type);
@@ -391,6 +393,9 @@ impl Chunk {
                                 unsafe {
                                     self.set_particle(x, y, (*chunk).get_particle(other_chunk_x as u8, other_chunk_y as u8));
                                     (*chunk).set_particle(other_chunk_x as u8, other_chunk_y as u8, cur_part);
+
+                                    self.export_count += 1;
+                                    (*chunk).import_count += 1;
                                 }
                             }
                         }
@@ -464,6 +469,16 @@ impl World {
     pub fn contains(&self, pos: GridVec) -> bool {
         let chunk_pos = World::get_chunkpos(pos);
         return self.chunks.contains_key(&chunk_pos.combined());
+    }
+
+    pub fn debug_chunk_io(&self, pos: GridVec) -> (u32, u32) {
+        let chunk_pos = World::get_chunkpos(pos);
+        if let Some(chunk) = self.chunks.get(&chunk_pos.combined()) {
+            (chunk.import_count, chunk.export_count)
+        }
+        else{
+            (0, 0)
+        }
     }
 
     fn add_chunk(&mut self, chunkpos: GridVec) {
@@ -584,12 +599,9 @@ impl World {
         }
 
         for (_pos, chunk) in self.chunks.iter_mut() {
-            if chunk.update_this_frame.is_some() { 
+            if chunk.update_this_frame.is_some() || chunk.updated_last_frame.is_some() { 
                 updated_count += 1;
                 chunk.update(); 
-            }
-            else {
-                chunk.updated_last_frame = None;
             }
         }
         updated_count

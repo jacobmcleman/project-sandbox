@@ -28,7 +28,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
     let sdl = Sdl::init(InitFlags::EVERYTHING)?;
     let window = sdl.create_vk_window(
-        zstr!("Hello Pixels"),
+        zstr!("Sandbox"),
         None,
         (SCREEN_WIDTH as i32, SCREEN_HEIGHT as i32),
         WindowFlags::ALLOW_HIGHDPI,
@@ -75,7 +75,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         input.up_pressed = pressed;
                     },
                     keycode::SDLK_F2 => {
-                        if pressed { debug_perf = !debug_perf; }
+                        if pressed { debug_perf = true; }
                     },
                     keycode::SDLK_F3 => {
                         if pressed { debug_draw = !debug_draw; }
@@ -127,6 +127,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let frame_finished = Instant::now();
 
             println!("Frame processed in {}μs", frame_finished.duration_since(frame_start).as_micros());
+
+            let (import, export) = world.debug_chunk_io(input.mouse_world_pos);
+            println!("Selected chunk imported {} and exported {} this frame", import, export);
+
+            debug_perf = false;
         }
         //println!("Chunk updates: {}", updated_chunks);
     }
