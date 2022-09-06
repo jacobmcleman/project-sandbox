@@ -13,8 +13,8 @@ pub struct GridVec {
 
 #[derive(PartialEq, Debug, Copy, Clone)]
 pub struct GridBounds {
-    pub center: GridVec,
-    pub half_extent: GridVec,
+    pub bottom_left: GridVec,
+    pub top_right: GridVec,
 }
 
 #[derive(PartialEq, Debug, Copy, Clone)]
@@ -108,38 +108,49 @@ impl fmt::Display for GridVec {
 
 impl GridBounds {
     pub fn new(center: GridVec, half_extent: GridVec) -> Self {
-        GridBounds { center, half_extent }
+        GridBounds { bottom_left: center - half_extent, top_right: center + half_extent }
     }
 
     pub fn new_from_corner(bottom_left: GridVec, size: GridVec) -> Self {
-        let half_extent = size / 2;
-        GridBounds { center: bottom_left + half_extent, half_extent }
+        GridBounds { bottom_left, top_right: bottom_left + size }
     }
 
     pub fn new_from_extents(bottom_left: GridVec, top_right: GridVec) -> Self {
-        let size = top_right - bottom_left;
-        return GridBounds::new_from_corner(bottom_left, size);
+        GridBounds { bottom_left, top_right }
     }
 
     pub fn bottom_left(&self) -> GridVec {
-        self.center - self.half_extent    
+        self.bottom_left   
     }
 
     pub fn top_right(&self) -> GridVec {
-        self.center + self.half_extent    
+        self.top_right   
     }
 
     pub fn width(&self) -> u32 {
-        self.half_extent.x as u32 * 2
+        (self.top_right.x - self.bottom_left.x) as u32
     }
 
     pub fn _height(&self) -> u32 {
-        self.half_extent.y as u32 * 2
+        (self.top_right.y - self.bottom_left.y) as u32
+    }
+
+    pub fn center(&self) -> GridVec {
+        (self.top_right + self.bottom_left) / 2
+    }
+
+    pub fn extent(&self) -> GridVec {
+        self.top_right - self.bottom_left  
+    }
+
+    pub fn half_extent(&self) -> GridVec {
+        self.extent() / 2
     }
 
     pub fn contains(&self, point: GridVec) -> bool {
-        let delta = point - self.center;
-        return delta.x.abs() <= self.half_extent.x && delta.y.abs() <= self.half_extent.y;
+        let delta = point - self.center();
+        let half_extent = self.half_extent();
+        return delta.x.abs() <= half_extent.x && delta.y.abs() <= half_extent.y;
     }
 
     pub fn is_boundary(&self, point: GridVec) -> bool {
@@ -203,14 +214,14 @@ impl GridBounds {
 
     // If there is an intersection, returns the bounds of the overlapping area
     pub fn intersect(&self, other: GridBounds) -> Option<GridBounds> {
-        let dx = other.center.x - self.center.x;
-        let px = (other.half_extent.x + self.half_extent.x) - dx.abs();
+        let dx = other.center().x - self.center().x;
+        let px = (other.half_extent().x + self.half_extent().x) - dx.abs();
         if px <= 0 {
             return None;
         }
 
-        let dy = other.center.y - self.center.y;
-        let py = (other.half_extent.y + self.half_extent.y) - dy.abs();
+        let dy = other.center().y - self.center().y;
+        let py = (other.half_extent().y + self.half_extent().y) - dy.abs();
         if py <= 0 {
             return None;
         }
@@ -224,24 +235,6 @@ impl GridBounds {
             cmp::min(self.top_right().y, other.top_right().y)
         );
         Some(GridBounds::new_from_extents(bottom_left, top_right))
-    }
-
-    pub fn _shrink(&self) -> Option<GridBounds> {
-        if self.half_extent.x == 0 && self.half_extent.y == 0 {
-            None
-        }
-        else {
-            if self.half_extent.y > self.half_extent.x {
-                Some(GridBounds::new(self.center, GridVec::new(self.half_extent.x, self.half_extent.y - 1)))
-            }
-            else {
-                Some(GridBounds::new(self.center, GridVec::new(self.half_extent.x - 1, self.half_extent.y)))
-            }
-        }
-    }
-
-    pub fn _expand(&self) -> GridBounds {
-        GridBounds { center: self.center, half_extent: self.half_extent + GridVec { x: 1, y: 1 } }
     }
 }
 

@@ -307,7 +307,7 @@ impl Chunk {
 
     fn mark_dirty(&mut self, x: i32, y: i32) {
         let chunk_bounds = GridBounds::new_from_corner(GridVec::new(0, 0), GridVec::new(CHUNK_SIZE as i32, CHUNK_SIZE as i32));
-        let dirty_bounds = chunk_bounds.intersect(GridBounds::new(GridVec { x, y }, GridVec { x: 32, y: 32 }));
+        let dirty_bounds = chunk_bounds.intersect(GridBounds::new(GridVec { x, y }, GridVec { x: 2, y: 2 }));
 
         self.dirty = chunk_bounds.intersect_option(GridBounds::option_union(self.dirty, dirty_bounds));
 
