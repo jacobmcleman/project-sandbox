@@ -457,10 +457,10 @@ mod tests {
     #[test]
     fn intersection_overlap_partial() {
         let a = GridBounds::new(GridVec::new(0, 0), GridVec::new(2, 2));
-        let b = GridBounds::new(GridVec::new(1, 1), GridVec::new(2, 2));
+        let b = GridBounds::new(GridVec::new(2, 2), GridVec::new(2, 2));
 
         let result = a.intersect(b);
-        let expected = Some(GridBounds::new(GridVec::new(0, 0), GridVec::new(1, 1)));
+        let expected = Some(GridBounds::new(GridVec::new(1, 1), GridVec::new(1, 1)));
         assert_eq!(result, expected);
     }
 
