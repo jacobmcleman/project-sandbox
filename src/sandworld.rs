@@ -1,6 +1,6 @@
 use crate::gridmath::*;
 use rand::Rng;
-use std::collections::HashMap;
+use std::{collections::HashMap};
 
 const CHUNK_SIZE: u8 = 64;
 pub const WORLD_WIDTH: i32 = 720;
@@ -51,7 +51,8 @@ pub enum ParticleType {
 
 #[derive(Debug, Copy, Clone)]
 pub struct Particle {
-    pub particle_type: ParticleType
+    pub particle_type: ParticleType,
+    updated_this_frame: bool,
 }
 
 impl Iterator for NeighborIterator<'_> {
@@ -111,13 +112,13 @@ impl Drop for Neighbors {
 
 impl Particle {
     pub fn new(particle_type: ParticleType) -> Self {
-        Particle{particle_type}
+        Particle{particle_type, updated_this_frame: false}
     }
 
     fn get_possible_moves(particle_type: ParticleType) -> Vec::<GridVec> {
         match particle_type {
             ParticleType::Sand => vec![GridVec{x: 1, y: -1}, GridVec{x: -1, y: -1}, GridVec{x: 0, y: -1}],
-            ParticleType::Water => vec![GridVec{x: 1, y: -1}, GridVec{x: 0, y: -1}, GridVec{x: -1, y: -1}, GridVec{x: 1, y: 0}, GridVec{x: 0, y: -2}, GridVec{x: -1, y: 0} ],
+            ParticleType::Water => vec![GridVec{x: 1, y: -1}, GridVec{x: 0, y: -1}, GridVec{x: -1, y: -1}, GridVec{x: 1, y: 0}, GridVec{x: -1, y: 0} ],
             _ => Vec::<GridVec>::new(),
         }
     }
@@ -131,7 +132,7 @@ impl Particle {
 }
 
 impl Default for Particle {
-    fn default() -> Self { Particle{particle_type: ParticleType::Air} }
+    fn default() -> Self { Particle{particle_type: ParticleType::Air, updated_this_frame: false} }
 }
 
 impl Chunk {
@@ -165,6 +166,19 @@ impl Chunk {
         }
 
         return self.particles[Chunk::get_index_in_chunk(x, y)];
+    }
+
+    fn get_particle_mut(&mut self, x: u8, y: u8) -> &mut Particle {
+        #[cfg(debug_assertions)] {
+            if x >= CHUNK_SIZE {
+                println!("X VALUE OF {} IS TOO LARGE", x);
+            }
+            if y >= CHUNK_SIZE {
+                println!("Y VALUE OF {} IS TOO LARGE", y);
+            }
+        }
+
+        return &mut self.particles[Chunk::get_index_in_chunk(x, y)];
     }
 
     fn contains(&self, x: i16, y: i16) -> bool {
@@ -216,10 +230,10 @@ impl Chunk {
         let test_pos_x = base_x as i16 + test_vec_x as i16;
         let test_pos_y = base_y as i16 + test_vec_y as i16;
 
-        let material_at_test;
+        let test_particle;
         
         if self.contains(test_pos_x, test_pos_y) {
-            material_at_test = self.get_particle(test_pos_x as u8, test_pos_y as u8).particle_type;
+            test_particle = self.get_particle(test_pos_x as u8, test_pos_y as u8);
         }
         else {
             let neighbor_direction = Chunk::get_oob_direction(test_pos_x, test_pos_y);
@@ -234,13 +248,17 @@ impl Chunk {
                 if other_chunk_x < 0 { other_chunk_x += CHUNK_SIZE as i16; }
                 if other_chunk_y < 0 { other_chunk_y += CHUNK_SIZE as i16; }
                 unsafe {
-                    material_at_test = (*chunk).get_particle(other_chunk_x as u8, other_chunk_y as u8).particle_type;
+                    test_particle = (*chunk).get_particle(other_chunk_x as u8, other_chunk_y as u8);
                 }
             }
         }
 
-        if material_at_test == ParticleType::Air { return true; }
-        else if replace_water && material_at_test == ParticleType::Water { return true; }
+        if test_particle.updated_this_frame { 
+            // Need to allow things to fall into spaces otherwise weird air bubbles are allowed to persist
+            return test_vec_y < 0; 
+        }
+        if test_particle.particle_type == ParticleType::Air { return true; }
+        else if replace_water && test_particle.particle_type == ParticleType::Water { return true; }
         return false;
     }
 
@@ -299,6 +317,7 @@ impl Chunk {
     fn set_particle(&mut self, x: u8, y: u8, val: Particle) {
         self.particles[Chunk::get_index_in_chunk(x, y)] = val;
         self.mark_dirty(x as i32, y as i32);
+        self.particles[Chunk::get_index_in_chunk(x, y)].updated_this_frame = true;
     }
 
     fn mark_dirty(&mut self, x: i32, y: i32) {
@@ -336,56 +355,66 @@ impl Chunk {
     fn commit_updates(&mut self) {
         self.update_this_frame = self.dirty;
         self.dirty = None;
+
+        if let Some(to_update) = GridBounds::option_union(self.update_this_frame, self.updated_last_frame) {
+            for point in to_update.slide_iter() {
+                let x = point.x as u8;
+                let y = point.y as u8;
+                
+                self.get_particle_mut(x, y).updated_this_frame = false;
+            }
+        }
     }
 
     fn update(&mut self) {      
         let mut rng = rand::thread_rng();
 
         if let Some(to_update) = GridBounds::option_union(self.update_this_frame, self.updated_last_frame) {
-            for point in to_update.slide_iter(rng.gen_bool(0.5)) {
+            for point in to_update.slide_iter() {
                 let x = point.x as u8;
                 let y = point.y as u8;
                 
                 let cur_part = self.get_particle(x, y);
-                
-                let available_moves = Particle::get_possible_moves(cur_part.particle_type);
 
-                if cur_part.particle_type == ParticleType::Source {
-                    if x > 0 { self.add_particle(x - 1, y, Particle::new(ParticleType::Water)); }
-                    if x < CHUNK_SIZE - 1 { self.add_particle(x + 1, y, Particle::new(ParticleType::Water)); }
-                    if y > 0 { self.add_particle(x, y - 1, Particle::new(ParticleType::Water)); }
-                    if y < CHUNK_SIZE - 1 { self.add_particle(x, y + 1, Particle::new(ParticleType::Water)); }
-                }
-                
-                if available_moves.len() > 0 {
-                    let mut possible_moves = Vec::<GridVec>::new();
-                    let can_replace_water = Particle::can_replace_water(cur_part.particle_type);
-                    
-                    for vec in available_moves {
-                        if self.test_vec(x, y, vec.x as i8, vec.y as i8, can_replace_water) {
-                            possible_moves.push(vec.clone());
-                        }
+                if !cur_part.updated_this_frame {
+                    if cur_part.particle_type == ParticleType::Source {
+                        if x > 0 { self.add_particle(x - 1, y, Particle::new(ParticleType::Water)); }
+                        if x < CHUNK_SIZE - 1 { self.add_particle(x + 1, y, Particle::new(ParticleType::Water)); }
+                        if y > 0 { self.add_particle(x, y - 1, Particle::new(ParticleType::Water)); }
+                        if y < CHUNK_SIZE - 1 { self.add_particle(x, y + 1, Particle::new(ParticleType::Water)); }
                     }
                     
-                    if possible_moves.len() > 0 {
-                        let chosen_vec = possible_moves[rng.gen_range(0..possible_moves.len())];
-                        let chosen_x = x as i16 + chosen_vec.x as i16;
-                        let chosen_y = y as i16 + chosen_vec.y as i16;
-                        if self.contains(chosen_x, chosen_y) {
-                            self.set_particle(x, y, self.get_particle(chosen_x as u8, chosen_y as u8));
-                            self.set_particle(chosen_x as u8, chosen_y as u8, cur_part);
+                    let available_moves = Particle::get_possible_moves(cur_part.particle_type);
+                    if available_moves.len() > 0 {
+                        let mut possible_moves = Vec::<GridVec>::new();
+                        let can_replace_water = Particle::can_replace_water(cur_part.particle_type);
+                        
+                        for vec in available_moves {
+                            if self.test_vec(x, y, vec.x as i8, vec.y as i8, can_replace_water) {
+                                possible_moves.push(vec.clone());
+                            }
                         }
-                        else {
-                            let neighbor_direction = Chunk::get_oob_direction(chosen_x, chosen_y);
-                            let neighbor = self.get_neighbor(neighbor_direction);
-                            if let Some(chunk) = neighbor {
-                                let mut other_chunk_x = chosen_x % (CHUNK_SIZE as i16);
-                                let mut other_chunk_y = chosen_y % (CHUNK_SIZE as i16);
-                                if other_chunk_x < 0 { other_chunk_x += CHUNK_SIZE as i16; }
-                                if other_chunk_y < 0 { other_chunk_y += CHUNK_SIZE as i16; }
-                                unsafe {
-                                    self.set_particle(x, y, (*chunk).get_particle(other_chunk_x as u8, other_chunk_y as u8));
-                                    (*chunk).set_particle(other_chunk_x as u8, other_chunk_y as u8, cur_part);
+                        
+                        if possible_moves.len() > 0 {
+                            let chosen_vec = possible_moves[rng.gen_range(0..possible_moves.len())];
+                            let chosen_x = x as i16 + chosen_vec.x as i16;
+                            let chosen_y = y as i16 + chosen_vec.y as i16;
+                            if self.contains(chosen_x, chosen_y) {
+                                self.set_particle(x, y, self.get_particle(chosen_x as u8, chosen_y as u8));
+                                self.set_particle(chosen_x as u8, chosen_y as u8, cur_part.clone());
+                            }
+                            else {
+                                let neighbor_direction = Chunk::get_oob_direction(chosen_x, chosen_y);
+                                let neighbor = self.get_neighbor(neighbor_direction);
+                                if let Some(chunk) = neighbor {
+                                    let mut other_chunk_x = chosen_x % (CHUNK_SIZE as i16);
+                                    let mut other_chunk_y = chosen_y % (CHUNK_SIZE as i16);
+                                    if other_chunk_x < 0 { other_chunk_x += CHUNK_SIZE as i16; }
+                                    if other_chunk_y < 0 { other_chunk_y += CHUNK_SIZE as i16; }
+                                    unsafe {
+                                        self.set_particle(x, y, (*chunk).get_particle(other_chunk_x as u8, other_chunk_y as u8));
+                                        (*chunk).set_particle(other_chunk_x as u8, other_chunk_y as u8, cur_part.clone());
+                                    }
                                 }
                             }
                         }
@@ -488,7 +517,7 @@ impl World {
 
     pub fn _get_particle(&self, pos: GridVec) -> Particle {
         if !self.contains(pos) {
-            return Particle { particle_type: ParticleType::Boundary };
+            return Particle::new(ParticleType::Boundary);
         }
 
         let chunk_pos = World::get_chunkpos(pos);
@@ -517,7 +546,7 @@ impl World {
     }
 
     pub fn clear_circle(&mut self, pos: GridVec, radius: i32) {
-        self.place_circle(pos, radius, Particle{particle_type:ParticleType::Air}, true);
+        self.place_circle(pos, radius, Particle::new(ParticleType::Air), true);
     }
 
     pub fn place_circle(&mut self, pos: GridVec, radius: i32, new_val: Particle, replace: bool) {
