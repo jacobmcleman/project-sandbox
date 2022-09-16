@@ -3,8 +3,8 @@ use rand::Rng;
 use std::{collections::HashMap};
 
 const CHUNK_SIZE: u8 = 64;
-pub const WORLD_WIDTH: i32 = 720;
-pub const WORLD_HEIGHT: i32 = 480;
+pub const WORLD_WIDTH: i32 = 1440;
+pub const WORLD_HEIGHT: i32 = 960;
 
 pub struct World {
     // TODO keep chunks at consistent addresses once allocated

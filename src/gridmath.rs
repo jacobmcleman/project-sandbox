@@ -154,7 +154,7 @@ impl GridBounds {
         (self.top_right.x - self.bottom_left.x) as u32
     }
 
-    pub fn _height(&self) -> u32 {
+    pub fn height(&self) -> u32 {
         (self.top_right.y - self.bottom_left.y) as u32
     }
 
@@ -168,6 +168,17 @@ impl GridBounds {
 
     pub fn half_extent(&self) -> GridVec {
         self.extent() / 2
+    }
+
+    pub fn move_by(&mut self, by: GridVec) {
+        self.top_right = self.top_right + by;
+        self.bottom_left = self.bottom_left + by;
+    }
+
+    pub fn resize(&mut self, new_size: GridVec) {
+        let difference = new_size - self.extent();
+        self.top_right = self.top_right + (difference / 2) + GridVec::new(difference.x % 2, difference.y % 2);
+        self.bottom_left = self.bottom_left - (difference / 2);
     }
 
     pub fn contains(&self, point: GridVec) -> bool {

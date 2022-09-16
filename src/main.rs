@@ -4,7 +4,7 @@
 use beryllium::{
     event::Event,
     init::{InitFlags, Sdl},
-    window::WindowFlags,
+    window::{WindowFlags},
 };
 use fermium::keycode;
 use pixels::{Pixels, SurfaceTexture};
@@ -31,7 +31,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         zstr!("Sandbox"),
         None,
         (SCREEN_WIDTH as i32, SCREEN_HEIGHT as i32),
-        WindowFlags::ALLOW_HIGHDPI,
+        WindowFlags::ALLOW_HIGHDPI | WindowFlags::RESIZABLE,
     )?;
 
     let mut pixels = {
@@ -94,11 +94,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 Event::MouseMotion { win_x: mouse_x, win_y: mouse_y, ..} => {
-                    input.mouse_screen_pos = ScreenPos{x: mouse_x as u32, y: SCREEN_HEIGHT - mouse_y as u32 - 1};
+                    input.mouse_screen_pos = ScreenPos{x: mouse_x as u32, y: camera.screen_height() - mouse_y as u32 - 1};
                     input.mouse_world_pos = camera.screen_to_world(input.mouse_screen_pos);
                 }
                 // Resize the window
-                Event::WindowResized { width, height, .. } => pixels.resize_surface(width, height),
+                Event::WindowResized { width, height, .. } => {
+                    pixels.resize_surface(width, height);
+                    pixels.resize_buffer(width, height);
+                    camera.resize(width, height);
+                }
 
                 _ => (),
             }
@@ -157,8 +161,8 @@ fn draw(world: &World, cam: &Camera, frame: &mut [u8], debug_draw: bool) {
     let visible_part_buffer = world.render(&cam_bounds, debug_draw);
 
     for (i, pixel) in frame.chunks_exact_mut(4).enumerate() {
-        let x = (i % SCREEN_WIDTH as usize) as u32;
-        let y = SCREEN_HEIGHT - (i / SCREEN_WIDTH as usize) as u32 - 1;
+        let x = (i % cam.screen_width() as usize) as u32;
+        let y = cam.screen_height() - (i / cam.screen_width() as usize) as u32 - 1;
 
         let buffer_index = (x + y * cam_bounds.width()) as usize;
 

@@ -1,29 +1,39 @@
 use crate::gridmath::*;
 
 pub struct Camera {
-    center: GridVec,
-    screen_size: GridVec,
+    bounds: GridBounds
 }
 
 impl Camera {
     pub fn new(width: u32, height: u32) -> Self {
         Camera { 
-            center: GridVec::new(width as i32 / 2, height as i32 / 2),
-            screen_size: GridVec::new(width as i32, height as i32),
+            bounds: GridBounds::new_from_corner(GridVec::new(0, 0), GridVec::new(width as i32, height as i32)),
         }
     }
 
     pub fn move_by(&mut self, move_by: GridVec) {
-        self.center = self.center + move_by;
+        self.bounds.move_by(move_by);
     }
 
     pub fn bounds(&self) -> GridBounds {
-        GridBounds::new(self.center, self.screen_size / 2)
+        self.bounds
     }
 
     pub fn screen_to_world(&self, screen_pos: ScreenPos) -> GridVec {
-        let shifted = GridVec::new(screen_pos.x as i32, screen_pos.y as i32) - (self.screen_size / 2) + self.center;
+        let shifted = GridVec::new(screen_pos.x as i32, screen_pos.y as i32) + self.bounds.bottom_left();
         return shifted;
+    }
+
+    pub fn resize(&mut self, width: u32, height: u32) {
+        self.bounds.resize(GridVec::new(width as i32, height as i32));
+    }
+
+    pub fn screen_height(&self) -> u32{
+        self.bounds.height()
+    }
+
+    pub fn screen_width(&self) -> u32{
+        self.bounds.width()
     }
 }
 
