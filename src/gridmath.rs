@@ -154,7 +154,7 @@ impl GridBounds {
         (self.top_right.x - self.bottom_left.x) as u32
     }
 
-    pub fn _height(&self) -> u32 {
+    pub fn height(&self) -> u32 {
         (self.top_right.y - self.bottom_left.y) as u32
     }
 
@@ -168,6 +168,17 @@ impl GridBounds {
 
     pub fn half_extent(&self) -> GridVec {
         self.extent() / 2
+    }
+
+    pub fn move_by(&mut self, by: GridVec) {
+        self.top_right = self.top_right + by;
+        self.bottom_left = self.bottom_left + by;
+    }
+
+    pub fn resize(&mut self, new_size: GridVec) {
+        let difference = new_size - self.extent();
+        self.top_right = self.top_right + (difference / 2) + GridVec::new(difference.x % 2, difference.y % 2);
+        self.bottom_left = self.bottom_left - (difference / 2);
     }
 
     pub fn contains(&self, point: GridVec) -> bool {
@@ -396,10 +407,21 @@ mod tests {
     }
 
     #[test]
-    fn combination() {
-        let result = GridVec::new(4, 10).combined();
-        let expected = 0x0000000A00000004;
-        assert_eq!(result, expected);
+    fn bounds_resize_even() {
+        let mut a = GridBounds::new(GridVec::new(0, 0), GridVec::new(4, 2));
+        a.resize(GridVec::new(16, 8));
+        let expected = GridBounds::new(GridVec::new(0, 0), GridVec::new(8, 4));
+        assert_eq!(a.extent(), expected.extent()); // Confirm the new size is as expected
+        assert_eq!(a.center(), expected.center()); // Confirm the center point moved as expected
+    }
+
+    #[test]
+    fn bounds_resize_even_to_odd() {
+        let mut a = GridBounds::new(GridVec::new(0, 0), GridVec::new(8, 4));
+        a.resize(GridVec::new(15, 7));
+        let expected = GridBounds::new_from_corner(GridVec::new(-7, -3), GridVec::new(15,7));
+        assert_eq!(a.extent(), expected.extent()); // Confirm the new size is as expected
+        assert_eq!(a.center(), expected.center()); // Confirm the center point moved as expected
     }
 
     #[test]
