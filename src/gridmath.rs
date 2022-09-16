@@ -1,6 +1,8 @@
 use std::ops;
 use std::cmp;
 use std::fmt;
+use rand::Rng;
+use rand::rngs::ThreadRng;
 
 #[derive(PartialEq, Debug, Copy, Clone)]
 pub struct GridVec {
@@ -124,7 +126,7 @@ impl GridBounds {
         self.bottom_left.x
     }
 
-    pub fn top(&self) -> i32 {
+    pub fn _top(&self) -> i32 {
         self.top_right.y
     }
 
@@ -187,11 +189,12 @@ impl GridBounds {
         GridIterator { bounds: self.clone(), current: self.bottom_left() + GridVec::new(-1, 0) }
     }
 
-    pub fn slide_iter(&self, flip_x: bool) -> SlideGridIterator {
+    pub fn slide_iter(&self) -> SlideGridIterator {
         SlideGridIterator { 
             bounds: self.clone(), 
-            current: if flip_x { self.top_right() + GridVec::new(-1, 0) } else { self.top_left() },
-            flip_x,    
+            current: self.top_left() + GridVec::new(-1, -1),
+            rng: rand::thread_rng(),
+            flipped_x: false,    
         }
     }
 
@@ -266,7 +269,8 @@ pub struct GridIterator {
 pub struct SlideGridIterator {
     bounds: GridBounds,
     current: GridVec,
-    flip_x: bool,
+    rng: ThreadRng,
+    flipped_x: bool,
 }
 
 impl Iterator for GridIterator {
@@ -291,23 +295,23 @@ impl Iterator for SlideGridIterator {
     type Item = GridVec;
 
     fn next(&mut self) -> Option<GridVec> {
-        self.current.y -= 1;
+        self.current.x += if self.flipped_x { -1 } else { 1 };
+        if (self.flipped_x && self.current.x < self.bounds.left()) 
+        || (!self.flipped_x && self.current.x >= self.bounds.right()) {
+            self.flipped_x = self.bounds.width() != 0 && self.rng.gen_bool(0.5);
 
-        if self.current.y < self.bounds.bottom() {
-            self.current.y = self.bounds.top() - 1;
+            self.current.x = if self.flipped_x { self.bounds.top_right().x - 1 } else { self.bounds.bottom_left().x };
+            self.current.y -= 1;
 
-            self.current.x += if self.flip_x { -1 } else { 1 };
 
-            if (self.flip_x && self.current.x < self.bounds.left()) 
-                || (!self.flip_x && self.current.x >= self.bounds.right()) {
+            if self.current.y < self.bounds.bottom() {
                 return None
             }
         }
-        
+
         return Some(self.current);
     }
 }
-
 #[cfg(test)]
 mod tests {
     use crate::gridmath::*;
