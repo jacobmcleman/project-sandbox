@@ -407,10 +407,21 @@ mod tests {
     }
 
     #[test]
-    fn combination() {
-        let result = GridVec::new(4, 10).combined();
-        let expected = 0x0000000A00000004;
-        assert_eq!(result, expected);
+    fn bounds_resize_even() {
+        let mut a = GridBounds::new(GridVec::new(0, 0), GridVec::new(4, 2));
+        a.resize(GridVec::new(16, 8));
+        let expected = GridBounds::new(GridVec::new(0, 0), GridVec::new(8, 4));
+        assert_eq!(a.extent(), expected.extent()); // Confirm the new size is as expected
+        assert_eq!(a.center(), expected.center()); // Confirm the center point moved as expected
+    }
+
+    #[test]
+    fn bounds_resize_even_to_odd() {
+        let mut a = GridBounds::new(GridVec::new(0, 0), GridVec::new(8, 4));
+        a.resize(GridVec::new(15, 7));
+        let expected = GridBounds::new_from_corner(GridVec::new(-7, -3), GridVec::new(15,7));
+        assert_eq!(a.extent(), expected.extent()); // Confirm the new size is as expected
+        assert_eq!(a.center(), expected.center()); // Confirm the center point moved as expected
     }
 
     #[test]

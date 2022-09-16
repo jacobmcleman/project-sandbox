@@ -174,11 +174,6 @@ fn draw(world: &World, cam: &Camera, frame: &mut [u8], debug_draw: bool) {
             y / cam.scale_factor() * cam.world_bounds().width()
         ) as usize;
 
-        if buffer_index >= visible_part_buffer.len() {
-            println!("rendering particle {}, {} produced OOB", x, y);
-            continue;
-        }
-
         let rgba = match visible_part_buffer[buffer_index].particle_type {
                 sandworld::ParticleType::Sand => [0xdc, 0xcd, 0x79, 0xff],
                 sandworld::ParticleType::Water => [0x56, 0x9c, 0xd6, 0xff],

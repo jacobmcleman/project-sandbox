@@ -38,13 +38,16 @@ impl Camera {
 
     pub fn change_scale(&mut self, scale: u32) {
         self.scale_factor = scale;
-        self.world_bounds.resize(GridVec::new((self.screen_bounds.width() / self.scale_factor) as i32, (self.screen_bounds.height() / self.scale_factor) as i32));
+        self.resize(self.screen_bounds.width(), self.screen_bounds.height());
 
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
         self.screen_bounds.resize(GridVec::new(width as i32, height as i32));
-        self.world_bounds.resize(GridVec::new((width / self.scale_factor) as i32, (height / self.scale_factor) as i32));
+        // If its not a clean division, add one more to sample the fraction of a scaled pixel from
+        let scaled_width = (width / self.scale_factor) as i32 + if width % self.scale_factor != 0 {1} else {0};
+        let scaled_height = (height / self.scale_factor) as i32  + if height % self.scale_factor != 0 {1} else {0};
+        self.world_bounds.resize(GridVec::new(scaled_width, scaled_height));
     }
 
     pub fn screen_height(&self) -> u32{
