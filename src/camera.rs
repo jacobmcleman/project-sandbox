@@ -1,39 +1,58 @@
 use crate::gridmath::*;
 
 pub struct Camera {
-    bounds: GridBounds
+    screen_bounds: GridBounds,
+    world_bounds: GridBounds,
+    scale_factor: u32,
 }
 
 impl Camera {
-    pub fn new(width: u32, height: u32) -> Self {
+    pub fn new(width: u32, height: u32, scale: u32) -> Self {
         Camera { 
-            bounds: GridBounds::new_from_corner(GridVec::new(0, 0), GridVec::new(width as i32, height as i32)),
-        }
+            screen_bounds: GridBounds::new_from_corner(GridVec::new(0, 0), GridVec::new(width as i32, height as i32)),
+            world_bounds: GridBounds::new_from_corner(GridVec::new(0, 0), GridVec::new((width / scale) as i32, (height / scale) as i32)),
+            scale_factor: scale,
+        } 
     }
 
     pub fn move_by(&mut self, move_by: GridVec) {
-        self.bounds.move_by(move_by);
+        self.world_bounds.move_by(move_by);
     }
 
-    pub fn bounds(&self) -> GridBounds {
-        self.bounds
+    pub fn _screen_bounds(&self) -> GridBounds {
+        self.screen_bounds
+    }
+
+    pub fn scale_factor(&self) -> u32 {
+        self.scale_factor
+    }
+
+    pub fn world_bounds(&self) -> GridBounds {
+        self.world_bounds
     }
 
     pub fn screen_to_world(&self, screen_pos: ScreenPos) -> GridVec {
-        let shifted = GridVec::new(screen_pos.x as i32, screen_pos.y as i32) + self.bounds.bottom_left();
+        let shifted = (GridVec::new(screen_pos.x as i32, screen_pos.y as i32) / self.scale_factor as i32) + self.world_bounds.bottom_left();
         return shifted;
     }
 
+    pub fn change_scale(&mut self, scale: u32) {
+        self.scale_factor = scale;
+        self.world_bounds.resize(GridVec::new((self.screen_bounds.width() / self.scale_factor) as i32, (self.screen_bounds.height() / self.scale_factor) as i32));
+
+    }
+
     pub fn resize(&mut self, width: u32, height: u32) {
-        self.bounds.resize(GridVec::new(width as i32, height as i32));
+        self.screen_bounds.resize(GridVec::new(width as i32, height as i32));
+        self.world_bounds.resize(GridVec::new((width / self.scale_factor) as i32, (height / self.scale_factor) as i32));
     }
 
     pub fn screen_height(&self) -> u32{
-        self.bounds.height()
+        self.screen_bounds.height()
     }
 
     pub fn screen_width(&self) -> u32{
-        self.bounds.width()
+        self.screen_bounds.width()
     }
 }
 
