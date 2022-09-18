@@ -1,6 +1,8 @@
 use crate::gridmath::*;
-use rand::Rng;
-use std::{collections::HashMap};
+use rand::{Rng, RngCore};
+use rayon::prelude::*;
+use std::{collections::HashMap, sync::atomic::AtomicU64};
+use parking_lot::{Mutex, lock_api::RawMutex};
 
 const CHUNK_SIZE: u8 = 64;
 pub const WORLD_WIDTH: i32 = 1440;
@@ -23,6 +25,9 @@ struct Neighbors {
     bottom_center: Option<*mut Chunk>,
     bottom_right: Option<*mut Chunk>,
 }
+
+unsafe impl Send for Neighbors {}
+unsafe impl Sync for Neighbors {}
 
 struct NeighborIterator<'a> {
     neighbor_array: [&'a Option<*mut Chunk>; 8],
@@ -564,14 +569,15 @@ impl World {
     }
 
     pub fn render(&self, screen_bounds: &GridBounds, draw_debug: bool) -> Vec<Particle> {
-        let mut outbuffer: Vec<Particle> = Vec::new();
+        let mut outbuffer = Vec::new();
         let top_right = screen_bounds.top_right();
         let bottom_left = screen_bounds.bottom_left();
         let buffer_height = top_right.y - bottom_left.y;
         let buffer_width = top_right.x - bottom_left.x;
+
         outbuffer.resize(buffer_height as usize * buffer_width as usize, Particle::new(ParticleType::Boundary));
 
-        for (chunk_pos_combined, chunk) in self.chunks.iter() {
+        self.chunks.iter().for_each(|(chunk_pos_combined, chunk)| {
             let chunk_pos = GridVec::decombined(*chunk_pos_combined);
             let chunk_bottom_left = chunk_pos * CHUNK_SIZE as i32;
             let chunk_bounds = GridBounds::new_from_corner(chunk_bottom_left, GridVec::new(CHUNK_SIZE as i32, CHUNK_SIZE as i32));
@@ -582,37 +588,53 @@ impl World {
                     let buffer_local = overlap_pos - bottom_left;
                     let buffer_index = (buffer_local.x + (buffer_width * buffer_local.y)) as usize;
 
-                    outbuffer[buffer_index] = chunk.get_particle(chunk_local.x as u8, chunk_local.y as u8);
+                    let mut write_val = chunk.get_particle(chunk_local.x as u8, chunk_local.y as u8);
 
                     if draw_debug {
                         if chunk_local.x == 0 || chunk_local.y == 0 || chunk_local.x as u8 == CHUNK_SIZE - 1 || chunk_local.y as u8 == CHUNK_SIZE - 1 {
-                            outbuffer[buffer_index] = Particle::new(ParticleType::Boundary);
+                            write_val = Particle::new(ParticleType::Boundary);
                         }
                         if let Some(updated_bounds) = chunk.updated_last_frame {
                             if updated_bounds.is_boundary(chunk_local){
-                                outbuffer[buffer_index] = Particle::new(ParticleType::Dirty);
+                                write_val = Particle::new(ParticleType::Dirty);
                             }
                         }
                     }
+
+                    outbuffer[buffer_index] = write_val;
                 }
             }
-        }
+        });
 
         return outbuffer;
     }
 
     pub fn update(&mut self) -> u64 {
-        let mut updated_count = 0;
-        for (_pos, chunk) in self.chunks.iter_mut() {
-            chunk.commit_updates();
-        }
+        let updated_count = AtomicU64::new(0);
 
-        for (_pos, chunk) in self.chunks.iter_mut() {
-            if chunk.update_this_frame.is_some() || chunk.updated_last_frame.is_some() { 
-                updated_count += 1;
-                chunk.update(); 
-            }
+        self.chunks.par_iter_mut().for_each(|(_pos, chunk)| {
+            chunk.commit_updates();
+        });
+
+        let shift = (rand::thread_rng().next_u32() % 4) as i32;
+
+        for i in 0..4{
+            
+            let x_mod = (i + shift) % 2;
+            let y_mod = ((i + shift) / 2) % 2; 
+
+            self.chunks.par_iter_mut().for_each(|(pos, chunk)| {
+                let chunk_pos = GridVec::decombined(*pos);
+
+                if chunk_pos.x % 2 == x_mod && chunk_pos.y % 2 == y_mod {
+                    if chunk.update_this_frame.is_some() || chunk.updated_last_frame.is_some() { 
+                        updated_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        chunk.update(); 
+                    }
+                }
+            });
         }
-        updated_count
+        
+        updated_count.load(std::sync::atomic::Ordering::Relaxed)
     }
 }
