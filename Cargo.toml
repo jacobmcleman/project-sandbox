@@ -13,3 +13,5 @@ fermium = { version = "20016.1.1", default-features = false }
 zstring = "0.1"
 log = "0.4"
 rand = "0.8.4"
+rayon = "1.5"
+parking_lot = "0.12.1"
