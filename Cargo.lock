@@ -56,9 +56,9 @@ checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 
 [[package]]
 name = "beryllium"
-version = "0.7.6"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d92c41048725052efb9d24be37bc5291325000d455b0d8f7d9a28b644a77f98"
+checksum = "8a7ed33c053d89d25ffd71f8623f6d1de3a0c2ad94f0e44d8125e0e53813bf0d"
 dependencies = [
  "bytemuck",
  "fermium",
@@ -273,9 +273,9 @@ dependencies = [
 
 [[package]]
 name = "fermium"
-version = "20016.1.1"
+version = "20022.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e8c513d516bc2c9d4e795623e3ad855a63a9f3917b36bccc2916f0cc8dbd849"
+checksum = "bb3c99e269aa9b2836ab05cbb2e482d46699fe6d3fa5725ed9af0e2206423dd7"
 dependencies = [
  "chlorine",
  "cmake",

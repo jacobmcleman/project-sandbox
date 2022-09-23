@@ -7,9 +7,9 @@ edition = "2021"
 
 [dependencies]
 pixels = "0.9.0"
-beryllium = { version = "0.7", features = ["use-raw-window-handle"] }
+beryllium = { version = "0.8.0", features = ["use-raw-window-handle"] }
 env_logger = "0.9"
-fermium = { version = "20016.1.1", default-features = false }
+fermium = { version = "20022.0.0", default-features = false }
 zstring = "0.1"
 log = "0.4"
 rand = "0.8.4"
