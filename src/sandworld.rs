@@ -1,4 +1,4 @@
-use crate::gridmath::*;
+use gridmath::*;
 use rand::{Rng, RngCore};
 use rayon::prelude::*;
 use std::{collections::HashMap, sync::atomic::AtomicU64};

@@ -12,10 +12,9 @@ use zstring::zstr;
 
 mod sandworld;
 mod input;
-mod gridmath;
 mod camera;
 
-use crate::gridmath::*;
+use gridmath::*;
 use crate::sandworld::*;
 use crate::input::*;
 use crate::camera::*;

@@ -369,6 +369,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "gridmath"
+version = "0.1.0"
+dependencies = [
+ "rand",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -807,6 +814,7 @@ dependencies = [
  "beryllium",
  "env_logger",
  "fermium",
+ "gridmath",
  "log",
  "parking_lot 0.12.1",
  "pixels",
