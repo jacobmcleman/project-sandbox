@@ -10,12 +10,11 @@ use fermium::keycode;
 use pixels::{Pixels, SurfaceTexture};
 use zstring::zstr;
 
-mod sandworld;
 mod input;
 mod camera;
 
 use gridmath::*;
-use crate::sandworld::*;
+use sandworld::*;
 use crate::input::*;
 use crate::camera::*;
 use std::time::{Instant};
