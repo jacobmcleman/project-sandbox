@@ -1,4 +1,4 @@
-use crate::gridmath::*;
+use gridmath::*;
 
 pub struct InputState {
     pub mouse_screen_pos: ScreenPos,

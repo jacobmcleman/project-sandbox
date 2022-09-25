@@ -1,4 +1,4 @@
-use crate::gridmath::*;
+use gridmath::*;
 
 pub struct Camera {
     screen_bounds: GridBounds,
