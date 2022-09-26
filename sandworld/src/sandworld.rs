@@ -10,16 +10,19 @@ pub const WORLD_WIDTH: i32 = 1440;
 pub const WORLD_HEIGHT: i32 = 960;
 
 pub struct World {
-    // TODO keep chunks at consistent addresses once allocated
-    // option - box all the chunks, store the boxes?
-    // option - static self managed array with map of coord to index
     chunks: HashMap<u64, Box<Chunk>>,
+    // Chunks that have been added to the world since last polled
+    added_chunks: Vec<GridVec>,
+    // Chunks that have been updated since last polled
+    updated_chunks: Vec<GridVec>,
 }
 
 impl World {
     pub fn new() -> Self {
         let mut created: World = World {
             chunks: HashMap::new(),
+            added_chunks: Vec::new(),
+            updated_chunks: Vec::new(),
         };
 
         let world_width_chunks = (WORLD_WIDTH / CHUNK_SIZE as i32) + 1;
@@ -40,6 +43,10 @@ impl World {
         return self.chunks.contains_key(&chunk_pos.combined());
     }
 
+    pub fn get_chunk(&self, chunkpos: &GridVec) -> Option<&Box<Chunk>> {
+        self.chunks.get(&chunkpos.combined())
+    }
+
     fn add_chunk(&mut self, chunkpos: GridVec) {
         let mut added = Box::new(Chunk::new(chunkpos));
 
@@ -48,6 +55,19 @@ impl World {
         }
 
         self.chunks.insert(chunkpos.combined(), added);
+        self.added_chunks.push(chunkpos);
+    }
+
+    pub fn get_added_chunks(&mut self) -> Vec<GridVec> {
+        let set = self.added_chunks.clone();
+        self.added_chunks.clear();
+        return set;
+    }
+
+    pub fn get_updated_chunks(&mut self) -> Vec<GridVec> {
+        let set = self.updated_chunks.clone();
+        self.updated_chunks.clear();
+        return set;
     }
 
     fn get_chunkpos(pos: GridVec) -> GridVec {
@@ -156,6 +176,12 @@ impl World {
 
     pub fn update(&mut self) -> u64 {
         let updated_count = AtomicU64::new(0);
+
+        self.chunks.iter().for_each(|(pos, chunk)| {
+            if chunk.dirty.is_some() {
+                self.updated_chunks.push(GridVec::decombined(*pos));
+            }
+        });
 
         self.chunks.par_iter_mut().for_each(|(_pos, chunk)| {
             chunk.commit_updates();
