@@ -22,6 +22,8 @@ jobs:
         platform: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
+    - name: Set current date as env variable
+      run: echo "DATE=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
     - uses: actions/checkout@v3
     - name: Rust Cache
       uses: Swatinem/rust-cache@v1.3.0
@@ -34,4 +36,5 @@ jobs:
         file: target/release/${{ matrix.artifact_name }}
         asset_name: ${{ matrix.platform }}-${{ matrix.artifact_name }}
         overwrite: true
+        release_name: dev-build_${DATE}
         
