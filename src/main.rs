@@ -1,7 +1,7 @@
 #![deny(clippy::all)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use bevy::{prelude::*, render::{render_resource::{Extent3d, TextureFormat}, camera::{RenderTarget}}, window::PresentMode };
+use bevy::{prelude::*, render::{render_resource::{Extent3d, TextureFormat}, camera::{RenderTarget}, texture::ImageSettings}, window::PresentMode };
 use gridmath::GridVec;
 
 fn main(){
@@ -17,6 +17,13 @@ fn main(){
             material: sandworld::ParticleType::Sand,
             radius: 10,
         })
+        .insert_resource(DrawOptions {
+            update_bounds: false,
+            chunk_bounds: false,
+            force_redraw_all: false,
+        })
+        .insert_resource(ClearColor(Color::rgb(0.04, 0.04, 0.04)))
+        .insert_resource(ImageSettings::default_nearest()) // Pixel art crispiness
         .add_plugins(DefaultPlugins)
         .insert_resource(sandworld::World::new())
         .add_startup_system(setup)
@@ -26,6 +33,7 @@ fn main(){
         .add_system(world_interact)
         .add_system(camera_movement)
         .add_system(button_system)
+        .add_system(draw_mode_controls)
         .run();
 }
 
@@ -44,6 +52,12 @@ struct ToolSelector {
 struct BrushOptions {
     material: sandworld::ParticleType,
     radius: i32,
+}
+
+struct DrawOptions {
+    update_bounds: bool,
+    chunk_bounds: bool,
+    force_redraw_all: bool,
 }
 
 const NORMAL_BUTTON: Color = Color::rgb(0.15, 0.15, 0.15);
@@ -215,37 +229,12 @@ fn button_system(
     }
 }
 
-fn get_color_for_type(particle_type: sandworld::ParticleType) -> [u8; 4] {
-    match particle_type {
-        sandworld::ParticleType::Sand => [0xdc, 0xcd, 0x79, 0xff],
-        sandworld::ParticleType::Water => [0x56, 0x9c, 0xd6, 0xff],
-        sandworld::ParticleType::Stone => [0xd4, 0xd4, 0xd4, 0xff],
-        sandworld::ParticleType::Air => [0x1e, 0x1e, 0x1e, 0xff],
-        sandworld::ParticleType::Source => [0xf7, 0xdf, 0x00, 0xff],
-        sandworld::ParticleType::Dirty => [0xFF, 0x00, 0xFF, 0xff],
-        _ => [0x00, 0x00, 0x00, 0xff],
-    }
-}
-
-fn render_chunk_texture(chunk: &sandworld::Chunk) -> Image {
+fn render_chunk_texture(chunk: &sandworld::Chunk, draw_options: &DrawOptions) -> Image {
     let side_size = sandworld::CHUNK_SIZE as u32;
-    let mut bytes = Vec::with_capacity(side_size as usize * side_size as usize * 4);
-
-    for y in 0..sandworld::CHUNK_SIZE {
-        for x in 0..sandworld::CHUNK_SIZE {
-            let part = chunk.get_particle(x, sandworld::CHUNK_SIZE - y - 1).particle_type;
-            let color = get_color_for_type(part);
-            bytes.push(color[0]);
-            bytes.push(color[1]);
-            bytes.push(color[2]);
-            bytes.push(color[3]);
-        }
-    }
-
     Image::new(
         Extent3d { width: side_size, height: side_size, ..default() },
         bevy::render::render_resource::TextureDimension::D2,
-        bytes,
+        chunk.render_to_color_array(draw_options.update_bounds, draw_options.chunk_bounds),
         TextureFormat::Rgba8Unorm
     )
 }
@@ -254,12 +243,13 @@ fn create_spawned_chunks(
     mut world: ResMut<sandworld::World>,
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
+    draw_options: Res<DrawOptions>,
 ) {
     let added_chunks = world.get_added_chunks();
     for chunkpos in added_chunks {
         if let Some(chunk) = world.get_chunk(&chunkpos) {
             //println!("New chunk at {} - created an entity to render it", chunkpos);
-            let image = render_chunk_texture(chunk.as_ref());
+            let image = render_chunk_texture(chunk.as_ref(), &draw_options);
             let image_handle = images.add(image);
 
             let chunk_size = sandworld::CHUNK_SIZE as f32;
@@ -280,18 +270,19 @@ fn create_spawned_chunks(
 fn update_chunk_textures(
     mut world: ResMut<sandworld::World>,
     mut images: ResMut<Assets<Image>>,
-    chunk_query: Query<&Chunk>
+    chunk_query: Query<&Chunk>,
+    draw_options: Res<DrawOptions>,
 ) {
     let updated_chunks = world.get_updated_chunks();
 
-    if updated_chunks.is_empty() {
+    if !draw_options.force_redraw_all && updated_chunks.is_empty() {
         return;
     }
 
     for chunk_comp in chunk_query.iter() {
-        if updated_chunks.contains(&chunk_comp.chunk_pos) {
+        if draw_options.force_redraw_all || updated_chunks.contains(&chunk_comp.chunk_pos) {
             if let Some(chunk) = world.get_chunk(&chunk_comp.chunk_pos) {
-                images.set_untracked(chunk_comp.chunk_texture_handle.clone(), render_chunk_texture(chunk.as_ref()));
+                images.set_untracked(chunk_comp.chunk_texture_handle.clone(), render_chunk_texture(chunk.as_ref(), &draw_options));
             }
         }
     }
@@ -299,6 +290,22 @@ fn update_chunk_textures(
 
 fn sand_update(mut world: ResMut<sandworld::World>) {
     world.update();    
+}
+
+fn draw_mode_controls(
+    mut draw_options: ResMut<DrawOptions>,
+    keys: Res<Input<KeyCode>>,
+) {
+    draw_options.force_redraw_all = false;
+
+    if keys.just_pressed(KeyCode::F2) {
+        draw_options.chunk_bounds = !draw_options.chunk_bounds;
+        draw_options.force_redraw_all = true;
+    }
+    if keys.just_pressed(KeyCode::F3) {
+        draw_options.update_bounds = !draw_options.update_bounds;
+        draw_options.force_redraw_all = true;
+    }
 }
 
 fn camera_movement(

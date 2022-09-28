@@ -178,7 +178,7 @@ impl World {
         let updated_count = AtomicU64::new(0);
 
         self.chunks.iter().for_each(|(pos, chunk)| {
-            if chunk.dirty.is_some() {
+            if chunk.dirty.is_some() || chunk.updated_last_frame.is_some()  {
                 self.updated_chunks.push(GridVec::decombined(*pos));
             }
         });

@@ -122,6 +122,38 @@ impl Chunk {
         return self.particles[Chunk::get_index_in_chunk(x, y)];
     }
 
+    pub fn render_to_color_array(&self, draw_dirty: bool, draw_borders: bool) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(CHUNK_SIZE as usize * CHUNK_SIZE as usize * 4);
+
+        for y in 0..CHUNK_SIZE {
+            for x in 0..CHUNK_SIZE {
+                let part = self.get_particle(x, CHUNK_SIZE - y - 1).particle_type;
+                let mut color = get_color_for_type(part);
+
+                if draw_borders {
+                    if x == 0 || y == 0 || x == CHUNK_SIZE - 1 || y == CHUNK_SIZE - 1 {
+                        color = get_color_for_type(ParticleType::Boundary);
+                    }
+                }
+
+                if draw_dirty {
+                    if let Some(updated_bounds) = self.update_this_frame {
+                        if updated_bounds.is_boundary(GridVec::new(x as i32, (CHUNK_SIZE - y - 1) as i32)) {
+                            color = get_color_for_type(ParticleType::Dirty);
+                        }
+                    }
+                }
+
+                bytes.push(color[0]);
+                bytes.push(color[1]);
+                bytes.push(color[2]);
+                bytes.push(color[3]);
+            }
+        }
+
+        bytes
+    }
+
     pub fn get_particle_mut(&mut self, x: u8, y: u8) -> &mut Particle {
         #[cfg(debug_assertions)] {
             if x >= CHUNK_SIZE {
