@@ -25,8 +25,6 @@ jobs:
     - name: Setup linux dependencies
       if: runner.os == 'Linux'
       run: sudo apt-get install clang pkg-config libx11-dev libasound2-dev libudev-dev
-    - name: Set current date as env variable
-      run: echo "DATE=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
     - uses: actions/checkout@v3
     - name: Rust Cache
       uses: Swatinem/rust-cache@v1.3.0
@@ -39,6 +37,12 @@ jobs:
       with:
         files: target/release/
         dest: project-sandbox_${{ matrix.platform_name }}.zip 
+    - name: Get Time
+      id: time
+      uses: nanzm/get-time-action@v1.1
+      with:
+        timeZone: 8
+        format: 'YYYY-MM-DD'
     - name: Upload release
       uses: svenstaro/upload-release-action@v2
       with:
@@ -46,5 +50,5 @@ jobs:
         file: project-sandbox_${{ matrix.platform_name }}.zip
         asset_name: project-sandbox_${{ matrix.platform_name }}.zip
         overwrite: true
-        release_name: dev-build_${{ DATE }}
+        release_name: dev-build_${{ steps.time.outputs.time }}
         
