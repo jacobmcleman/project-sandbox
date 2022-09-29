@@ -35,7 +35,7 @@ jobs:
     - name: Move assets into output directory
       run: mv assets project-sandbox_${{ matrix.platform_name }}/assets
     - name: Move executable into output directory
-      run: mv target/release/${{ artifact_name }} project-sandbox_${{ matrix.platform_name }}/${{ artifact_name }}
+      run: mv target/release/${{ matrix.artifact_name }} project-sandbox_${{ matrix.platform_name }}/${{ matrix.artifact_name }}
     - name: Zip for release
       uses: vimtor/action-zip@v1
       with:
