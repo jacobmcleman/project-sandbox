@@ -32,7 +32,7 @@ jobs:
     - name: Build
       run: cargo build --release
     - name: Move assets into release folder
-      run: mv ./Assets/* ./target/release/Assets/*
+      run: mv ./assets ./target/release/assets
     - name: Zip for release
       uses: montudor/action-zip@v1
       with:
