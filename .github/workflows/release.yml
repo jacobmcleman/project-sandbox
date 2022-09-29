@@ -1,7 +1,8 @@
 # .github/workflows/build.yml
 name: Build Release
 
-on:
+on: 
+  workflow_dispatch:
   push:
     branches: [main]
 
