@@ -46,5 +46,5 @@ jobs:
         file: project-sandbox_${{ matrix.platform_name }}.zip
         asset_name: project-sandbox_${{ matrix.platform_name }}.zip
         overwrite: true
-        release_name: dev-build_${DATE}
+        release_name: dev-build_${{ DATE }}
         
