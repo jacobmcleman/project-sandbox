@@ -22,6 +22,9 @@ jobs:
         platform: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
+    - name: Setup linux dependencies
+      if: runner.os == 'Linux'
+      run: sudo apt-get install clang pkg-config libx11-dev libasound2-dev libudev-dev
     - name: Set current date as env variable
       run: echo "DATE=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
     - uses: actions/checkout@v3
