@@ -30,12 +30,10 @@ jobs:
       uses: Swatinem/rust-cache@v1.3.0
     - name: Build
       run: cargo build --release
-    - name: Move assets into release folder
-      run: mv ./assets ./target/release/assets
     - name: Zip for release
       uses: vimtor/action-zip@v1
       with:
-        files: target/release/
+        files: assets target/release/sandgame.exe
         dest: project-sandbox_${{ matrix.platform_name }}.zip 
     - name: Get Time
       id: time
