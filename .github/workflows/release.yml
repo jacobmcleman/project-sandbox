@@ -19,7 +19,6 @@ jobs:
           - os: windows-latest
             artifact_name: sandgame.exe
             platform_name: windows_x64
-        platform: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
     - name: Setup linux dependencies
@@ -32,12 +31,18 @@ jobs:
       uses: Swatinem/rust-cache@v1.3.0
     - name: Build
       run: cargo build --release
-    - name: Upload binaries to release
+    - name: Move assets into release folder
+      run: mv ./Assets/* ./target/release/Assets/*
+    - name: Zip for release
+      uses: montudor/action-zip@v1
+      with:
+        args: zip --qq -r project-sandbox_${{ matrix.platform_name }}.zip target/release
+    - name: Upload release
       uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
-        file: target/release/${{ matrix.artifact_name }}
-        asset_name: ${{ matrix.platform }}-${{ matrix.artifact_name }}
+        file: project-sandbox_${{ matrix.platform_name }}.zip
+        asset_name: project-sandbox_${{ matrix.platform_name }}.zip
         overwrite: true
         release_name: dev-build_${DATE}
         
