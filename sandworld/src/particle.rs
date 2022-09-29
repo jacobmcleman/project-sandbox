@@ -41,3 +41,16 @@ impl Particle {
 impl Default for Particle {
     fn default() -> Self { Particle{particle_type: ParticleType::Air, updated_this_frame: false} }
 }
+
+
+pub fn get_color_for_type(particle_type: ParticleType) -> [u8; 4] {
+    match particle_type {
+        ParticleType::Sand => [0xdc, 0xcd, 0x79, 0xff],
+        ParticleType::Water => [0x56, 0x9c, 0xd6, 0xff],
+        ParticleType::Stone => [0xd4, 0xd4, 0xd4, 0xff],
+        ParticleType::Air => [0x1e, 0x1e, 0x1e, 0xff],
+        ParticleType::Source => [0xf7, 0xdf, 0x00, 0xff],
+        ParticleType::Dirty => [0xFF, 0x00, 0xFF, 0xff],
+        _ => [0x00, 0x00, 0x00, 0xff],
+    }
+}
