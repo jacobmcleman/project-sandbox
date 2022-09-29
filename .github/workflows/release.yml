@@ -48,7 +48,7 @@ jobs:
       id: time
       uses: nanzm/get-time-action@v1.1
       with:
-        timeZone: 8
+        timeZone: 0
         format: 'YYYY-MM-DD'
     - name: Upload release
       uses: svenstaro/upload-release-action@v2
