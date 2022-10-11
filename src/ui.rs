@@ -4,6 +4,10 @@ use sandworld::ParticleType;
 
 pub struct UiPlugin;
 
+pub struct PointerCaptureState {
+    pub click_consumed: bool,
+}
+
 const NORMAL_BUTTON: Color = Color::rgb(0.15, 0.15, 0.15);
 const HOVERED_BUTTON: Color = Color::rgb(0.25, 0.25, 0.25);
 const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
@@ -11,7 +15,10 @@ const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
         app.add_startup_system(setup_buttons)
-        .add_system(button_system);
+            .insert_resource(PointerCaptureState { click_consumed: false })
+            .add_system(button_system.label(crate::UpdateStages::UI)
+                .before(crate::UpdateStages::Input))
+        ;
     }
 }
 
@@ -68,18 +75,22 @@ fn setup_buttons(mut commands: Commands, asset_server: Res<AssetServer>) {
 }
 
 fn button_system(
+    mut capture_state: ResMut<PointerCaptureState>,
     mut interaction_query: Query<
         (&Interaction, &mut UiColor, &ToolSelector),
         With<Button>,
     >,
     mut brush_options: ResMut<BrushOptions>,
 ) {
+    capture_state.click_consumed = false;
+
     for (interaction, mut color, selector) in &mut interaction_query {
         match *interaction {
             Interaction::Clicked => {
                 *color = PRESSED_BUTTON.into();
                 brush_options.material = selector.material;
                 brush_options.radius = selector.radius;
+                capture_state.click_consumed = true;
             }
             Interaction::Hovered => {
                 *color = HOVERED_BUTTON.into();

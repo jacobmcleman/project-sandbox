@@ -15,11 +15,11 @@ impl Plugin for SandSimulationPlugin {
             material: sandworld::ParticleType::Sand,
             radius: 10,
         })
-        .add_system(create_spawned_chunks)
-        .add_system(sand_update)
-        .add_system(update_chunk_textures)
-        .add_system(world_interact)
-        .add_system(draw_mode_controls);
+        .add_system(create_spawned_chunks.label(crate::UpdateStages::WorldUpdate))
+        .add_system(sand_update.label(crate::UpdateStages::WorldUpdate))
+        .add_system(update_chunk_textures.label(crate::UpdateStages::WorldDraw))
+        .add_system(world_interact.label(crate::UpdateStages::Input))
+        .add_system(draw_mode_controls.label(crate::UpdateStages::Input));
     }
 }
 
@@ -122,12 +122,13 @@ fn sand_update(mut world: ResMut<sandworld::World>) {
 
 fn world_interact(
     wnds: Res<Windows>,
+    capture_state: Res<crate::ui::PointerCaptureState>,
     q_cam: Query<(&Camera, &GlobalTransform)>,
     mut sand: ResMut<sandworld::World>,
     buttons: Res<Input<MouseButton>>,
     brush_options: Res<BrushOptions>
 ) {
-    if buttons.any_pressed([MouseButton::Left, MouseButton::Right]) {
+    if !capture_state.click_consumed && buttons.any_pressed([MouseButton::Left, MouseButton::Right]) {
         // get the camera info and transform
         // assuming there is exactly one main camera entity, so query::single() is OK
         let (camera, camera_transform) = q_cam.single();
