@@ -1,4 +1,3 @@
-
 pub const CHUNK_SIZE: u8 = 64;
 use gridmath::*;
 use rand::{Rng};

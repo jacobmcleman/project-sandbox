@@ -7,6 +7,15 @@ mod sandsim;
 mod camera;
 mod ui;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(SystemLabel)]
+enum UpdateStages {
+    UI,
+    Input,
+    WorldUpdate,
+    WorldDraw,
+}
+
 fn main(){
     App::new()
         .add_plugins(DefaultPlugins)
