@@ -22,6 +22,10 @@ impl GridVec {
         (self.x - other.x).abs() + (self.y - other.y).abs()
     }
 
+    pub fn manhattan_length(&self) -> i32 {
+        self.x.abs() + self.y.abs()
+    }
+
     pub fn is_adjacent(&self, other: GridVec) -> bool {
         match self.manhattan_distance(other) {
             1 => true,

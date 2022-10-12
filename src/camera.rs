@@ -28,8 +28,8 @@ fn camera_movement(
     let (_camera, mut ortho, mut camera_transform) = query.single_mut();
     
     let mut log_scale = ortho.scale.ln();
-    let move_speed = 64.;
-    let zoom_speed = 1.;
+    let move_speed = 128.;
+    let zoom_speed = 0.5;
 
     if keys.pressed(KeyCode::D) || keys.pressed(KeyCode::Right) {
         camera_transform.translation = (camera_transform.right() * move_speed * time.delta_seconds()) + camera_transform.translation;
@@ -44,10 +44,10 @@ fn camera_movement(
         camera_transform.translation = (camera_transform.down() * move_speed * time.delta_seconds()) + camera_transform.translation;
     }
 
-    if keys.pressed(KeyCode::PageUp) {
+    if keys.any_pressed([KeyCode::PageUp, KeyCode::RBracket]) {
         log_scale -= zoom_speed * time.delta_seconds();
     }
-    if keys.pressed(KeyCode::PageDown) {
+    if keys.any_pressed([KeyCode::PageDown, KeyCode::LBracket ]) {
         log_scale += zoom_speed * time.delta_seconds();
     }
 

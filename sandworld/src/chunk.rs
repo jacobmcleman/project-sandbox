@@ -1,6 +1,6 @@
 pub const CHUNK_SIZE: u8 = 64;
 use gridmath::*;
-use rand::{Rng};
+use rand::{Rng, rngs::ThreadRng};
 
 use crate::particle::*;
 
@@ -351,6 +351,35 @@ impl Chunk {
         }
     }
 
+    fn try_erode(&mut self, rng: &mut ThreadRng, x: i16, y: i16, vel: &GridVec) {
+        if self.contains(x, y) {
+            let part = self.get_particle(x as u8, y as u8);
+            if !part.updated_this_frame {
+                match part.particle_type {
+                    ParticleType::Sand => {
+                        let next_x = x as i16 + vel.x as i16;
+                        let next_y = y as i16 + vel.y as i16;
+                        if self.contains(next_x, next_y) && rng.gen_bool(0.2) {
+                            self.set_particle(x as u8, y as u8, self.get_particle(next_x as u8, next_y as u8));
+                            self.set_particle(next_x as u8, next_y as u8, part);
+                        }
+                    }
+                    ParticleType::Stone => {
+                        if rng.gen_bool(0.01) {
+                            self.set_particle(x as u8, y as u8, Particle { particle_type: ParticleType::Sand, updated_this_frame: true })
+                        }
+                    }
+                    _ => ()
+                }
+            }
+        }
+        else if let Some(neighbor) = self.get_neighbor( Chunk::get_oob_direction(x, y) ) {
+            unsafe {
+                (*neighbor).try_erode(rng, x % CHUNK_SIZE as i16, y % CHUNK_SIZE as i16, vel);
+            }
+        }
+    }
+
     pub(crate) fn update(&mut self) {      
         let mut rng = rand::thread_rng();
 
@@ -384,6 +413,14 @@ impl Chunk {
                             let chosen_vec = possible_moves[rng.gen_range(0..possible_moves.len())];
                             let chosen_x = x as i16 + chosen_vec.x as i16;
                             let chosen_y = y as i16 + chosen_vec.y as i16;
+
+                            if cur_part.particle_type == ParticleType::Water && chosen_vec.manhattan_length() > 1 {
+                                self.try_erode(&mut rng, x as i16, y as i16 - 1, &chosen_vec);
+                                self.try_erode(&mut rng, x as i16, y as i16 + 1, &chosen_vec);
+                                self.try_erode(&mut rng, x as i16 - 1, y as i16, &chosen_vec);
+                                self.try_erode(&mut rng, x as i16 + 1, y as i16, &chosen_vec);
+                            }
+
                             if self.contains(chosen_x, chosen_y) {
                                 self.set_particle(x, y, self.get_particle(chosen_x as u8, chosen_y as u8));
                                 self.set_particle(chosen_x as u8, chosen_y as u8, cur_part.clone());
