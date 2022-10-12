@@ -373,6 +373,11 @@ impl Chunk {
                 }
             }
         }
+        else if let Some(neighbor) = self.get_neighbor( Chunk::get_oob_direction(x, y) ) {
+            unsafe {
+                (*neighbor).try_erode(rng, x % CHUNK_SIZE as i16, y % CHUNK_SIZE as i16, vel);
+            }
+        }
     }
 
     pub(crate) fn update(&mut self) {      
