@@ -76,7 +76,7 @@ fn create_spawned_chunks(
     let added_chunks = world.get_added_chunks();
     for chunkpos in added_chunks {
         if let Some(chunk) = world.get_chunk(&chunkpos) {
-            println!("New chunk at {} - created an entity to render it", chunkpos);
+            //println!("New chunk at {} - created an entity to render it", chunkpos);
             let image = render_chunk_texture(chunk.as_ref(), &draw_options);
             let image_handle = images.add(image);
 

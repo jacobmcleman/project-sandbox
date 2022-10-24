@@ -23,15 +23,13 @@ impl Region {
             added_chunks: vec![],
             updated_chunks: vec![],
         };
-        println!("Created new region at {}, creating chunks", position);
-
+        
         for y in 0..REGION_SIZE as i32 {
             for x in 0..REGION_SIZE as i32 {
                 reg.add_chunk(GridVec::new(x, y) + (position * REGION_SIZE as i32));
             }
         }
 
-        println!("Finished creating chunks for region {}", position);
         reg
     }
 

@@ -24,6 +24,14 @@ impl World {
         created.regions.push(Region::new(GridVec::new(1, 0)));
         created.regions.push(Region::new(GridVec::new(-1, 0)));
 
+        created.regions.push(Region::new(GridVec::new(0, -1)));
+        created.regions.push(Region::new(GridVec::new(1, -1)));
+        created.regions.push(Region::new(GridVec::new(-1, -1)));
+
+        created.regions.push(Region::new(GridVec::new(0, 1)));
+        created.regions.push(Region::new(GridVec::new(1, 1)));
+        created.regions.push(Region::new(GridVec::new(-1, 1)));
+
         return created;
     }
 
