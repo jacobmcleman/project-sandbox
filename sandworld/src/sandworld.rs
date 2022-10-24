@@ -21,6 +21,8 @@ impl World {
         };
 
         created.regions.push(Region::new(GridVec::new(0, 0)));
+        created.regions.push(Region::new(GridVec::new(1, 0)));
+        created.regions.push(Region::new(GridVec::new(-1, 0)));
 
         return created;
     }
@@ -36,7 +38,7 @@ impl World {
 
     pub(crate) fn get_chunk_mut(&mut self, chunkpos: &GridVec) -> Option<&mut Box<Chunk>> {
         for reg in self.regions.iter_mut() {
-            if reg.contains_point(chunkpos) {
+            if reg.contains_chunk(chunkpos) {
                 return reg.get_chunk_mut(chunkpos);
             }
         }
@@ -45,7 +47,7 @@ impl World {
 
     pub fn get_chunk(&self, chunkpos: &GridVec) -> Option<&Box<Chunk>> {
         for reg in self.regions.iter() {
-            if reg.contains_point(chunkpos) {
+            if reg.contains_chunk(chunkpos) {
                 return reg.get_chunk(chunkpos);
             }
         }

@@ -99,6 +99,8 @@ impl Chunk {
             updated_last_frame: None,
         };
 
+        println!("Created new chunk at {}", position);
+
         return created;
     }
     
