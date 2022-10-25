@@ -23,7 +23,7 @@ impl Region {
             added_chunks: vec![],
             updated_chunks: vec![],
         };
-        
+
         for y in 0..REGION_SIZE as i32 {
             for x in 0..REGION_SIZE as i32 {
                 reg.add_chunk(GridVec::new(x, y) + (position * REGION_SIZE as i32));
@@ -137,7 +137,7 @@ impl Region {
         self.chunks.par_iter_mut().for_each(|chunk| {
             let chunk_pos = chunk.position;
 
-            if chunk_pos.x % 2 == x_mod && chunk_pos.y % 2 == y_mod {
+            if (chunk_pos.x % 2).abs() == x_mod && (chunk_pos.y % 2).abs() == y_mod {
                 if chunk.update_this_frame.is_some() || chunk.updated_last_frame.is_some() { 
                     updated_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     chunk.update(); 
