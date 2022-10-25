@@ -20,19 +20,29 @@ impl World {
             regions: Vec::new()
         };
 
-        created.regions.push(Region::new(GridVec::new(0, 0)));
-        created.regions.push(Region::new(GridVec::new(1, 0)));
-        created.regions.push(Region::new(GridVec::new(-1, 0)));
+        created.add_region(GridVec::new(0, 0));
+        created.add_region(GridVec::new(1, 0));
+        created.add_region(GridVec::new(-1, 0));
 
-        created.regions.push(Region::new(GridVec::new(0, -1)));
-        created.regions.push(Region::new(GridVec::new(1, -1)));
-        created.regions.push(Region::new(GridVec::new(-1, -1)));
+        created.add_region(GridVec::new(0, -1));
+        created.add_region(GridVec::new(1, -1));
+        created.add_region(GridVec::new(-1, -1));
 
-        created.regions.push(Region::new(GridVec::new(0, 1)));
-        created.regions.push(Region::new(GridVec::new(1, 1)));
-        created.regions.push(Region::new(GridVec::new(-1, 1)));
+        created.add_region(GridVec::new(0, 1));
+        created.add_region(GridVec::new(1, 1));
+        created.add_region(GridVec::new(-1, 1));
 
         return created;
+    }
+
+    fn add_region(&mut self, regpos: GridVec) {
+        let mut added = Region::new(regpos);
+
+        for region in self.regions.iter_mut() {
+            region.check_add_neighbor(&mut added);
+        }
+
+        self.regions.push(added);
     }
 
     pub fn contains(&self, pos: GridVec) -> bool {

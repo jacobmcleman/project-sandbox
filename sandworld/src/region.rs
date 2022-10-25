@@ -44,6 +44,73 @@ impl Region {
         self.added_chunks.push(chunkpos);
     }
 
+    pub(crate) fn check_add_neighbor(&mut self, other_reg: &mut Region) {
+        if !self.position.is_adjacent(other_reg.position) {
+            return;
+        }
+
+        let delta = other_reg.position - self.position;
+
+        let mut self_chunks = Vec::new();
+        let mut other_chunks = Vec::new();
+
+        if delta.y == -1 {
+            if delta.x == -1 { 
+                self_chunks.push(GridVec::new(0, 0));
+                other_chunks.push(GridVec::new(REGION_SIZE as i32 - 1 , REGION_SIZE as i32 - 1));
+            }
+            else if delta.x == 0 {
+                for x in 0..REGION_SIZE as i32 {
+                    self_chunks.push(GridVec::new(x, 0));
+                    other_chunks.push(GridVec::new(x , REGION_SIZE as i32 - 1));
+                }
+            }
+            else if delta.x == 1 {
+                self_chunks.push(GridVec::new(REGION_SIZE as i32 - 1, 0));
+                other_chunks.push(GridVec::new(0 , REGION_SIZE as i32 - 1));
+            }
+        }
+        else if delta.y == 0 {
+            if delta.x == -1 { 
+                for y in 0..REGION_SIZE as i32 {
+                    self_chunks.push(GridVec::new(0, y));
+                    other_chunks.push(GridVec::new(REGION_SIZE as i32 - 1 , y));
+                }
+            }
+            else if delta.x == 1 {
+                for y in 0..REGION_SIZE as i32 {
+                    self_chunks.push(GridVec::new(REGION_SIZE as i32 - 1, y));
+                    other_chunks.push(GridVec::new(0 , y));
+                }
+            }
+        }
+        else if delta.y == 1 {
+            if delta.x == -1 { 
+                self_chunks.push(GridVec::new(0 , REGION_SIZE as i32 - 1));
+                other_chunks.push(GridVec::new(REGION_SIZE as i32 - 1, 0));
+            }
+            else if delta.x == 0 {
+                for x in 0..REGION_SIZE as i32 {
+                    self_chunks.push(GridVec::new(x, REGION_SIZE as i32 - 1));
+                    other_chunks.push(GridVec::new(x , 0));
+                }
+            }
+            else if delta.x == 1 {
+                self_chunks.push(GridVec::new(REGION_SIZE as i32 - 1 , REGION_SIZE as i32 - 1));
+                other_chunks.push(GridVec::new(0, 0));
+            }
+        }
+
+        for self_chunk_pos in self_chunks.iter() {
+            for other_chunk_pos in other_chunks.iter() {
+                let self_chunk = &mut self.chunks[Region::local_chunkpos_to_region_index(self_chunk_pos)];
+                let other_chunk = &mut other_reg.chunks[Region::local_chunkpos_to_region_index(other_chunk_pos)];
+                
+                self_chunk.check_add_neighbor(other_chunk);
+            }
+        }
+    }
+
     fn _chunkpos_from_region_index(region_pos: GridVec, index: usize) -> GridVec {
         let x = (index % REGION_SIZE) as i32 + (region_pos.x * REGION_SIZE as i32);
         let y = (index / REGION_SIZE) as i32 + (region_pos.y * REGION_SIZE as i32);
@@ -57,10 +124,21 @@ impl Region {
         #[cfg(debug_assertions)] {
             if x < 0 || x >= REGION_SIZE as i32 || y < 0 || y >= REGION_SIZE as i32 {
                 println!("Chunk position of {} is not within region at {}", chunkpos, self.position);
+                return 0;
             }
         }
 
-        x as usize + (y as usize * REGION_SIZE)
+        Self::local_chunkpos_to_region_index(&GridVec{x, y})
+    }
+
+    fn local_chunkpos_to_region_index(local_chunkpos: &GridVec) -> usize {
+        #[cfg(debug_assertions)] {
+            if local_chunkpos.x < 0 || local_chunkpos.x >= REGION_SIZE as i32 || local_chunkpos.y < 0 || local_chunkpos.y >= REGION_SIZE as i32 {
+                println!("Chunk position of {} is not within region", local_chunkpos);
+            }
+        }
+
+        local_chunkpos.x as usize + (local_chunkpos.y as usize * REGION_SIZE)
     }
 
     pub fn contains_chunk(&self, chunkpos: &GridVec) -> bool {
