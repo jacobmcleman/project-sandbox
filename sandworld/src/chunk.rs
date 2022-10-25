@@ -1,7 +1,7 @@
 pub const CHUNK_SIZE: u8 = 64;
 use gridmath::*;
 use rand::{Rng, rngs::ThreadRng};
-
+use crate::region::REGION_SIZE;
 use crate::particle::*;
 
 pub struct Chunk {
@@ -132,7 +132,18 @@ impl Chunk {
                 let mut color = get_color_for_type(part);
 
                 if draw_borders {
-                    if x == 0 || y == 0 || x == CHUNK_SIZE - 1 || y == CHUNK_SIZE - 1 {
+                    if (x == 0 && self.position.x % REGION_SIZE as i32 == 0) 
+                    || (x == CHUNK_SIZE - 1 && (self.position.x + 1) % REGION_SIZE as i32 == 0) {
+                        color = get_color_for_type(ParticleType::RegionBoundary);
+                    } 
+                    else if x == 0 || x == CHUNK_SIZE - 1 {
+                        color = get_color_for_type(ParticleType::Boundary);
+                    }
+                    else if (y == CHUNK_SIZE - 1 && self.position.y % REGION_SIZE as i32 == 0) 
+                    || (y == 0 && (self.position.y + 1) % REGION_SIZE as i32 == 0) {
+                        color = get_color_for_type(ParticleType::RegionBoundary);
+                    } 
+                    else if y == 0 || y == CHUNK_SIZE - 1 {
                         color = get_color_for_type(ParticleType::Boundary);
                     }
                 }

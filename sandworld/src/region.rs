@@ -1,4 +1,4 @@
-pub const REGION_SIZE: usize = 2;
+pub const REGION_SIZE: usize = 8;
 
 use std::sync::atomic::AtomicU64;
 
