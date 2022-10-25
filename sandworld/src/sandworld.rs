@@ -91,10 +91,10 @@ impl World {
     pub(crate) fn get_chunkpos(pos: &GridVec) -> GridVec {
         let mut modpos = pos.clone();
         if modpos.x < 0 {
-            modpos.x -= CHUNK_SIZE as i32;
+            modpos.x -= CHUNK_SIZE as i32 - 1;
         }
         if modpos.y < 0 {
-            modpos.y -= CHUNK_SIZE as i32;
+            modpos.y -= CHUNK_SIZE as i32 - 1;
         }
         GridVec::new(modpos.x / CHUNK_SIZE as i32, modpos.y / CHUNK_SIZE as i32)
     }
