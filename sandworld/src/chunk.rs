@@ -461,7 +461,7 @@ impl Chunk {
         self.updated_last_frame = self.update_this_frame;
     }
 
-    pub(crate) fn _check_remove_neighbor(&mut self, removed_position: GridVec) {
+    pub(crate) fn check_remove_neighbor(&mut self, removed_position: GridVec) {
         if !self.position.is_adjacent(removed_position) {
             return;
         }

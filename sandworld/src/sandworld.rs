@@ -32,6 +32,8 @@ impl World {
         created.add_region(GridVec::new(1, 1));
         created.add_region(GridVec::new(-1, 1));
 
+        created.remove_region(GridVec::new(0, 0));
+
         return created;
     }
 
@@ -43,6 +45,25 @@ impl World {
         }
 
         self.regions.push(added);
+    }
+
+    fn remove_region(&mut self, regpos: GridVec) {
+        if let Some(index) = self.get_region_index(regpos) {
+            self.regions.remove(index);
+
+            for region in self.regions.iter_mut() {
+                region.check_remove_neighbor(&regpos);
+            }
+        }
+    }
+
+    fn get_region_index(&self, regpos: GridVec) -> Option<usize> {
+        for i in 0..self.regions.len() {
+            if self.regions[i].position == regpos {
+                return Some(i);
+            }
+        }
+        return None;
     }
 
     pub fn contains(&self, pos: GridVec) -> bool {
