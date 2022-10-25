@@ -79,7 +79,14 @@ impl World {
     }
 
     pub(crate) fn get_chunkpos(pos: &GridVec) -> GridVec {
-        GridVec::new(pos.x / CHUNK_SIZE as i32, pos.y / CHUNK_SIZE as i32)
+        let mut modpos = pos.clone();
+        if modpos.x < 0 {
+            modpos.x -= CHUNK_SIZE as i32;
+        }
+        if modpos.y < 0 {
+            modpos.y -= CHUNK_SIZE as i32;
+        }
+        GridVec::new(modpos.x / CHUNK_SIZE as i32, modpos.y / CHUNK_SIZE as i32)
     }
 
     pub(crate) fn get_chunklocal(pos: GridVec) -> GridVec {
@@ -120,6 +127,7 @@ impl World {
 
         let chunkpos = World::get_chunkpos(&pos);
         let chunklocal = World::get_chunklocal(pos);
+
         self.get_chunk_mut(&chunkpos).unwrap().add_particle(chunklocal.x as u8, chunklocal.y as u8, new_val);
     }
 
