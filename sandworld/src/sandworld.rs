@@ -5,6 +5,7 @@ use std::{sync::atomic::AtomicU64};
 
 use crate::chunk::*;
 use crate::particle::*;
+use crate::region;
 use crate::region::*;
 
 pub const WORLD_WIDTH: i32 = 1440;
@@ -209,20 +210,46 @@ impl World {
         let updated_chunk_count = AtomicU64::new(0);
         let updated_region_count = AtomicU64::new(0);
 
-        self.regions.par_iter_mut().for_each(|region| {
-            if region.get_bounds().overlaps(visible) {
-                region.commit_updates();
-                updated_region_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            }
+        let region_update_max = 12;
+
+        self.regions.sort_unstable_by(|a, b| {
+            let mut a_val = if a.get_bounds().overlaps(visible) { 1024 } else { 0 };
+            let mut b_val = if b.get_bounds().overlaps(visible) { 1024 } else { 0 };
+
+            a_val += (a.staleness as u64 + 1) * (a.last_chunk_updates + 1);
+            b_val += (b.staleness as u64 + 1) * (b.last_chunk_updates + 1);
+            
+            b_val.cmp(&a_val)
+        });
+
+        let mut to_update = Vec::new();
+        let mut to_skip = Vec::new();
+
+        let mut i = 0;
+
+        for region in self.regions.iter_mut() {
+            if i < region_update_max {
+                &mut to_update
+            } 
             else {
-                region.skip_update();
-            }
+                &mut to_skip
+            }.push(region);
+            i += 1;
+        }
+
+        to_update.par_iter_mut().for_each(|region| {
+            region.commit_updates();
+            updated_region_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        });
+
+        to_skip.par_iter_mut().for_each(|region| {
+            region.skip_update();
         });
 
         let shift = (rand::thread_rng().next_u32() % 4) as i32;
         for i in 0..4 {
             let phase = i + shift;
-            self.regions.par_iter_mut().for_each(|region| {
+            to_update.par_iter_mut().for_each(|region| {
                 if region.staleness == 0 {
                     let region_chunk_updates = region.update(phase);
                     updated_chunk_count.fetch_add(region_chunk_updates, std::sync::atomic::Ordering::Relaxed); 

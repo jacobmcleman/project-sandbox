@@ -9,6 +9,7 @@ use crate::{chunk::*, World, Particle, ParticleType};
 pub struct Region {
     pub position: GridVec,
     pub staleness: u32, // Number of updates this region has been skipped
+    pub last_chunk_updates: u64, // Number of chunks updated last time this region updated
     chunks: Vec<Box<Chunk>>,
     // Chunks that have been added to the world since last polled
     added_chunks: Vec<GridVec>,
@@ -21,6 +22,7 @@ impl Region {
         let mut reg = Region {
             position,
             staleness: 0,
+            last_chunk_updates: 0,
             chunks: vec![],
             added_chunks: vec![],
             updated_chunks: vec![],
@@ -304,6 +306,8 @@ impl Region {
             }
         });
         
-        updated_count.load(std::sync::atomic::Ordering::Relaxed)
+        let updated = updated_count.load(std::sync::atomic::Ordering::Relaxed);
+        self.last_chunk_updates = updated;
+        updated
     }
 }
