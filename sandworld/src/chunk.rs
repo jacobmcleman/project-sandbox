@@ -305,6 +305,9 @@ impl Chunk {
                 new_chunk.neighbors.bottom_left = Some(self);
             }
         }
+
+        self.mark_dirty(0, 0);
+        self.mark_dirty(CHUNK_SIZE as i32, CHUNK_SIZE as i32)
     }
 
     pub fn chunkpos_to_local_chunkpos(&self, from_chunk: &Chunk, from_x: u8, from_y: u8) -> GridVec {

@@ -23,23 +23,23 @@ pub struct WorldUpdateStats {
 
 impl World {
     pub fn new() -> Self {
-        let mut created: World = World {
+        let created: World = World {
             regions: Vec::new()
         };
 
-        created.add_region(GridVec::new(0, 0));
-        created.add_region(GridVec::new(1, 0));
-        created.add_region(GridVec::new(-1, 0));
+        // created.add_region(GridVec::new(0, 0));
+        // created.add_region(GridVec::new(1, 0));
+        // created.add_region(GridVec::new(-1, 0));
 
-        created.add_region(GridVec::new(0, -1));
-        created.add_region(GridVec::new(1, -1));
-        created.add_region(GridVec::new(-1, -1));
+        // created.add_region(GridVec::new(0, -1));
+        // created.add_region(GridVec::new(1, -1));
+        // created.add_region(GridVec::new(-1, -1));
 
-        created.add_region(GridVec::new(0, 1));
-        created.add_region(GridVec::new(1, 1));
-        created.add_region(GridVec::new(-1, 1));
+        // created.add_region(GridVec::new(0, 1));
+        // created.add_region(GridVec::new(1, 1));
+        // created.add_region(GridVec::new(-1, 1));
 
-        created.remove_region(GridVec::new(0, 0));
+        // created.remove_region(GridVec::new(0, 0));
         
         return created;
     }
@@ -52,6 +52,8 @@ impl World {
         }
 
         self.regions.push(added);
+
+        println!("Added region {}", regpos);
     }
 
     fn remove_region(&mut self, regpos: GridVec) {
@@ -71,6 +73,17 @@ impl World {
             }
         }
         return None;
+    }
+
+    fn get_regionpos_for_chunkpos(chunkpos: &GridVec) -> GridVec {
+        let mut modpos = chunkpos.clone();
+        if modpos.x < 0 {
+            modpos.x -= REGION_SIZE as i32 - 1;
+        }
+        if modpos.y < 0 {
+            modpos.y -= REGION_SIZE as i32 - 1;
+        }
+        GridVec::new(modpos.x / REGION_SIZE as i32, modpos.y / REGION_SIZE as i32)
     }
 
     pub fn contains(&self, pos: GridVec) -> bool {
@@ -150,7 +163,9 @@ impl World {
 
     pub fn replace_particle(&mut self, pos: GridVec, new_val: Particle) {
         if !self.contains(pos) {
-            return;
+            let chunkpos = World::get_chunkpos(&pos);
+            let regpos = World::get_regionpos_for_chunkpos(&chunkpos);
+            self.add_region(regpos);
         }
 
         let chunkpos = World::get_chunkpos(&pos);
@@ -160,7 +175,9 @@ impl World {
 
     pub fn add_particle(&mut self, pos: GridVec, new_val: Particle) {
         if !self.contains(pos) {
-            return;
+            let chunkpos = World::get_chunkpos(&pos);
+            let regpos = World::get_regionpos_for_chunkpos(&chunkpos);
+            self.add_region(regpos);
         }
 
         let chunkpos = World::get_chunkpos(&pos);

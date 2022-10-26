@@ -172,14 +172,14 @@ fn world_interact(
             //println!("World coords: {}/{}", world_pos.x as i32, world_pos.y as i32);
 
             let gridpos = GridVec::new(world_pos.x as i32, world_pos.y as i32);
-            if sand.contains(gridpos) {
+            //if sand.contains(gridpos) {
                 if buttons.pressed(MouseButton::Left){
                     sand.place_circle(gridpos, brush_options.radius, sandworld::Particle::new(brush_options.material), false);
                 }
                 else if buttons.pressed(MouseButton::Right) {
                     sand.place_circle(gridpos, 10, sandworld::Particle::new(sandworld::ParticleType::Air), true);
                 }
-            }
+            //}
         }
     }
 }
