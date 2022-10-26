@@ -10,8 +10,15 @@ use crate::region::*;
 pub const WORLD_WIDTH: i32 = 1440;
 pub const WORLD_HEIGHT: i32 = 960;
 
+pub const TRUE_REGION_SIZE: usize = REGION_SIZE as usize * CHUNK_SIZE as usize;
+
 pub struct World {
     regions: Vec<Region>
+}
+
+pub struct WorldUpdateStats {
+    pub chunk_updates: u64,
+    pub loaded_regions: usize,
 }
 
 impl World {
@@ -33,7 +40,7 @@ impl World {
         created.add_region(GridVec::new(-1, 1));
 
         created.remove_region(GridVec::new(0, 0));
-
+        
         return created;
     }
 
@@ -180,7 +187,7 @@ impl World {
         }
     }
 
-    pub fn update(&mut self) -> u64 {
+    pub fn update(&mut self) -> WorldUpdateStats {
         let updated_count = AtomicU64::new(0);
 
         self.regions.par_iter_mut().for_each(|region| {
@@ -196,6 +203,9 @@ impl World {
             });
         }
         
-        updated_count.load(std::sync::atomic::Ordering::Relaxed)
+        WorldUpdateStats {
+            chunk_updates: updated_count.load(std::sync::atomic::Ordering::Relaxed),
+            loaded_regions: self.regions.len(),
+        }
     }
 }

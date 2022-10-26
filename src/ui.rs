@@ -4,6 +4,8 @@ use sandworld::ParticleType;
 
 pub struct UiPlugin;
 
+
+
 pub struct PointerCaptureState {
     pub click_consumed: bool,
 }
@@ -14,11 +16,66 @@ const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
 
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(setup_buttons)
+        app
+            .add_startup_system(setup_buttons)
+            .add_startup_system(spawn_performance_info_text)
             .insert_resource(PointerCaptureState { click_consumed: false })
             .add_system(button_system.label(crate::UpdateStages::UI)
                 .before(crate::UpdateStages::Input))
+            .add_system(update_performance_text.label(crate::UpdateStages::UI)
+                .after(crate::UpdateStages::WorldUpdate))
         ;
+    }
+}
+
+#[derive(Component)]
+struct PerformanceReadout;
+
+fn spawn_performance_info_text(
+    mut commands: Commands, 
+    asset_server: Res<AssetServer>
+) {
+    commands.spawn_bundle(TextBundle::from_sections([
+            TextSection {
+                value: "Loaded Regions: 000".to_string(),
+                style: TextStyle {
+                    font: asset_server.load("fonts/FiraMono-Medium.ttf"),
+                    font_size: 30.0,
+                    color: Color::rgb(0.9, 0.9, 0.9),
+                }
+            },
+            TextSection {
+                value: "\nChunk Updates: 000".to_string(),
+                style: TextStyle {
+                    font: asset_server.load("fonts/FiraMono-Medium.ttf"),
+                    font_size: 30.0,
+                    color: Color::rgb(0.9, 0.9, 0.9),
+                }
+            }
+        ]
+    ).with_style(Style {
+        position_type: PositionType::Absolute,
+        position: UiRect { left: Val::Px(10.0), top: Val::Px(10.0), ..Default::default() },
+        ..Default::default()
+    })
+).insert(PerformanceReadout{});
+}
+
+fn update_performance_text(
+    mut text_query: Query<(&PerformanceReadout, &mut Text, &mut Visibility)>,
+    stats: Res<crate::sandsim::WorldStats>,
+    draw_options: Res<crate::sandsim::DrawOptions>,
+) {
+    let (_, mut text, mut vis) = text_query.single_mut();
+    if draw_options.world_stats {
+        vis.is_visible = true;
+        if let Some(world_stats) = &stats.update_stats {
+            text.sections[0].value = format!("Loaded Regions: {}", world_stats.loaded_regions);
+            text.sections[1].value = format!("\nChunk Updates: {}", world_stats.chunk_updates);
+        }
+    }
+    else {
+        vis.is_visible = false;
     }
 }
 

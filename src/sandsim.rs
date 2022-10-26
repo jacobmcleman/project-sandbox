@@ -9,11 +9,15 @@ impl Plugin for SandSimulationPlugin {
         .insert_resource(DrawOptions {
             update_bounds: false,
             chunk_bounds: false,
+            world_stats: false,
             force_redraw_all: false,
         })
         .insert_resource(BrushOptions {
             material: sandworld::ParticleType::Sand,
             radius: 10,
+        })
+        .insert_resource(WorldStats {
+            update_stats: None,
         })
         .add_system(create_spawned_chunks.label(crate::UpdateStages::WorldUpdate))
         .add_system(sand_update.label(crate::UpdateStages::WorldUpdate))
@@ -32,6 +36,7 @@ struct Chunk {
 pub struct DrawOptions {
     pub update_bounds: bool,
     pub chunk_bounds: bool,
+    pub world_stats: bool,
     pub force_redraw_all: bool,
 }
 
@@ -40,6 +45,9 @@ pub struct BrushOptions {
     pub radius: i32,
 }
 
+pub struct WorldStats {
+    pub update_stats: Option<sandworld::WorldUpdateStats>,
+}
 
 fn draw_mode_controls(
     mut draw_options: ResMut<DrawOptions>,
@@ -54,6 +62,9 @@ fn draw_mode_controls(
     if keys.just_pressed(KeyCode::F3) {
         draw_options.update_bounds = !draw_options.update_bounds;
         draw_options.force_redraw_all = true;
+    }
+    if keys.just_pressed(KeyCode::F4) {
+        draw_options.world_stats = !draw_options.world_stats;
     }
 }
 
@@ -116,8 +127,9 @@ fn update_chunk_textures(
     }
 }
 
-fn sand_update(mut world: ResMut<sandworld::World>) {
-    world.update();    
+fn sand_update(mut world: ResMut<sandworld::World>, mut world_stats: ResMut<WorldStats>) {
+    let stats = world.update();  
+    world_stats.update_stats = Some(stats);  
 }
 
 fn world_interact(
