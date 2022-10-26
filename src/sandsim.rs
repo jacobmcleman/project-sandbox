@@ -1,5 +1,5 @@
 use bevy::{prelude::*, render::{render_resource::{Extent3d, TextureFormat}, camera::{RenderTarget}} };
-use gridmath::GridVec;
+use gridmath::{GridVec, GridBounds};
 
 pub struct SandSimulationPlugin;
 
@@ -127,9 +127,20 @@ fn update_chunk_textures(
     }
 }
 
-fn sand_update(mut world: ResMut<sandworld::World>, mut world_stats: ResMut<WorldStats>) {
-    let stats = world.update();  
+fn sand_update(
+    mut world: ResMut<sandworld::World>, 
+    mut world_stats: ResMut<WorldStats>,
+    cam_query: Query<(&OrthographicProjection, &GlobalTransform)>,
+) {
+    let (ortho, cam_transform) = cam_query.single();
+    let bounds = GridBounds::new_from_extents(
+        GridVec::new(ortho.left as i32, ortho.bottom as i32) + GridVec::new(cam_transform.translation().x as i32, cam_transform.translation().y as i32), 
+        GridVec::new(ortho.right as i32, ortho.top as i32) + GridVec::new(cam_transform.translation().x as i32, cam_transform.translation().y as i32),
+    );
+    let stats = world.update(bounds);  
     world_stats.update_stats = Some(stats);  
+
+    //println!("camera bounds {}", bounds);
 }
 
 fn world_interact(

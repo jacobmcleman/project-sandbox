@@ -19,6 +19,7 @@ pub struct World {
 pub struct WorldUpdateStats {
     pub chunk_updates: u64,
     pub loaded_regions: usize,
+    pub region_updates: u64,
 }
 
 impl World {
@@ -204,25 +205,35 @@ impl World {
         }
     }
 
-    pub fn update(&mut self) -> WorldUpdateStats {
-        let updated_count = AtomicU64::new(0);
+    pub fn update(&mut self, visible: GridBounds) -> WorldUpdateStats {
+        let updated_chunk_count = AtomicU64::new(0);
+        let updated_region_count = AtomicU64::new(0);
 
         self.regions.par_iter_mut().for_each(|region| {
-            region.commit_updates();
+            if region.get_bounds().overlaps(visible) {
+                region.commit_updates();
+                updated_region_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            }
+            else {
+                region.skip_update();
+            }
         });
 
         let shift = (rand::thread_rng().next_u32() % 4) as i32;
         for i in 0..4 {
             let phase = i + shift;
             self.regions.par_iter_mut().for_each(|region| {
-                let region_updates = region.update(phase);
-                updated_count.fetch_add(region_updates, std::sync::atomic::Ordering::Relaxed); 
+                if region.staleness == 0 {
+                    let region_chunk_updates = region.update(phase);
+                    updated_chunk_count.fetch_add(region_chunk_updates, std::sync::atomic::Ordering::Relaxed); 
+                }
             });
         }
         
         WorldUpdateStats {
-            chunk_updates: updated_count.load(std::sync::atomic::Ordering::Relaxed),
+            chunk_updates: updated_chunk_count.load(std::sync::atomic::Ordering::Relaxed),
             loaded_regions: self.regions.len(),
+            region_updates: updated_region_count.load(std::sync::atomic::Ordering::Relaxed),
         }
     }
 }

@@ -45,6 +45,14 @@ fn spawn_performance_info_text(
                 }
             },
             TextSection {
+                value: "\nUpdated Regions: 000".to_string(),
+                style: TextStyle {
+                    font: asset_server.load("fonts/FiraMono-Medium.ttf"),
+                    font_size: 30.0,
+                    color: Color::rgb(0.9, 0.9, 0.9),
+                }
+            },
+            TextSection {
                 value: "\nChunk Updates: 000".to_string(),
                 style: TextStyle {
                     font: asset_server.load("fonts/FiraMono-Medium.ttf"),
@@ -71,7 +79,8 @@ fn update_performance_text(
         vis.is_visible = true;
         if let Some(world_stats) = &stats.update_stats {
             text.sections[0].value = format!("Loaded Regions: {}", world_stats.loaded_regions);
-            text.sections[1].value = format!("\nChunk Updates: {}", world_stats.chunk_updates);
+            text.sections[1].value = format!("\nRegion Updates: {}", world_stats.region_updates);
+            text.sections[2].value = format!("\nChunk Updates: {}", world_stats.chunk_updates);
         }
     }
     else {

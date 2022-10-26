@@ -8,6 +8,7 @@ use crate::{chunk::*, World, Particle, ParticleType};
 
 pub struct Region {
     pub position: GridVec,
+    pub staleness: u32, // Number of updates this region has been skipped
     chunks: Vec<Box<Chunk>>,
     // Chunks that have been added to the world since last polled
     added_chunks: Vec<GridVec>,
@@ -19,6 +20,7 @@ impl Region {
     pub fn new(position: GridVec) -> Self {
         let mut reg = Region {
             position,
+            staleness: 0,
             chunks: vec![],
             added_chunks: vec![],
             updated_chunks: vec![],
@@ -260,7 +262,20 @@ impl Region {
         }
     }
 
+    pub fn get_bounds(&self) -> GridBounds {
+        GridBounds::new_from_corner(
+            self.position * CHUNK_SIZE as i32 * REGION_SIZE as i32, 
+            GridVec { x: CHUNK_SIZE as i32 * REGION_SIZE as i32, y: CHUNK_SIZE as i32 * REGION_SIZE as i32 }
+        )
+    }
+
+    pub fn skip_update(&mut self) {
+        self.staleness += 1;
+    }
+
     pub fn commit_updates(&mut self) {
+        self.staleness = 0;
+
         self.chunks.iter().for_each(|chunk| {
             if chunk.dirty.is_some() || chunk.updated_last_frame.is_some()  {
                 self.updated_chunks.push(chunk.position);
