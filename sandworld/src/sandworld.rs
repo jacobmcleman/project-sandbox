@@ -58,6 +58,12 @@ impl World {
         println!("Added region {}", regpos);
     }
 
+    fn add_region_if_needed(&mut self, regpos: GridVec) {
+        if !self.has_region(regpos) {
+            self.add_region(regpos);
+        }
+    }
+
     fn remove_region(&mut self, regpos: GridVec) {
         if let Some(index) = self.get_region_index(regpos) {
             self.regions.remove(index);
@@ -86,6 +92,14 @@ impl World {
             modpos.y -= REGION_SIZE as i32 - 1;
         }
         GridVec::new(modpos.x / REGION_SIZE as i32, modpos.y / REGION_SIZE as i32)
+    }
+
+    fn get_regionpos_for_pos(pos: &GridVec) -> GridVec {
+        Self::get_regionpos_for_chunkpos(&Self::get_chunkpos(pos))
+    }
+
+    fn has_region(&self, regpos: GridVec) -> bool {
+        self.get_region_index(regpos).is_some()
     }
 
     pub fn contains(&self, pos: GridVec) -> bool {
@@ -207,17 +221,26 @@ impl World {
     }
 
     pub fn update(&mut self, visible: GridBounds) -> WorldUpdateStats {
+        let visible_regions = GridBounds::new_from_extents(
+            Self::get_regionpos_for_pos(&visible.bottom_left()),
+            Self::get_regionpos_for_pos(&visible.top_right()) + GridVec::new(1, 1)
+        );
+
+        for regpos in visible_regions.iter() {
+            self.add_region_if_needed(regpos);
+        }
+
         let updated_chunk_count = AtomicU64::new(0);
         let updated_region_count = AtomicU64::new(0);
 
-        let region_update_max = 12;
+        let region_update_max = 24;
 
         self.regions.sort_unstable_by(|a, b| {
             let mut a_val = if a.get_bounds().overlaps(visible) { 1024 } else { 0 };
             let mut b_val = if b.get_bounds().overlaps(visible) { 1024 } else { 0 };
 
-            a_val += (a.staleness as u64 + 1) * (a.last_chunk_updates + 1);
-            b_val += (b.staleness as u64 + 1) * (b.last_chunk_updates + 1);
+            a_val += (a.staleness as u64 + 1) * (a.staleness as u64 + 1) * (a.last_chunk_updates + 1);
+            b_val += (b.staleness as u64 + 1) * (a.staleness as u64 + 1) * (b.last_chunk_updates + 1);
             
             b_val.cmp(&a_val)
         });
