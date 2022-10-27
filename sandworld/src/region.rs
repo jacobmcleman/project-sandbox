@@ -277,6 +277,7 @@ impl Region {
 
     pub fn commit_updates(&mut self) {
         self.staleness = 0;
+        self.last_chunk_updates = 0;
 
         self.chunks.iter().for_each(|chunk| {
             if chunk.dirty.is_some() || chunk.updated_last_frame.is_some()  {
@@ -307,7 +308,7 @@ impl Region {
         });
         
         let updated = updated_count.load(std::sync::atomic::Ordering::Relaxed);
-        self.last_chunk_updates = updated;
+        self.last_chunk_updates += updated;
         updated
     }
 }

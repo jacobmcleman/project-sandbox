@@ -233,7 +233,7 @@ impl World {
         let updated_chunk_count = AtomicU64::new(0);
         let updated_region_count = AtomicU64::new(0);
 
-        let region_update_max = 24;
+        let target_chunk_updates = 128;
 
         self.regions.sort_unstable_by(|a, b| {
             let mut a_val = if a.get_bounds().overlaps(visible) { 1024 } else { 0 };
@@ -248,16 +248,18 @@ impl World {
         let mut to_update = Vec::new();
         let mut to_skip = Vec::new();
 
-        let mut i = 0;
+        let mut estimated_chunk_updates = 0;
 
         for region in self.regions.iter_mut() {
-            if i < region_update_max {
+            // Check level of commitment for this update
+            if estimated_chunk_updates < target_chunk_updates {
+                estimated_chunk_updates += region.last_chunk_updates;
                 &mut to_update
             } 
             else {
                 &mut to_skip
             }.push(region);
-            i += 1;
+            
         }
 
         to_update.par_iter_mut().for_each(|region| {
@@ -279,9 +281,17 @@ impl World {
                 }
             });
         }
+
+        let chunk_updates = updated_chunk_count.load(std::sync::atomic::Ordering::Relaxed);
+
+        // println!("Estimated {} chunk updates, actual was {} - a factor of {}", 
+        //     estimated_chunk_updates, 
+        //     chunk_updates,
+        //     estimated_chunk_updates as f32 / chunk_updates as f32
+        // );
         
         WorldUpdateStats {
-            chunk_updates: updated_chunk_count.load(std::sync::atomic::Ordering::Relaxed),
+            chunk_updates,
             loaded_regions: self.regions.len(),
             region_updates: updated_region_count.load(std::sync::atomic::Ordering::Relaxed),
         }
