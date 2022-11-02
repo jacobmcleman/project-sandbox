@@ -20,6 +20,7 @@ impl Plugin for SandSimulationPlugin {
         .insert_resource(WorldStats {
             update_stats: None,
             sand_update_time: VecDeque::new(),
+            target_chunk_updates: 0,
         })
         .add_system(create_spawned_chunks.label(crate::UpdateStages::WorldUpdate))
         .add_system(sand_update.label(crate::UpdateStages::WorldUpdate))
@@ -50,6 +51,7 @@ pub struct BrushOptions {
 pub struct WorldStats {
     pub update_stats: Option<sandworld::WorldUpdateStats>,
     pub sand_update_time: VecDeque<(f64, u64)>, // Pairs of update time and updated chunk counts
+    pub target_chunk_updates: u64,
 }
 
 fn draw_mode_controls(
@@ -133,18 +135,21 @@ fn update_chunk_textures(
 fn sand_update(
     mut world: ResMut<sandworld::World>, 
     mut world_stats: ResMut<WorldStats>,
+    perf_settings: Res<crate::perf::PerfSettings>,
     cam_query: Query<(&OrthographicProjection, &GlobalTransform)>,
 ) {
     let mut target_chunk_updates = 128;
 
     if let Some(_stats) = &world_stats.update_stats {
-        let target_update_seconds: f64 = 1. / 100.;
+        // Aim to use half of the available frame time for sand updates
+        let target_update_seconds: f64 = (1. / (perf_settings.target_frame_rate as f64)) * 0.5;
         let mut chunk_updates_per_second_avg = 0.;
         for (time, count) in &world_stats.sand_update_time {
             chunk_updates_per_second_avg += (*count + 1) as f64 / time;
         }
         chunk_updates_per_second_avg = chunk_updates_per_second_avg / (world_stats.sand_update_time.len() as f64);
         target_chunk_updates = (target_update_seconds * chunk_updates_per_second_avg) as u64;
+        world_stats.target_chunk_updates = target_chunk_updates;
     }
 
     let (ortho, cam_transform) = cam_query.single();

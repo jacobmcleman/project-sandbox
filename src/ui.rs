@@ -89,19 +89,18 @@ fn update_performance_text(
     mut text_query: Query<(&PerformanceReadout, &mut Text, &mut Visibility)>,
     stats: Res<crate::sandsim::WorldStats>,
     draw_options: Res<crate::sandsim::DrawOptions>,
-    time: Res<Time>,
+    frame_times: Res<crate::perf::FrameTimes>,
 ) {
     let (_, mut text, mut vis) = text_query.single_mut();
     if draw_options.world_stats {
         vis.is_visible = true;
 
-
-        text.sections[0].value = format!("FPS: {} ({:.1}ms)", (1. / time.delta_seconds_f64()).round() as u32, time.delta_seconds_f64() * 1000.);
+        text.sections[0].value = format!("FPS: {} ({:.1}ms)", (1. / frame_times.current_avg).round() as u32, frame_times.current_avg * 1000.);
 
         if let Some(world_stats) = &stats.update_stats {
             text.sections[1].value = format!("\nLoaded Regions: {}", world_stats.loaded_regions);
             text.sections[2].value = format!("\nRegion Updates: {}", world_stats.region_updates);
-            text.sections[3].value = format!("\nChunk Updates: {}", world_stats.chunk_updates);
+            text.sections[3].value = format!("\nChunk Updates [Target]: {} [{}]", world_stats.chunk_updates, stats.target_chunk_updates);
             
         }
 
