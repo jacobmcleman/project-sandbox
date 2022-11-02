@@ -92,7 +92,6 @@ fn create_spawned_chunks(
     let added_chunks = world.get_added_chunks();
     for chunkpos in added_chunks {
         if let Some(chunk) = world.get_chunk(&chunkpos) {
-            //println!("New chunk at {} - created an entity to render it", chunkpos);
             let image = render_chunk_texture(chunk.as_ref(), &draw_options);
             let image_handle = images.add(image);
 
@@ -123,6 +122,7 @@ fn update_chunk_textures(
         return;
     }
 
+    // TODO: look into only doing this work for visible chunks and doing catchup for chunks that become visible later
     for chunk_comp in chunk_query.iter() {
         if draw_options.force_redraw_all || updated_chunks.contains(&chunk_comp.chunk_pos) {
             if let Some(chunk) = world.get_chunk(&chunk_comp.chunk_pos) {
@@ -167,8 +167,6 @@ fn sand_update(
         world_stats.sand_update_time.pop_front();
     }
     world_stats.update_stats = Some(stats);  
-
-    //println!("camera bounds {}", bounds);
 }
 
 fn world_interact(
@@ -208,17 +206,14 @@ fn world_interact(
             // reduce it to a 2D value
             let world_pos: Vec2 = world_pos.truncate();
 
-            //println!("World coords: {}/{}", world_pos.x as i32, world_pos.y as i32);
-
             let gridpos = GridVec::new(world_pos.x as i32, world_pos.y as i32);
-            //if sand.contains(gridpos) {
-                if buttons.pressed(MouseButton::Left){
-                    sand.place_circle(gridpos, brush_options.radius, sandworld::Particle::new(brush_options.material), false);
-                }
-                else if buttons.pressed(MouseButton::Right) {
-                    sand.place_circle(gridpos, 10, sandworld::Particle::new(sandworld::ParticleType::Air), true);
-                }
-            //}
+
+            if buttons.pressed(MouseButton::Left){
+                sand.place_circle(gridpos, brush_options.radius, sandworld::Particle::new(brush_options.material), false);
+            }
+            else if buttons.pressed(MouseButton::Right) {
+                sand.place_circle(gridpos, 10, sandworld::Particle::new(sandworld::ParticleType::Air), true);
+            }
         }
     }
 }
