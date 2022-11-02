@@ -37,10 +37,18 @@ fn spawn_performance_info_text(
 ) {
     commands.spawn_bundle(TextBundle::from_sections([
             TextSection {
-                value: "Loaded Regions: 000".to_string(),
+                value: "FPS: 69".to_string(),
                 style: TextStyle {
                     font: asset_server.load("fonts/FiraMono-Medium.ttf"),
                     font_size: 30.0,
+                    color: Color::rgb(0.9, 0.9, 0.9),
+                }
+            },
+            TextSection {
+                value: "\nLoaded Regions: 000".to_string(),
+                style: TextStyle {
+                    font: asset_server.load("fonts/FiraMono-Medium.ttf"),
+                    font_size: 20.0,
                     color: Color::rgb(0.9, 0.9, 0.9),
                 }
             },
@@ -48,7 +56,7 @@ fn spawn_performance_info_text(
                 value: "\nUpdated Regions: 000".to_string(),
                 style: TextStyle {
                     font: asset_server.load("fonts/FiraMono-Medium.ttf"),
-                    font_size: 30.0,
+                    font_size: 20.0,
                     color: Color::rgb(0.9, 0.9, 0.9),
                 }
             },
@@ -56,8 +64,16 @@ fn spawn_performance_info_text(
                 value: "\nChunk Updates: 000".to_string(),
                 style: TextStyle {
                     font: asset_server.load("fonts/FiraMono-Medium.ttf"),
-                    font_size: 30.0,
+                    font_size: 20.0,
                     color: Color::rgb(0.9, 0.9, 0.9),
+                }
+            },
+            TextSection {
+                value: "\nAvg time per chunk".to_string(),
+                style: TextStyle {
+                    font: asset_server.load("fonts/FiraMono-Medium.ttf"),
+                    font_size: 20.0,
+                    color: Color::rgb(0.9, 0.9, 0.6),
                 }
             }
         ]
@@ -73,15 +89,32 @@ fn update_performance_text(
     mut text_query: Query<(&PerformanceReadout, &mut Text, &mut Visibility)>,
     stats: Res<crate::sandsim::WorldStats>,
     draw_options: Res<crate::sandsim::DrawOptions>,
+    time: Res<Time>,
 ) {
     let (_, mut text, mut vis) = text_query.single_mut();
     if draw_options.world_stats {
         vis.is_visible = true;
+
+
+        text.sections[0].value = format!("FPS: {} ({:.1}ms)", (1. / time.delta_seconds_f64()).round() as u32, time.delta_seconds_f64() * 1000.);
+
         if let Some(world_stats) = &stats.update_stats {
-            text.sections[0].value = format!("Loaded Regions: {}", world_stats.loaded_regions);
-            text.sections[1].value = format!("\nRegion Updates: {}", world_stats.region_updates);
-            text.sections[2].value = format!("\nChunk Updates: {}", world_stats.chunk_updates);
+            text.sections[1].value = format!("\nLoaded Regions: {}", world_stats.loaded_regions);
+            text.sections[2].value = format!("\nRegion Updates: {}", world_stats.region_updates);
+            text.sections[3].value = format!("\nChunk Updates: {}", world_stats.chunk_updates);
+            
         }
+
+        let mut chunk_updates_per_second_avg = 0.;
+        let mut total_sand_update_second_avg = 0.;
+        for (time, count) in &stats.sand_update_time {
+            chunk_updates_per_second_avg += *count as f64 / time;
+            total_sand_update_second_avg += time;
+        }
+        chunk_updates_per_second_avg = chunk_updates_per_second_avg / (stats.sand_update_time.len() as f64);
+        total_sand_update_second_avg = total_sand_update_second_avg / (stats.sand_update_time.len() as f64);
+
+        text.sections[4].value = format!("\nSand update time {:.2}ms - Avg time per chunk: {:.3}ms", total_sand_update_second_avg * 1000., 1000. / chunk_updates_per_second_avg);
     }
     else {
         vis.is_visible = false;

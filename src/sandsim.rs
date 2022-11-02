@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use bevy::{prelude::*, render::{render_resource::{Extent3d, TextureFormat}, camera::{RenderTarget}} };
 use gridmath::{GridVec, GridBounds};
 
@@ -18,6 +19,7 @@ impl Plugin for SandSimulationPlugin {
         })
         .insert_resource(WorldStats {
             update_stats: None,
+            sand_update_time: VecDeque::new(),
         })
         .add_system(create_spawned_chunks.label(crate::UpdateStages::WorldUpdate))
         .add_system(sand_update.label(crate::UpdateStages::WorldUpdate))
@@ -47,6 +49,7 @@ pub struct BrushOptions {
 
 pub struct WorldStats {
     pub update_stats: Option<sandworld::WorldUpdateStats>,
+    pub sand_update_time: VecDeque<(f64, u64)>, // Pairs of update time and updated chunk counts
 }
 
 fn draw_mode_controls(
@@ -132,12 +135,32 @@ fn sand_update(
     mut world_stats: ResMut<WorldStats>,
     cam_query: Query<(&OrthographicProjection, &GlobalTransform)>,
 ) {
+    let mut target_chunk_updates = 128;
+
+    if let Some(_stats) = &world_stats.update_stats {
+        let target_update_seconds: f64 = 1. / 100.;
+        let mut chunk_updates_per_second_avg = 0.;
+        for (time, count) in &world_stats.sand_update_time {
+            chunk_updates_per_second_avg += (*count + 1) as f64 / time;
+        }
+        chunk_updates_per_second_avg = chunk_updates_per_second_avg / (world_stats.sand_update_time.len() as f64);
+        target_chunk_updates = (target_update_seconds * chunk_updates_per_second_avg) as u64;
+    }
+
     let (ortho, cam_transform) = cam_query.single();
     let bounds = GridBounds::new_from_extents(
         GridVec::new(ortho.left as i32, ortho.bottom as i32) + GridVec::new(cam_transform.translation().x as i32, cam_transform.translation().y as i32), 
         GridVec::new(ortho.right as i32, ortho.top as i32) + GridVec::new(cam_transform.translation().x as i32, cam_transform.translation().y as i32),
     );
-    let stats = world.update(bounds);  
+
+    let update_start = std::time::Instant::now();
+    let stats = world.update(bounds, target_chunk_updates);
+    let update_end = std::time::Instant::now();
+    let update_time = update_end - update_start;
+    world_stats.sand_update_time.push_back((update_time.as_secs_f64(), stats.chunk_updates));
+    if world_stats.sand_update_time.len() > 64 {
+        world_stats.sand_update_time.pop_front();
+    }
     world_stats.update_stats = Some(stats);  
 
     //println!("camera bounds {}", bounds);

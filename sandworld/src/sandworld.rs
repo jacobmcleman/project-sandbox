@@ -220,7 +220,7 @@ impl World {
         }
     }
 
-    pub fn update(&mut self, visible: GridBounds) -> WorldUpdateStats {
+    pub fn update(&mut self, visible: GridBounds, target_chunk_updates: u64) -> WorldUpdateStats {
         let visible_regions = GridBounds::new_from_extents(
             Self::get_regionpos_for_pos(&visible.bottom_left()),
             Self::get_regionpos_for_pos(&visible.top_right()) + GridVec::new(1, 1)
@@ -232,8 +232,6 @@ impl World {
 
         let updated_chunk_count = AtomicU64::new(0);
         let updated_region_count = AtomicU64::new(0);
-
-        let target_chunk_updates = 128;
 
         self.regions.sort_unstable_by(|a, b| {
             let mut a_val = if a.get_bounds().overlaps(visible) { 1024 } else { 0 };
