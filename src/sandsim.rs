@@ -3,6 +3,8 @@ use bevy::{prelude::*, render::{render_resource::{Extent3d, TextureFormat}, came
 use gridmath::{GridVec, GridBounds};
 use sandworld::CHUNK_SIZE;
 
+use crate::camera::cam_bounds;
+
 pub struct SandSimulationPlugin;
 
 impl Plugin for SandSimulationPlugin {
@@ -121,10 +123,7 @@ fn cull_hidden_chunks(
     cam_query: Query<(&OrthographicProjection, &GlobalTransform)>,
 ) {
     let (ortho, cam_transform) = cam_query.single();
-    let bounds = GridBounds::new_from_extents(
-        GridVec::new(ortho.left as i32, ortho.bottom as i32) + GridVec::new(cam_transform.translation().x as i32, cam_transform.translation().y as i32), 
-        GridVec::new(ortho.right as i32, ortho.top as i32) + GridVec::new(cam_transform.translation().x as i32, cam_transform.translation().y as i32),
-    );
+    let bounds = cam_bounds(ortho, cam_transform);
 
     chunk_query.par_for_each_mut(16, |(chunk, mut vis)| {
         let chunk_bounds = GridBounds::new_from_corner(chunk.chunk_pos * (CHUNK_SIZE as i32), GridVec { x: CHUNK_SIZE as i32, y: CHUNK_SIZE as i32 });
@@ -191,10 +190,7 @@ fn sand_update(
     }
 
     let (ortho, cam_transform) = cam_query.single();
-    let bounds = GridBounds::new_from_extents(
-        GridVec::new(ortho.left as i32, ortho.bottom as i32) + GridVec::new(cam_transform.translation().x as i32, cam_transform.translation().y as i32), 
-        GridVec::new(ortho.right as i32, ortho.top as i32) + GridVec::new(cam_transform.translation().x as i32, cam_transform.translation().y as i32),
-    );
+    let bounds = cam_bounds(ortho, cam_transform);
 
     let update_start = std::time::Instant::now();
     let stats = world.update(bounds, target_chunk_updates);

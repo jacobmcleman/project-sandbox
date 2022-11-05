@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use gridmath::GridBounds;
 
 pub struct CameraPlugin;
 
@@ -20,6 +21,15 @@ fn spawn_camera(mut commands: Commands) {
     });
 }
 
+pub fn cam_bounds (ortho: &OrthographicProjection, transform: &GlobalTransform) -> GridBounds {
+    let width = (ortho.right - ortho.left) * ortho.scale;
+    let height = (ortho.top - ortho.bottom) * ortho.scale;
+    let center = gridmath::GridVec::new(((ortho.right + ortho.left) / 2.).round() as i32, ((ortho.top + ortho.bottom) / 2.).round() as i32) 
+            + gridmath::GridVec::new(transform.translation().x as i32, transform.translation().y as i32);
+    let half_extents = gridmath::GridVec::new((width / 2.).ceil() as i32, (height / 2.).ceil() as i32);
+    gridmath::GridBounds::new(center, half_extents)
+}
+
 fn camera_movement(
     mut query: Query<(&Camera, &mut OrthographicProjection, &mut Transform)>,
     time: Res<Time>,
@@ -30,6 +40,9 @@ fn camera_movement(
     let mut log_scale = ortho.scale.ln();
     let move_speed = 128.;
     let zoom_speed = 0.5;
+
+    let max_zoom = 10.;
+    let min_zoom = 0.1;
 
     if keys.pressed(KeyCode::D) || keys.pressed(KeyCode::Right) {
         camera_transform.translation = (camera_transform.right() * move_speed * time.delta_seconds()) + camera_transform.translation;
@@ -49,7 +62,7 @@ fn camera_movement(
     }
     if keys.any_pressed([KeyCode::PageDown, KeyCode::LBracket ]) {
         log_scale += zoom_speed * time.delta_seconds();
-    }
-
-    ortho.scale = log_scale.exp();
+    }    
+    
+    ortho.scale = log_scale.exp().clamp(min_zoom, max_zoom);
 }
