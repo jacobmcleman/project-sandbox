@@ -5,7 +5,6 @@ use std::{sync::atomic::AtomicU64};
 
 use crate::chunk::*;
 use crate::particle::*;
-use crate::region;
 use crate::region::*;
 
 pub const WORLD_WIDTH: i32 = 1440;
@@ -29,20 +28,6 @@ impl World {
             regions: Vec::new()
         };
 
-        // created.add_region(GridVec::new(0, 0));
-        // created.add_region(GridVec::new(1, 0));
-        // created.add_region(GridVec::new(-1, 0));
-
-        // created.add_region(GridVec::new(0, -1));
-        // created.add_region(GridVec::new(1, -1));
-        // created.add_region(GridVec::new(-1, -1));
-
-        // created.add_region(GridVec::new(0, 1));
-        // created.add_region(GridVec::new(1, 1));
-        // created.add_region(GridVec::new(-1, 1));
-
-        // created.remove_region(GridVec::new(0, 0));
-        
         return created;
     }
 
@@ -233,12 +218,9 @@ impl World {
         let updated_chunk_count = AtomicU64::new(0);
         let updated_region_count = AtomicU64::new(0);
 
-        self.regions.sort_unstable_by(|a, b| {
-            let mut a_val = if a.get_bounds().overlaps(visible) { 1024 } else { 0 };
-            let mut b_val = if b.get_bounds().overlaps(visible) { 1024 } else { 0 };
-
-            a_val += (a.staleness as u64 + 1) * (a.staleness as u64 + 1) * (a.last_chunk_updates + 1);
-            b_val += (b.staleness as u64 + 1) * (a.staleness as u64 + 1) * (b.last_chunk_updates + 1);
+        self.regions.par_sort_unstable_by(|a, b| {
+            let a_val = a.update_priority + if a.get_bounds().overlaps(visible) { 1024 } else { 0 };
+            let b_val = b.update_priority + if b.get_bounds().overlaps(visible) { 1024 } else { 0 };
             
             b_val.cmp(&a_val)
         });

@@ -75,6 +75,14 @@ fn spawn_performance_info_text(
                     font_size: 20.0,
                     color: Color::rgb(0.9, 0.9, 0.6),
                 }
+            },
+            TextSection {
+                value: "\nAvg render time per chunk".to_string(),
+                style: TextStyle {
+                    font: asset_server.load("fonts/FiraMono-Medium.ttf"),
+                    font_size: 20.0,
+                    color: Color::rgb(0.9, 0.9, 0.6),
+                }
             }
         ]
     ).with_style(Style {
@@ -101,7 +109,17 @@ fn update_performance_text(
             text.sections[1].value = format!("\nLoaded Regions: {}", world_stats.loaded_regions);
             text.sections[2].value = format!("\nRegion Updates: {}", world_stats.region_updates);
             text.sections[3].value = format!("\nChunk Updates [Target]: {} [{}]", world_stats.chunk_updates, stats.target_chunk_updates);
-            
+
+            let mut texture_update_time_avg = 0.;
+            let mut texture_update_per_chunk_avg = 0.;
+            for (time, count) in &stats.chunk_texture_update_time {
+                texture_update_time_avg += time;
+                texture_update_per_chunk_avg += time / (*count as f64);
+            }
+            texture_update_time_avg = texture_update_time_avg / (stats.chunk_texture_update_time.len() as f64);
+            texture_update_per_chunk_avg = texture_update_per_chunk_avg / (stats.chunk_texture_update_time.len() as f64);
+
+            text.sections[5].value = format!("\nTex Update time:  {:.2}ms - Avg time per chunk: {:.3}ms", texture_update_time_avg * 1000., texture_update_per_chunk_avg * 1000.);
         }
 
         let mut chunk_updates_per_second_avg = 0.;
@@ -113,7 +131,7 @@ fn update_performance_text(
         chunk_updates_per_second_avg = chunk_updates_per_second_avg / (stats.sand_update_time.len() as f64);
         total_sand_update_second_avg = total_sand_update_second_avg / (stats.sand_update_time.len() as f64);
 
-        text.sections[4].value = format!("\nSand update time {:.2}ms - Avg time per chunk: {:.3}ms", total_sand_update_second_avg * 1000., 1000. / chunk_updates_per_second_avg);
+        text.sections[4].value = format!("\nSand update time: {:.2}ms - Avg time per chunk: {:.3}ms", total_sand_update_second_avg * 1000., 1000. / chunk_updates_per_second_avg);
     }
     else {
         vis.is_visible = false;

@@ -1,4 +1,4 @@
-pub const REGION_SIZE: usize = 8;
+pub const REGION_SIZE: usize = 16;
 
 use std::sync::atomic::AtomicU64;
 
@@ -8,13 +8,14 @@ use crate::{chunk::*, World, Particle, ParticleType};
 
 pub struct Region {
     pub position: GridVec,
-    pub staleness: u32, // Number of updates this region has been skipped
+    pub staleness: u64, // Number of updates this region has been skipped
     pub last_chunk_updates: u64, // Number of chunks updated last time this region updated
     chunks: Vec<Box<Chunk>>,
     // Chunks that have been added to the world since last polled
     added_chunks: Vec<GridVec>,
     // Chunks that have been updated since last polled
     updated_chunks: Vec<GridVec>,
+    pub update_priority: u64,
 }
 
 impl Region {
@@ -26,6 +27,7 @@ impl Region {
             chunks: vec![],
             added_chunks: vec![],
             updated_chunks: vec![],
+            update_priority: 0
         };
 
         for y in 0..REGION_SIZE as i32 {
@@ -271,13 +273,22 @@ impl Region {
         )
     }
 
+    fn calc_update_priority(&mut self) {
+        self.update_priority = (self.staleness + 1) * (self.staleness + 1) * (self.last_chunk_updates + 1);
+    }
+
     pub fn skip_update(&mut self) {
         self.staleness += 1;
+
+        self.calc_update_priority();
     }
+
+
 
     pub fn commit_updates(&mut self) {
         self.staleness = 0;
         self.last_chunk_updates = 0;
+        self.calc_update_priority();
 
         self.chunks.iter().for_each(|chunk| {
             if chunk.dirty.is_some() || chunk.updated_last_frame.is_some()  {

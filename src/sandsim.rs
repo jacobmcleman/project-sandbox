@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 use bevy::{prelude::*, render::{render_resource::{Extent3d, TextureFormat}, camera::{RenderTarget}} };
 use gridmath::{GridVec, GridBounds};
+use sandworld::CHUNK_SIZE;
 
 pub struct SandSimulationPlugin;
 
@@ -20,12 +21,14 @@ impl Plugin for SandSimulationPlugin {
         .insert_resource(WorldStats {
             update_stats: None,
             sand_update_time: VecDeque::new(),
+            chunk_texture_update_time: VecDeque::new(),
             target_chunk_updates: 0,
         })
         .add_system(create_spawned_chunks.label(crate::UpdateStages::WorldUpdate))
         .add_system(sand_update.label(crate::UpdateStages::WorldUpdate))
         .add_system(update_chunk_textures.label(crate::UpdateStages::WorldDraw))
         .add_system(world_interact.label(crate::UpdateStages::Input))
+        .add_system(cull_hidden_chunks.label(crate::UpdateStages::WorldUpdate))
         .add_system(draw_mode_controls.label(crate::UpdateStages::Input));
     }
 }
@@ -34,6 +37,7 @@ impl Plugin for SandSimulationPlugin {
 struct Chunk {
     chunk_pos: gridmath::GridVec,
     chunk_texture_handle: Handle<Image>,
+    texture_dirty: bool,
 }
 
 pub struct DrawOptions {
@@ -51,6 +55,7 @@ pub struct BrushOptions {
 pub struct WorldStats {
     pub update_stats: Option<sandworld::WorldUpdateStats>,
     pub sand_update_time: VecDeque<(f64, u64)>, // Pairs of update time and updated chunk counts
+    pub chunk_texture_update_time: VecDeque<(f64, u64)>, // Pairs of update time and updated chunk counts
     pub target_chunk_updates: u64,
 }
 
@@ -105,30 +110,63 @@ fn create_spawned_chunks(
             }).insert(Chunk {
                 chunk_pos: chunkpos,
                 chunk_texture_handle: image_handle.clone(),
+                texture_dirty: false,
             });
         }
     }
 }
 
+fn cull_hidden_chunks(
+    mut chunk_query: Query<(&Chunk, &mut Visibility)>,
+    cam_query: Query<(&OrthographicProjection, &GlobalTransform)>,
+) {
+    let (ortho, cam_transform) = cam_query.single();
+    let bounds = GridBounds::new_from_extents(
+        GridVec::new(ortho.left as i32, ortho.bottom as i32) + GridVec::new(cam_transform.translation().x as i32, cam_transform.translation().y as i32), 
+        GridVec::new(ortho.right as i32, ortho.top as i32) + GridVec::new(cam_transform.translation().x as i32, cam_transform.translation().y as i32),
+    );
+
+    chunk_query.par_for_each_mut(16, |(chunk, mut vis)| {
+        let chunk_bounds = GridBounds::new_from_corner(chunk.chunk_pos * (CHUNK_SIZE as i32), GridVec { x: CHUNK_SIZE as i32, y: CHUNK_SIZE as i32 });
+        vis.is_visible = bounds.overlaps(chunk_bounds);
+    });
+}
+
 fn update_chunk_textures(
     mut world: ResMut<sandworld::World>,
     mut images: ResMut<Assets<Image>>,
-    chunk_query: Query<&Chunk>,
+    mut world_stats: ResMut<WorldStats>,
+    mut chunk_query: Query<(&mut Chunk, &Visibility)>,
     draw_options: Res<DrawOptions>,
 ) {
     let updated_chunks = world.get_updated_chunks();
+    let mut updated_textures_count = 0;
+    let update_start = std::time::Instant::now();
 
-    if !draw_options.force_redraw_all && updated_chunks.is_empty() {
-        return;
+    if draw_options.force_redraw_all || !updated_chunks.is_empty() {
+        chunk_query.par_for_each_mut(8, |(mut chunk_comp, _visibility)| {
+            if draw_options.force_redraw_all || updated_chunks.contains(&chunk_comp.chunk_pos) {
+                chunk_comp.texture_dirty = true;
+            }
+        });
     }
 
-    // TODO: look into only doing this work for visible chunks and doing catchup for chunks that become visible later
-    for chunk_comp in chunk_query.iter() {
-        if draw_options.force_redraw_all || updated_chunks.contains(&chunk_comp.chunk_pos) {
+    for (mut chunk_comp, visibility) in chunk_query.iter_mut() {
+        if chunk_comp.texture_dirty && visibility.is_visible {
             if let Some(chunk) = world.get_chunk(&chunk_comp.chunk_pos) {
                 images.set_untracked(chunk_comp.chunk_texture_handle.clone(), render_chunk_texture(chunk.as_ref(), &draw_options));
+                updated_textures_count += 1;
+                chunk_comp.texture_dirty = false;
             }
         }
+    }
+
+    let update_end = std::time::Instant::now();
+    let update_time = update_end - update_start;
+
+    world_stats.chunk_texture_update_time.push_back((update_time.as_secs_f64(), updated_textures_count));
+    if world_stats.chunk_texture_update_time.len() > 64 {
+        world_stats.chunk_texture_update_time.pop_front();
     }
 }
 
