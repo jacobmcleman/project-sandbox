@@ -28,7 +28,7 @@ fn main(){
             title: "Project Sandbox - Bevy".to_string(),
             width: 500.,
             height: 300.,
-            present_mode: PresentMode::AutoVsync,
+            present_mode: PresentMode::Immediate,
             ..default()
         })
         .insert_resource(ClearColor(Color::rgb(0.04, 0.04, 0.04)))

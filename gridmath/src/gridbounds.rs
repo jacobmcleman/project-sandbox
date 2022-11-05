@@ -107,6 +107,10 @@ impl GridBounds {
         )
     }
 
+    pub fn area(&self) -> u32 {
+        self.width() * self.height()
+    }
+
     pub fn iter(&self) -> GridIterator {
         GridIterator { bounds: self.clone(), current: self.bottom_left() + GridVec::new(-1, 0) }
     }

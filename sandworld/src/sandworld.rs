@@ -215,12 +215,16 @@ impl World {
             self.add_region_if_needed(regpos);
         }
 
+        let visible_region_count = visible_regions.area();
+        let total_visible_priority_boost = 65536;
+        let visible_boost_per_region = (total_visible_priority_boost / visible_region_count) as u64;
+
         let updated_chunk_count = AtomicU64::new(0);
         let updated_region_count = AtomicU64::new(0);
 
         self.regions.par_sort_unstable_by(|a, b| {
-            let a_val = a.update_priority + if a.get_bounds().overlaps(visible) { 1024 } else { 0 };
-            let b_val = b.update_priority + if b.get_bounds().overlaps(visible) { 1024 } else { 0 };
+            let a_val = a.update_priority + if a.get_bounds().overlaps(visible) { visible_boost_per_region } else { 0 };
+            let b_val = b.update_priority + if b.get_bounds().overlaps(visible) { visible_boost_per_region } else { 0 };
             
             b_val.cmp(&a_val)
         });
