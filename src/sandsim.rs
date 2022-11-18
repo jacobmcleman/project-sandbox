@@ -1,5 +1,9 @@
+use std::collections::VecDeque;
 use bevy::{prelude::*, render::{render_resource::{Extent3d, TextureFormat}, camera::{RenderTarget}} };
-use gridmath::GridVec;
+use gridmath::{GridVec, GridBounds};
+use sandworld::CHUNK_SIZE;
+
+use crate::camera::cam_bounds;
 
 pub struct SandSimulationPlugin;
 
@@ -9,16 +13,24 @@ impl Plugin for SandSimulationPlugin {
         .insert_resource(DrawOptions {
             update_bounds: false,
             chunk_bounds: false,
+            world_stats: false,
             force_redraw_all: false,
         })
         .insert_resource(BrushOptions {
             material: sandworld::ParticleType::Sand,
             radius: 10,
         })
+        .insert_resource(WorldStats {
+            update_stats: None,
+            sand_update_time: VecDeque::new(),
+            chunk_texture_update_time: VecDeque::new(),
+            target_chunk_updates: 0,
+        })
         .add_system(create_spawned_chunks.label(crate::UpdateStages::WorldUpdate))
         .add_system(sand_update.label(crate::UpdateStages::WorldUpdate))
         .add_system(update_chunk_textures.label(crate::UpdateStages::WorldDraw))
         .add_system(world_interact.label(crate::UpdateStages::Input))
+        .add_system(cull_hidden_chunks.label(crate::UpdateStages::WorldUpdate))
         .add_system(draw_mode_controls.label(crate::UpdateStages::Input));
     }
 }
@@ -27,11 +39,13 @@ impl Plugin for SandSimulationPlugin {
 struct Chunk {
     chunk_pos: gridmath::GridVec,
     chunk_texture_handle: Handle<Image>,
+    texture_dirty: bool,
 }
 
 pub struct DrawOptions {
     pub update_bounds: bool,
     pub chunk_bounds: bool,
+    pub world_stats: bool,
     pub force_redraw_all: bool,
 }
 
@@ -40,6 +54,12 @@ pub struct BrushOptions {
     pub radius: i32,
 }
 
+pub struct WorldStats {
+    pub update_stats: Option<sandworld::WorldUpdateStats>,
+    pub sand_update_time: VecDeque<(f64, u64)>, // Pairs of update time and updated chunk counts
+    pub chunk_texture_update_time: VecDeque<(f64, u64)>, // Pairs of update time and updated chunk counts
+    pub target_chunk_updates: u64,
+}
 
 fn draw_mode_controls(
     mut draw_options: ResMut<DrawOptions>,
@@ -54,6 +74,9 @@ fn draw_mode_controls(
     if keys.just_pressed(KeyCode::F3) {
         draw_options.update_bounds = !draw_options.update_bounds;
         draw_options.force_redraw_all = true;
+    }
+    if keys.just_pressed(KeyCode::F4) {
+        draw_options.world_stats = !draw_options.world_stats;
     }
 }
 
@@ -76,7 +99,6 @@ fn create_spawned_chunks(
     let added_chunks = world.get_added_chunks();
     for chunkpos in added_chunks {
         if let Some(chunk) = world.get_chunk(&chunkpos) {
-            //println!("New chunk at {} - created an entity to render it", chunkpos);
             let image = render_chunk_texture(chunk.as_ref(), &draw_options);
             let image_handle = images.add(image);
 
@@ -90,34 +112,95 @@ fn create_spawned_chunks(
             }).insert(Chunk {
                 chunk_pos: chunkpos,
                 chunk_texture_handle: image_handle.clone(),
+                texture_dirty: false,
             });
         }
     }
 }
 
+fn cull_hidden_chunks(
+    mut chunk_query: Query<(&Chunk, &mut Visibility)>,
+    cam_query: Query<(&OrthographicProjection, &GlobalTransform)>,
+) {
+    let (ortho, cam_transform) = cam_query.single();
+    let bounds = cam_bounds(ortho, cam_transform);
+
+    chunk_query.par_for_each_mut(16, |(chunk, mut vis)| {
+        let chunk_bounds = GridBounds::new_from_corner(chunk.chunk_pos * (CHUNK_SIZE as i32), GridVec { x: CHUNK_SIZE as i32, y: CHUNK_SIZE as i32 });
+        vis.is_visible = bounds.overlaps(chunk_bounds);
+    });
+}
+
 fn update_chunk_textures(
     mut world: ResMut<sandworld::World>,
     mut images: ResMut<Assets<Image>>,
-    chunk_query: Query<&Chunk>,
+    mut world_stats: ResMut<WorldStats>,
+    mut chunk_query: Query<(&mut Chunk, &Visibility)>,
     draw_options: Res<DrawOptions>,
 ) {
     let updated_chunks = world.get_updated_chunks();
+    let mut updated_textures_count = 0;
+    let update_start = std::time::Instant::now();
 
-    if !draw_options.force_redraw_all && updated_chunks.is_empty() {
-        return;
+    if draw_options.force_redraw_all || !updated_chunks.is_empty() {
+        chunk_query.par_for_each_mut(8, |(mut chunk_comp, _visibility)| {
+            if draw_options.force_redraw_all || updated_chunks.contains(&chunk_comp.chunk_pos) {
+                chunk_comp.texture_dirty = true;
+            }
+        });
     }
 
-    for chunk_comp in chunk_query.iter() {
-        if draw_options.force_redraw_all || updated_chunks.contains(&chunk_comp.chunk_pos) {
+    for (mut chunk_comp, visibility) in chunk_query.iter_mut() {
+        if chunk_comp.texture_dirty && visibility.is_visible {
             if let Some(chunk) = world.get_chunk(&chunk_comp.chunk_pos) {
                 images.set_untracked(chunk_comp.chunk_texture_handle.clone(), render_chunk_texture(chunk.as_ref(), &draw_options));
+                updated_textures_count += 1;
+                chunk_comp.texture_dirty = false;
             }
         }
     }
+
+    let update_end = std::time::Instant::now();
+    let update_time = update_end - update_start;
+
+    world_stats.chunk_texture_update_time.push_back((update_time.as_secs_f64(), updated_textures_count));
+    if world_stats.chunk_texture_update_time.len() > 64 {
+        world_stats.chunk_texture_update_time.pop_front();
+    }
 }
 
-fn sand_update(mut world: ResMut<sandworld::World>) {
-    world.update();    
+fn sand_update(
+    mut world: ResMut<sandworld::World>, 
+    mut world_stats: ResMut<WorldStats>,
+    perf_settings: Res<crate::perf::PerfSettings>,
+    cam_query: Query<(&OrthographicProjection, &GlobalTransform)>,
+) {
+    let mut target_chunk_updates = 128;
+
+    if let Some(_stats) = &world_stats.update_stats {
+        // Aim to use half of the available frame time for sand updates
+        let target_update_seconds: f64 = (1. / (perf_settings.target_frame_rate as f64)) * 0.5;
+        let mut chunk_updates_per_second_avg = 0.;
+        for (time, count) in &world_stats.sand_update_time {
+            chunk_updates_per_second_avg += (*count + 1) as f64 / time;
+        }
+        chunk_updates_per_second_avg = chunk_updates_per_second_avg / (world_stats.sand_update_time.len() as f64);
+        target_chunk_updates = (target_update_seconds * chunk_updates_per_second_avg) as u64;
+        world_stats.target_chunk_updates = target_chunk_updates;
+    }
+
+    let (ortho, cam_transform) = cam_query.single();
+    let bounds = cam_bounds(ortho, cam_transform);
+
+    let update_start = std::time::Instant::now();
+    let stats = world.update(bounds, target_chunk_updates);
+    let update_end = std::time::Instant::now();
+    let update_time = update_end - update_start;
+    world_stats.sand_update_time.push_back((update_time.as_secs_f64(), stats.chunk_updates));
+    if world_stats.sand_update_time.len() > 64 {
+        world_stats.sand_update_time.pop_front();
+    }
+    world_stats.update_stats = Some(stats);  
 }
 
 fn world_interact(
@@ -157,16 +240,13 @@ fn world_interact(
             // reduce it to a 2D value
             let world_pos: Vec2 = world_pos.truncate();
 
-            //println!("World coords: {}/{}", world_pos.x as i32, world_pos.y as i32);
-
             let gridpos = GridVec::new(world_pos.x as i32, world_pos.y as i32);
-            if sand.contains(gridpos) {
-                if buttons.pressed(MouseButton::Left){
-                    sand.place_circle(gridpos, brush_options.radius, sandworld::Particle::new(brush_options.material), false);
-                }
-                else if buttons.pressed(MouseButton::Right) {
-                    sand.place_circle(gridpos, 10, sandworld::Particle::new(sandworld::ParticleType::Air), true);
-                }
+
+            if buttons.pressed(MouseButton::Left){
+                sand.place_circle(gridpos, brush_options.radius, sandworld::Particle::new(brush_options.material), false);
+            }
+            else if buttons.pressed(MouseButton::Right) {
+                sand.place_circle(gridpos, 10, sandworld::Particle::new(sandworld::ParticleType::Air), true);
             }
         }
     }

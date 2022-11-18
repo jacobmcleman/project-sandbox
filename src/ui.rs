@@ -4,6 +4,8 @@ use sandworld::ParticleType;
 
 pub struct UiPlugin;
 
+
+
 pub struct PointerCaptureState {
     pub click_consumed: bool,
 }
@@ -14,11 +16,125 @@ const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
 
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(setup_buttons)
+        app
+            .add_startup_system(setup_buttons)
+            .add_startup_system(spawn_performance_info_text)
             .insert_resource(PointerCaptureState { click_consumed: false })
             .add_system(button_system.label(crate::UpdateStages::UI)
                 .before(crate::UpdateStages::Input))
+            .add_system(update_performance_text.label(crate::UpdateStages::UI)
+                .after(crate::UpdateStages::WorldUpdate))
         ;
+    }
+}
+
+#[derive(Component)]
+struct PerformanceReadout;
+
+fn spawn_performance_info_text(
+    mut commands: Commands, 
+    asset_server: Res<AssetServer>
+) {
+    commands.spawn_bundle(TextBundle::from_sections([
+            TextSection {
+                value: "FPS: 69".to_string(),
+                style: TextStyle {
+                    font: asset_server.load("fonts/FiraMono-Medium.ttf"),
+                    font_size: 30.0,
+                    color: Color::rgb(0.9, 0.9, 0.9),
+                }
+            },
+            TextSection {
+                value: "\nLoaded Regions: 000".to_string(),
+                style: TextStyle {
+                    font: asset_server.load("fonts/FiraMono-Medium.ttf"),
+                    font_size: 20.0,
+                    color: Color::rgb(0.9, 0.9, 0.9),
+                }
+            },
+            TextSection {
+                value: "\nUpdated Regions: 000".to_string(),
+                style: TextStyle {
+                    font: asset_server.load("fonts/FiraMono-Medium.ttf"),
+                    font_size: 20.0,
+                    color: Color::rgb(0.9, 0.9, 0.9),
+                }
+            },
+            TextSection {
+                value: "\nChunk Updates: 000".to_string(),
+                style: TextStyle {
+                    font: asset_server.load("fonts/FiraMono-Medium.ttf"),
+                    font_size: 20.0,
+                    color: Color::rgb(0.9, 0.9, 0.9),
+                }
+            },
+            TextSection {
+                value: "\nAvg time per chunk".to_string(),
+                style: TextStyle {
+                    font: asset_server.load("fonts/FiraMono-Medium.ttf"),
+                    font_size: 20.0,
+                    color: Color::rgb(0.9, 0.9, 0.6),
+                }
+            },
+            TextSection {
+                value: "\nAvg render time per chunk".to_string(),
+                style: TextStyle {
+                    font: asset_server.load("fonts/FiraMono-Medium.ttf"),
+                    font_size: 20.0,
+                    color: Color::rgb(0.9, 0.9, 0.6),
+                }
+            }
+        ]
+    ).with_style(Style {
+        position_type: PositionType::Absolute,
+        position: UiRect { left: Val::Px(10.0), top: Val::Px(10.0), ..Default::default() },
+        ..Default::default()
+    })
+).insert(PerformanceReadout{});
+}
+
+fn update_performance_text(
+    mut text_query: Query<(&PerformanceReadout, &mut Text, &mut Visibility)>,
+    stats: Res<crate::sandsim::WorldStats>,
+    draw_options: Res<crate::sandsim::DrawOptions>,
+    frame_times: Res<crate::perf::FrameTimes>,
+) {
+    let (_, mut text, mut vis) = text_query.single_mut();
+    if draw_options.world_stats {
+        vis.is_visible = true;
+
+        text.sections[0].value = format!("FPS: {} ({:.1}ms)", (1. / frame_times.current_avg).round() as u32, frame_times.current_avg * 1000.);
+
+        if let Some(world_stats) = &stats.update_stats {
+            text.sections[1].value = format!("\nLoaded Regions: {}", world_stats.loaded_regions);
+            text.sections[2].value = format!("\nRegion Updates: {}", world_stats.region_updates);
+            text.sections[3].value = format!("\nChunk Updates [Target]: {} [{}]", world_stats.chunk_updates, stats.target_chunk_updates);
+
+            let mut texture_update_time_avg = 0.;
+            let mut texture_update_per_chunk_avg = 0.;
+            for (time, count) in &stats.chunk_texture_update_time {
+                texture_update_time_avg += time;
+                texture_update_per_chunk_avg += time / (*count as f64);
+            }
+            texture_update_time_avg = texture_update_time_avg / (stats.chunk_texture_update_time.len() as f64);
+            texture_update_per_chunk_avg = texture_update_per_chunk_avg / (stats.chunk_texture_update_time.len() as f64);
+
+            text.sections[5].value = format!("\nTex Update time:  {:.2}ms - Avg time per chunk: {:.3}ms", texture_update_time_avg * 1000., texture_update_per_chunk_avg * 1000.);
+        }
+
+        let mut chunk_updates_per_second_avg = 0.;
+        let mut total_sand_update_second_avg = 0.;
+        for (time, count) in &stats.sand_update_time {
+            chunk_updates_per_second_avg += *count as f64 / time;
+            total_sand_update_second_avg += time;
+        }
+        chunk_updates_per_second_avg = chunk_updates_per_second_avg / (stats.sand_update_time.len() as f64);
+        total_sand_update_second_avg = total_sand_update_second_avg / (stats.sand_update_time.len() as f64);
+
+        text.sections[4].value = format!("\nSand update time: {:.2}ms - Avg time per chunk: {:.3}ms", total_sand_update_second_avg * 1000., 1000. / chunk_updates_per_second_avg);
+    }
+    else {
+        vis.is_visible = false;
     }
 }
 

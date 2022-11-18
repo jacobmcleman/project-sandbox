@@ -10,6 +10,12 @@ pub struct GridBounds {
     pub top_right: GridVec,
 }
 
+impl std::fmt::Display for GridBounds {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "<from {} to {}>", self.bottom_left(), self.top_right())
+    }
+}
+
 impl GridBounds {
     pub fn new(center: GridVec, half_extent: GridVec) -> Self {
         GridBounds { bottom_left: center - half_extent, top_right: center + half_extent }
@@ -101,6 +107,10 @@ impl GridBounds {
         )
     }
 
+    pub fn area(&self) -> u32 {
+        self.width() * self.height()
+    }
+
     pub fn iter(&self) -> GridIterator {
         GridIterator { bounds: self.clone(), current: self.bottom_left() + GridVec::new(-1, 0) }
     }
@@ -149,6 +159,22 @@ impl GridBounds {
         else {
             None
         }
+    }
+
+    pub fn overlaps(&self, other: GridBounds) -> bool {
+        let dx = other.center().x - self.center().x;
+        let px = (other.half_extent().x + self.half_extent().x) - dx.abs();
+        if px <= 0 {
+            return false;
+        }
+
+        let dy = other.center().y - self.center().y;
+        let py = (other.half_extent().y + self.half_extent().y) - dy.abs();
+        if py <= 0 {
+            return false;
+        }
+
+        true
     }
 
     // If there is an intersection, returns the bounds of the overlapping area

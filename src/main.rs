@@ -6,6 +6,7 @@ use bevy::{prelude::*, render::texture::ImageSettings, window::PresentMode };
 mod sandsim;
 mod camera;
 mod ui;
+mod perf;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[derive(SystemLabel)]
@@ -22,6 +23,7 @@ fn main(){
         .add_plugin(crate::sandsim::SandSimulationPlugin)
         .add_plugin(crate::camera::CameraPlugin)
         .add_plugin(crate::ui::UiPlugin)
+        .add_plugin(crate::perf::PerfControlPlugin)
         .insert_resource(WindowDescriptor {
             title: "Project Sandbox - Bevy".to_string(),
             width: 500.,
