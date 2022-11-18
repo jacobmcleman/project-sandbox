@@ -268,12 +268,6 @@ impl World {
 
         let chunk_updates = updated_chunk_count.load(std::sync::atomic::Ordering::Relaxed);
 
-        // println!("Estimated {} chunk updates, actual was {} - a factor of {}", 
-        //     estimated_chunk_updates, 
-        //     chunk_updates,
-        //     estimated_chunk_updates as f32 / chunk_updates as f32
-        // );
-        
         WorldUpdateStats {
             chunk_updates,
             loaded_regions: self.regions.len(),
