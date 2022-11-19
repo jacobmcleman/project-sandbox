@@ -17,6 +17,8 @@ jobs:
     steps:
     - name: Install Dependencies
       run: sudo apt-get install clang pkg-config libx11-dev libasound2-dev libudev-dev
+    - name: Update rust compiler
+      run: rustup update
     - uses: actions/checkout@v3
     - name: Rust Cache
       uses: Swatinem/rust-cache@v1.3.0
