@@ -5,7 +5,7 @@ use sandworld::ParticleType;
 pub struct UiPlugin;
 
 
-
+#[derive(Resource)]
 pub struct PointerCaptureState {
     pub click_consumed: bool,
 }
@@ -35,7 +35,7 @@ fn spawn_performance_info_text(
     mut commands: Commands, 
     asset_server: Res<AssetServer>
 ) {
-    commands.spawn_bundle(TextBundle::from_sections([
+    commands.spawn(TextBundle::from_sections([
             TextSection {
                 value: "FPS: 69".to_string(),
                 style: TextStyle {
@@ -149,10 +149,9 @@ fn spawn_tool_selector_button(
     asset_server: &Res<AssetServer>, 
     label: &str, material: ParticleType, radius: i32) {
     commands
-        .spawn_bundle(ButtonBundle {
+        .spawn(ButtonBundle {
             style: Style {
                 size: Size::new(Val::Px(100.0), Val::Px(40.0)),
-                // center button
                 margin: UiRect {
                     left: Val::Px(16.0),
                     bottom: Val::Px(16.0),
@@ -162,9 +161,10 @@ fn spawn_tool_selector_button(
                 justify_content: JustifyContent::Center,
                 // vertically center child text
                 align_items: AlignItems::Center,
+                align_self: AlignSelf::FlexEnd,
                 ..default()
             },
-            color: NORMAL_BUTTON.into(),
+            background_color: NORMAL_BUTTON.into(),
             ..default()
         })
         .insert(ToolSelector {
@@ -172,7 +172,7 @@ fn spawn_tool_selector_button(
             radius,
         })
         .with_children(|parent| {
-            parent.spawn_bundle(TextBundle::from_section(
+            parent.spawn(TextBundle::from_section(
                 label,
                 TextStyle {
                     font: asset_server.load("fonts/FiraMono-Medium.ttf"),
@@ -193,7 +193,7 @@ fn setup_buttons(mut commands: Commands, asset_server: Res<AssetServer>) {
 fn button_system(
     mut capture_state: ResMut<PointerCaptureState>,
     mut interaction_query: Query<
-        (&Interaction, &mut UiColor, &ToolSelector),
+        (&Interaction, &mut BackgroundColor, &ToolSelector),
         With<Button>,
     >,
     mut brush_options: ResMut<BrushOptions>,
