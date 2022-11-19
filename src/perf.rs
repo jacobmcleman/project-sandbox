@@ -2,11 +2,13 @@ use std::collections::VecDeque;
 
 use bevy::prelude::*;
 
+#[derive(Resource)]
 pub struct FrameTimes {
     recent: VecDeque<f64>,
     pub current_avg: f64, 
 }
 
+#[derive(Resource)]
 pub struct PerfSettings {
     pub target_frame_rate: u32
 }

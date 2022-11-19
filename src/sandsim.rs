@@ -9,7 +9,7 @@ pub struct SandSimulationPlugin;
 
 impl Plugin for SandSimulationPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(sandworld::World::new())
+        app.insert_resource(Sandworld {world: sandworld::World::new() })
         .insert_resource(DrawOptions {
             update_bounds: false,
             chunk_bounds: false,
@@ -42,6 +42,7 @@ struct Chunk {
     texture_dirty: bool,
 }
 
+#[derive(Resource)]
 pub struct DrawOptions {
     pub update_bounds: bool,
     pub chunk_bounds: bool,
@@ -49,11 +50,18 @@ pub struct DrawOptions {
     pub force_redraw_all: bool,
 }
 
+#[derive(Resource)]
 pub struct BrushOptions {
     pub material: sandworld::ParticleType,
     pub radius: i32,
 }
 
+#[derive(Resource)]
+struct Sandworld {
+    world: sandworld::World
+}
+
+#[derive(Resource)]
 pub struct WorldStats {
     pub update_stats: Option<sandworld::WorldUpdateStats>,
     pub sand_update_time: VecDeque<(f64, u64)>, // Pairs of update time and updated chunk counts
@@ -91,20 +99,20 @@ fn render_chunk_texture(chunk: &sandworld::Chunk, draw_options: &DrawOptions) ->
 }
 
 fn create_spawned_chunks(
-    mut world: ResMut<sandworld::World>,
+    mut world: ResMut<Sandworld>,
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
     draw_options: Res<DrawOptions>,
 ) {
-    let added_chunks = world.get_added_chunks();
+    let added_chunks = world.world.get_added_chunks();
     for chunkpos in added_chunks {
-        if let Some(chunk) = world.get_chunk(&chunkpos) {
+        if let Some(chunk) = world.world.get_chunk(&chunkpos) {
             let image = render_chunk_texture(chunk.as_ref(), &draw_options);
             let image_handle = images.add(image);
 
             let chunk_size = sandworld::CHUNK_SIZE as f32;
 
-            commands.spawn_bundle(SpriteBundle {
+            commands.spawn(SpriteBundle {
                 transform: Transform::from_translation(Vec3::new((chunkpos.x as f32 + 0.5) * chunk_size, (chunkpos.y as f32 + 0.5) * chunk_size, 0.))
                     .with_scale(Vec3::new(1., 1., 1.)),
                 texture: image_handle.clone(),
@@ -132,13 +140,13 @@ fn cull_hidden_chunks(
 }
 
 fn update_chunk_textures(
-    mut world: ResMut<sandworld::World>,
+    mut world: ResMut<Sandworld>,
     mut images: ResMut<Assets<Image>>,
     mut world_stats: ResMut<WorldStats>,
     mut chunk_query: Query<(&mut Chunk, &Visibility)>,
     draw_options: Res<DrawOptions>,
 ) {
-    let updated_chunks = world.get_updated_chunks();
+    let updated_chunks = world.world.get_updated_chunks();
     let mut updated_textures_count = 0;
     let update_start = std::time::Instant::now();
 
@@ -152,7 +160,7 @@ fn update_chunk_textures(
 
     for (mut chunk_comp, visibility) in chunk_query.iter_mut() {
         if chunk_comp.texture_dirty && visibility.is_visible {
-            if let Some(chunk) = world.get_chunk(&chunk_comp.chunk_pos) {
+            if let Some(chunk) = world.world.get_chunk(&chunk_comp.chunk_pos) {
                 images.set_untracked(chunk_comp.chunk_texture_handle.clone(), render_chunk_texture(chunk.as_ref(), &draw_options));
                 updated_textures_count += 1;
                 chunk_comp.texture_dirty = false;
@@ -170,7 +178,7 @@ fn update_chunk_textures(
 }
 
 fn sand_update(
-    mut world: ResMut<sandworld::World>, 
+    mut world: ResMut<Sandworld>, 
     mut world_stats: ResMut<WorldStats>,
     perf_settings: Res<crate::perf::PerfSettings>,
     cam_query: Query<(&OrthographicProjection, &GlobalTransform)>,
@@ -193,7 +201,7 @@ fn sand_update(
     let bounds = cam_bounds(ortho, cam_transform);
 
     let update_start = std::time::Instant::now();
-    let stats = world.update(bounds, target_chunk_updates);
+    let stats = world.world.update(bounds, target_chunk_updates);
     let update_end = std::time::Instant::now();
     let update_time = update_end - update_start;
     world_stats.sand_update_time.push_back((update_time.as_secs_f64(), stats.chunk_updates));
@@ -207,7 +215,7 @@ fn world_interact(
     wnds: Res<Windows>,
     capture_state: Res<crate::ui::PointerCaptureState>,
     q_cam: Query<(&Camera, &GlobalTransform)>,
-    mut sand: ResMut<sandworld::World>,
+    mut sand: ResMut<Sandworld>,
     buttons: Res<Input<MouseButton>>,
     brush_options: Res<BrushOptions>
 ) {
@@ -243,10 +251,10 @@ fn world_interact(
             let gridpos = GridVec::new(world_pos.x as i32, world_pos.y as i32);
 
             if buttons.pressed(MouseButton::Left){
-                sand.place_circle(gridpos, brush_options.radius, sandworld::Particle::new(brush_options.material), false);
+                sand.world.place_circle(gridpos, brush_options.radius, sandworld::Particle::new(brush_options.material), false);
             }
             else if buttons.pressed(MouseButton::Right) {
-                sand.place_circle(gridpos, 10, sandworld::Particle::new(sandworld::ParticleType::Air), true);
+                sand.world.place_circle(gridpos, 10, sandworld::Particle::new(sandworld::ParticleType::Air), true);
             }
         }
     }

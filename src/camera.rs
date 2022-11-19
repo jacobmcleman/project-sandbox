@@ -11,7 +11,7 @@ impl Plugin for CameraPlugin {
 }
 
 fn spawn_camera(mut commands: Commands) {
-    commands.spawn_bundle(Camera2dBundle {
+    commands.spawn(Camera2dBundle {
         transform: Transform::from_translation(Vec3::new(
             sandworld::WORLD_WIDTH as f32 / 2.,
             sandworld::WORLD_HEIGHT as f32 / 2.,
