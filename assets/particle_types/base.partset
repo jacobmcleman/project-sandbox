@@ -1,0 +1,29 @@
+(
+    set_name: "base",
+    types: [
+        (
+            name: "Air",
+            moves: [],
+            replace_water: false,
+            color: [0x04, 0x04, 0x04, 0xFF],
+        ),
+        (
+            name: "Boundary",
+            moves: [],
+            replace_water: false,
+            color: [0x00, 0x00, 0x00, 0xFF],
+        ),
+        (
+            name: "Region Boundary",
+            moves: [],
+            replace_water: false,
+            color: [0xFF, 0xFF, 0x00, 0xFF],
+        ),
+        (
+            name: "Dirty",
+            moves: [],
+            replace_water: false,
+            color: [0xFF, 0x00, 0xFF, 0xFF],
+        ),
+    ]
+)

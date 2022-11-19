@@ -9,3 +9,4 @@ edition = "2021"
 gridmath = { path = "gridmath" }
 sandworld = { path = "sandworld" }
 bevy = "0.9"
+bevy_common_assets = "0.4"
