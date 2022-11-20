@@ -7,6 +7,7 @@ mod sandsim;
 mod camera;
 mod ui;
 mod perf;
+mod particle_set;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[derive(SystemLabel)]

@@ -1,0 +1,24 @@
+(
+    set_name: "world",
+    format_version: 1,
+    types: [
+        (
+            name: "Sand",
+            moves: [(1, -1), (-1, -1), (0, -1)],
+            replace_water: true,
+            color: (0xDC, 0xCD, 0x79, 0xFF),
+        ),
+        (
+            name: "Water",
+            moves: [(1, -1), (-1, -1), (0, -1), (1, 0), (-1, 0)],
+            replace_water: false,
+            color: (0x56, 0x9C, 0xD6, 0xFF),
+        ),
+        (
+            name: "Stone",
+            moves: [],
+            replace_water: false,
+            color: (0x88, 0x88, 0x98, 0xFF),
+        ),
+    ]
+)

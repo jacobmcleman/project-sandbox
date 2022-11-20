@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 use bevy::{prelude::*, render::{render_resource::{Extent3d, TextureFormat}, camera::{RenderTarget}} };
 use gridmath::{GridVec, GridBounds};
 use sandworld::CHUNK_SIZE;
+use bevy_common_assets::ron::*;
 
 use crate::camera::cam_bounds;
 
@@ -9,7 +10,9 @@ pub struct SandSimulationPlugin;
 
 impl Plugin for SandSimulationPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(Sandworld {world: sandworld::World::new() })
+        app
+        .add_plugin(RonAssetPlugin::<crate::particle_set::ParticleSet>::new(&["partset"]))
+        .insert_resource(Sandworld {world: sandworld::World::new() })
         .insert_resource(DrawOptions {
             update_bounds: false,
             chunk_bounds: false,
@@ -31,7 +34,9 @@ impl Plugin for SandSimulationPlugin {
         .add_system(update_chunk_textures.label(crate::UpdateStages::WorldDraw))
         .add_system(world_interact.label(crate::UpdateStages::Input))
         .add_system(cull_hidden_chunks.label(crate::UpdateStages::WorldUpdate))
-        .add_system(draw_mode_controls.label(crate::UpdateStages::Input));
+        .add_system(draw_mode_controls.label(crate::UpdateStages::Input))
+        .add_system(crate::particle_set::read_particle_sets)
+        ;
     }
 }
 
