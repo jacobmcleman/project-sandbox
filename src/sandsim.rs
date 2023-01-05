@@ -65,7 +65,7 @@ pub struct WorldStats {
 }
 
 #[derive(Resource)]
-struct SandWorld {
+pub struct SandWorld {
     world: sandworld::World,
 }
 
@@ -211,7 +211,7 @@ fn sand_update(
     world_stats.update_stats = Some(stats);  
 }
 
-fn world_interact(
+pub fn world_interact(
     wnds: Res<Windows>,
     capture_state: Res<crate::ui::PointerCaptureState>,
     q_cam: Query<(&Camera, &GlobalTransform)>,

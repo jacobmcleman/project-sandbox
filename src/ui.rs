@@ -20,7 +20,7 @@ impl Plugin for UiPlugin {
             .add_startup_system(setup_buttons)
             .add_startup_system(spawn_performance_info_text)
             .insert_resource(PointerCaptureState { click_consumed: false })
-            .add_system(button_system)
+            .add_system(button_system.before(crate::sandsim::world_interact))
             .add_system(update_performance_text)
         ;
     }
