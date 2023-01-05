@@ -5,14 +5,14 @@ use sandworld::ParticleType;
 pub struct UiPlugin;
 
 
-
+#[derive(Resource)]
 pub struct PointerCaptureState {
     pub click_consumed: bool,
 }
 
-const NORMAL_BUTTON: Color = Color::rgb(0.15, 0.15, 0.15);
-const HOVERED_BUTTON: Color = Color::rgb(0.25, 0.25, 0.25);
-const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
+const NORMAL_BUTTON: BackgroundColor = BackgroundColor(Color::rgb(0.15, 0.15, 0.15));
+const HOVERED_BUTTON: BackgroundColor = BackgroundColor(Color::rgb(0.25, 0.25, 0.25));
+const PRESSED_BUTTON: BackgroundColor = BackgroundColor(Color::rgb(0.35, 0.75, 0.35));
 
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
@@ -20,10 +20,8 @@ impl Plugin for UiPlugin {
             .add_startup_system(setup_buttons)
             .add_startup_system(spawn_performance_info_text)
             .insert_resource(PointerCaptureState { click_consumed: false })
-            .add_system(button_system.label(crate::UpdateStages::UI)
-                .before(crate::UpdateStages::Input))
-            .add_system(update_performance_text.label(crate::UpdateStages::UI)
-                .after(crate::UpdateStages::WorldUpdate))
+            .add_system(button_system)
+            .add_system(update_performance_text)
         ;
     }
 }
@@ -35,7 +33,7 @@ fn spawn_performance_info_text(
     mut commands: Commands, 
     asset_server: Res<AssetServer>
 ) {
-    commands.spawn_bundle(TextBundle::from_sections([
+    commands.spawn(TextBundle::from_sections([
             TextSection {
                 value: "FPS: 69".to_string(),
                 style: TextStyle {
@@ -147,14 +145,15 @@ struct ToolSelector {
 fn spawn_tool_selector_button(
     commands: &mut Commands, 
     asset_server: &Res<AssetServer>, 
-    label: &str, material: ParticleType, radius: i32) {
+    label: &str, material: ParticleType, radius: i32, button_index: u32) {
     commands
-        .spawn_bundle(ButtonBundle {
+        .spawn(ButtonBundle {
             style: Style {
+                flex_direction: FlexDirection::ColumnReverse,
                 size: Size::new(Val::Px(100.0), Val::Px(40.0)),
-                // center button
-                margin: UiRect {
-                    left: Val::Px(16.0),
+                position_type: PositionType::Absolute,
+                position: UiRect {
+                    left: Val::Px(16.0 + button_index as f32 * (16.0 + 100.0)),
                     bottom: Val::Px(16.0),
                     ..default()
                 },
@@ -164,7 +163,7 @@ fn spawn_tool_selector_button(
                 align_items: AlignItems::Center,
                 ..default()
             },
-            color: NORMAL_BUTTON.into(),
+            background_color: NORMAL_BUTTON,
             ..default()
         })
         .insert(ToolSelector {
@@ -172,7 +171,7 @@ fn spawn_tool_selector_button(
             radius,
         })
         .with_children(|parent| {
-            parent.spawn_bundle(TextBundle::from_section(
+            parent.spawn(TextBundle::from_section(
                 label,
                 TextStyle {
                     font: asset_server.load("fonts/FiraMono-Medium.ttf"),
@@ -184,16 +183,16 @@ fn spawn_tool_selector_button(
 }
 
 fn setup_buttons(mut commands: Commands, asset_server: Res<AssetServer>) {
-    spawn_tool_selector_button(&mut commands, &asset_server, "Sand", ParticleType::Sand, 10);
-    spawn_tool_selector_button(&mut commands, &asset_server, "Stone", ParticleType::Stone, 10);
-    spawn_tool_selector_button(&mut commands, &asset_server, "Water", ParticleType::Water, 10);
-    spawn_tool_selector_button(&mut commands, &asset_server, "Source", ParticleType::Source, 1);
+    spawn_tool_selector_button(&mut commands, &asset_server, "Sand", ParticleType::Sand, 10, 0);
+    spawn_tool_selector_button(&mut commands, &asset_server, "Stone", ParticleType::Stone, 10, 1);
+    spawn_tool_selector_button(&mut commands, &asset_server, "Water", ParticleType::Water, 10, 2);
+    spawn_tool_selector_button(&mut commands, &asset_server, "Source", ParticleType::Source, 1, 3);
 }
 
 fn button_system(
     mut capture_state: ResMut<PointerCaptureState>,
     mut interaction_query: Query<
-        (&Interaction, &mut UiColor, &ToolSelector),
+        (&Interaction, &mut BackgroundColor, &ToolSelector),
         With<Button>,
     >,
     mut brush_options: ResMut<BrushOptions>,
