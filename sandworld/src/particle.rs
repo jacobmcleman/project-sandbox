@@ -23,11 +23,11 @@ impl Particle {
         Particle{particle_type, updated_this_frame: false}
     }
 
-    pub fn get_possible_moves(particle_type: ParticleType) -> Vec::<GridVec> {
+    pub fn get_possible_moves(particle_type: ParticleType) -> Vec::<Vec::<GridVec>> {
         match particle_type {
-            ParticleType::Sand => vec![GridVec{x: 1, y: -1}, GridVec{x: -1, y: -1}, GridVec{x: 0, y: -1}],
-            ParticleType::Water => vec![GridVec{x: 1, y: -1}, GridVec{x: 0, y: -1}, GridVec{x: -1, y: -1}, GridVec{x: 1, y: 0}, GridVec{x: -1, y: 0} ],
-            _ => Vec::<GridVec>::new(),
+            ParticleType::Sand => vec![vec![GridVec{x: 0, y: -1}], vec![GridVec{x: 1, y: -1}, GridVec{x: -1, y: -1}]],
+            ParticleType::Water => vec![vec![GridVec{x: 1, y: -1}, GridVec{x: 0, y: -1}, GridVec{x: -1, y: -1}, GridVec{x: 1, y: 0}, GridVec{x: -1, y: 0} ]],
+            _ => Vec::<Vec::<GridVec>>::new(),
         }
     }
 
