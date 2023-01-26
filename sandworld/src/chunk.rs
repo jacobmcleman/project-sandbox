@@ -411,8 +411,11 @@ impl Chunk {
             }
         }
         else if let Some(neighbor) = self.get_neighbor( Chunk::get_oob_direction(x, y) ) {
+            let dir = Chunk::get_oob_direction(x, y);
+            let adjusted_x = x - (dir.x as i16 * CHUNK_SIZE as i16);
+            let adjusted_y = y - (dir.y as i16 * CHUNK_SIZE as i16);
             unsafe {
-                (*neighbor).try_erode(rng, x % CHUNK_SIZE as i16, y % CHUNK_SIZE as i16, vel);
+                (*neighbor).try_erode(rng, adjusted_x, adjusted_y, vel);
             }
         }
     }
