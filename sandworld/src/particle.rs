@@ -25,8 +25,16 @@ impl Particle {
 
     pub fn get_possible_moves(particle_type: ParticleType) -> Vec::<Vec::<GridVec>> {
         match particle_type {
-            ParticleType::Sand => vec![vec![GridVec{x: 0, y: -1}], vec![GridVec{x: 1, y: -1}, GridVec{x: -1, y: -1}]],
-            ParticleType::Water => vec![vec![GridVec{x: 1, y: -1}, GridVec{x: 0, y: -1}, GridVec{x: -1, y: -1}, GridVec{x: 1, y: 0}, GridVec{x: -1, y: 0} ]],
+            ParticleType::Sand => vec![
+                vec![GridVec{x: 0, y: -1}, GridVec{x: 0, y: -2}, GridVec{x: 0, y: -3}], 
+                vec![GridVec{x: 1, y: -1}, GridVec{x: -1, y: -1}],
+                ],
+            ParticleType::Water => vec![
+                vec![GridVec{x: 1, y: -2}, GridVec{x: -1, y: -2}, GridVec{x: 0, y: -2}, GridVec{x: 1, y: -1}, GridVec{x: -1, y: -1}, GridVec{x: 0, y: -1}],
+                vec![GridVec{x: 1, y: 0}, GridVec{x: -1, y: 0}, GridVec{x: 2, y: -1}, GridVec{x: -2, y: -1}],
+                vec![GridVec{x: 2, y: 0}, GridVec{x: -2, y: 0}, GridVec{x: 3, y: -1}, GridVec{x: -3, y: -1}],
+                vec![GridVec{x: 3, y: 0}, GridVec{x: -3, y: 0}, GridVec{x: 4, y: -1}, GridVec{x: -4, y: -1}],
+                ],
             _ => Vec::<Vec::<GridVec>>::new(),
         }
     }
