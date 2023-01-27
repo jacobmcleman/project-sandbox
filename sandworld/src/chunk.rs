@@ -221,21 +221,16 @@ impl Chunk {
         GridVec { x: if test_pos_x < 0 { -1 } else if test_pos_x >= CHUNK_SIZE as i16 { 1 } else { 0 }, 
                 y: if test_pos_y < 0 { -1 } else if test_pos_y >= CHUNK_SIZE as i16 { 1 } else { 0 } }
     }
-
-    fn test_vec(&self, base_x: u8, base_y: u8, test_vec_x: i8, test_vec_y: i8, replace_water: bool) -> bool {
-        let test_pos_x = base_x as i16 + test_vec_x as i16;
-        let test_pos_y = base_y as i16 + test_vec_y as i16;
-
-        let test_particle;
-        
+    
+    fn get_test_particle(&self, test_pos_x: i16, test_pos_y: i16) -> Option<Particle> {
         if self.contains(test_pos_x, test_pos_y) {
-            test_particle = self.get_particle(test_pos_x as u8, test_pos_y as u8);
+            Some(self.get_particle(test_pos_x as u8, test_pos_y as u8))
         }
         else {
             let neighbor_direction = Chunk::get_oob_direction(test_pos_x, test_pos_y);
             let neighbor = self.get_neighbor(neighbor_direction);
             if neighbor.is_none() {
-                return false;
+                None
             }
             else {
                 let chunk = neighbor.unwrap();
@@ -244,18 +239,46 @@ impl Chunk {
                 if other_chunk_x < 0 { other_chunk_x += CHUNK_SIZE as i16; }
                 if other_chunk_y < 0 { other_chunk_y += CHUNK_SIZE as i16; }
                 unsafe {
-                    test_particle = (*chunk).get_particle(other_chunk_x as u8, other_chunk_y as u8);
+                    Some((*chunk).get_particle(other_chunk_x as u8, other_chunk_y as u8))
                 }
             }
         }
-
-        if test_particle.updated_this_frame { 
-            // Need to allow things to fall into spaces otherwise weird air bubbles are allowed to persist
-            return test_vec_y < 0; 
+    }
+    
+    fn get_part_can_move(&self, test_pos_x: i16, test_pos_y: i16, priority_movement: bool, replace_water: bool) -> bool {
+        if let Some(test_particle) = self.get_test_particle(test_pos_x, test_pos_y) {
+            if test_particle.updated_this_frame { 
+                // Need to allow things to fall into spaces otherwise weird air bubbles are allowed to persist
+                return priority_movement; 
+            }
+            if test_particle.particle_type == ParticleType::Air { return true; }
+            else if replace_water && test_particle.particle_type == ParticleType::Water { return true; }
         }
-        if test_particle.particle_type == ParticleType::Air { return true; }
-        else if replace_water && test_particle.particle_type == ParticleType::Water { return true; }
         return false;
+    }
+
+    fn test_vec(&self, base_x: i16, base_y: i16, test_vec_x: i8, test_vec_y: i8, replace_water: bool) -> bool {
+        if test_vec_x.abs() > 1 || test_vec_y.abs() > 1 {
+            // need to step
+            let test_pos_x = base_x + test_vec_x.signum() as i16;
+            let test_pos_y = base_y + test_vec_y.signum() as i16;
+            
+            if self.get_part_can_move(test_pos_x, test_pos_y, test_vec_y < 0, replace_water) {
+                // Recurse to call next step if this step was clear
+                self.test_vec(test_pos_x, test_pos_y, 
+                    test_vec_x - test_vec_x.signum(), test_vec_y - test_vec_y.signum(), 
+                    replace_water)
+            }
+            else { 
+                false
+            }
+        }
+        else {
+            let test_pos_x = base_x as i16 + test_vec_x as i16;
+            let test_pos_y = base_y as i16 + test_vec_y as i16;
+            
+            self.get_part_can_move(test_pos_x, test_pos_y, test_vec_y < 0, replace_water)
+        }
     }
 
     pub(crate) fn check_add_neighbor(&mut self, new_chunk: &mut Chunk) {
@@ -388,8 +411,11 @@ impl Chunk {
             }
         }
         else if let Some(neighbor) = self.get_neighbor( Chunk::get_oob_direction(x, y) ) {
+            let dir = Chunk::get_oob_direction(x, y);
+            let adjusted_x = x - (dir.x as i16 * CHUNK_SIZE as i16);
+            let adjusted_y = y - (dir.y as i16 * CHUNK_SIZE as i16);
             unsafe {
-                (*neighbor).try_erode(rng, x % CHUNK_SIZE as i16, y % CHUNK_SIZE as i16, vel);
+                (*neighbor).try_erode(rng, adjusted_x, adjusted_y, vel);
             }
         }
     }
@@ -418,7 +444,7 @@ impl Chunk {
                         for move_set in available_moves {
                             let can_replace_water = Particle::can_replace_water(cur_part.particle_type);
                             for vec in move_set {
-                                if self.test_vec(x, y, vec.x as i8, vec.y as i8, can_replace_water) {
+                                if self.test_vec(x as i16, y as i16, vec.x as i8, vec.y as i8, can_replace_water) {
                                     possible_moves.push(vec.clone());
                                 }
                             }
