@@ -22,6 +22,10 @@ impl GridVec {
         (self.x - other.x).abs() + (self.y - other.y).abs()
     }
 
+    pub fn sq_distance(&self, other: GridVec) -> i32 {
+        (self.x - other.x).pow(2) + (self.y - other.y).pow(2)
+    }
+    
     pub fn manhattan_length(&self) -> i32 {
         self.x.abs() + self.y.abs()
     }

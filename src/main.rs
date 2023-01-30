@@ -7,6 +7,7 @@ mod sandsim;
 mod camera;
 mod ui;
 mod perf;
+mod worldgen;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[derive(SystemLabel)]

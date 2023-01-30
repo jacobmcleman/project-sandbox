@@ -185,8 +185,11 @@ fn spawn_tool_selector_button(
 
 fn setup_buttons(mut commands: Commands, asset_server: Res<AssetServer>) {
     spawn_tool_selector_button(&mut commands, &asset_server, "Sand", ParticleType::Sand, 10);
-    spawn_tool_selector_button(&mut commands, &asset_server, "Stone", ParticleType::Stone, 10);
+    spawn_tool_selector_button(&mut commands, &asset_server, "Gravel", ParticleType::Gravel, 10);
+    spawn_tool_selector_button(&mut commands, &asset_server, "Stone", ParticleType::Stone, 20);
     spawn_tool_selector_button(&mut commands, &asset_server, "Water", ParticleType::Water, 10);
+    spawn_tool_selector_button(&mut commands, &asset_server, "Lava", ParticleType::Lava, 10);
+    spawn_tool_selector_button(&mut commands, &asset_server, "Steam", ParticleType::Steam, 10);
     spawn_tool_selector_button(&mut commands, &asset_server, "Source", ParticleType::Source, 1);
 }
 

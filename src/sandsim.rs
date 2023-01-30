@@ -9,7 +9,7 @@ pub struct SandSimulationPlugin;
 
 impl Plugin for SandSimulationPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(Sandworld {world: sandworld::World::new() })
+        app.insert_resource(Sandworld {world: sandworld::World::new(crate::worldgen::basic_perlin) })
         .insert_resource(DrawOptions {
             update_bounds: false,
             chunk_bounds: false,
