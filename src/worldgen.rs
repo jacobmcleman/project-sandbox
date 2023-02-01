@@ -19,7 +19,7 @@ pub struct BasicPerlin {
 }
 
 impl WorldGenerator for Blankworld {
-    fn get_particle(&self, world_pos: GridVec) -> Particle {
+    fn get_particle(&self, _world_pos: GridVec) -> Particle {
         Particle::new(ParticleType::Air)
     }
 }

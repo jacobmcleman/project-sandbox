@@ -19,8 +19,6 @@ pub struct Region {
     generator: Arc<dyn WorldGenerator + Send + Sync>,
 }
 
-unsafe impl Send for Region {}
-
 impl Region {
     pub fn new(position: GridVec, generator: Arc<dyn WorldGenerator + Send + Sync>) -> Self {
         let mut reg = Region {
