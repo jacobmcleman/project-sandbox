@@ -14,7 +14,7 @@ pub const TRUE_REGION_SIZE: usize = REGION_SIZE as usize * CHUNK_SIZE as usize;
 
 pub struct World {
     regions: Vec<Region>,
-    generator: fn(GridVec)->Particle,    
+    generator: fn(GridVec)->Particle,
 }
 
 pub struct WorldUpdateStats {

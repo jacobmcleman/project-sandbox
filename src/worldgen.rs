@@ -16,7 +16,7 @@ pub fn basic_simplex(worldpos: GridVec) -> Particle {
     let sample_pos = [worldpos.x as f64 * 0.01, worldpos.y as f64 * 0.01];
     let noise_val = Simplex::new(0).get(sample_pos);
     
-    Particle::new(if noise_val < 0.1 { ParticleType::Air } else { ParticleType::Stone })    
+    Particle::new(if noise_val < 0.05 { ParticleType::Air } else { ParticleType::Stone })    
 }
 
 pub fn basic_perlin(worldpos: GridVec) -> Particle {

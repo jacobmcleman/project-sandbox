@@ -528,8 +528,14 @@ impl Chunk {
                         || cur_part.particle_type == ParticleType::Gravel
                         || cur_part.particle_type == ParticleType::Sand {
                         let adj_lava = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Lava);
-                        if adj_lava > 4 {
-                            if rng.gen_bool(0.25 * (adj_lava - 4) as f64) {
+                        
+                        let start_melt = match cur_part.particle_type {
+                            ParticleType::Stone => 4,
+                            _=> 3,
+                        };
+                        
+                        if adj_lava > start_melt {
+                            if rng.gen_bool((1. / (8 - start_melt) as f64) * (adj_lava - start_melt) as f64) {
                                 self.set_particle(x, y, Particle::new(ParticleType::Lava));                            
                             }
                         }
