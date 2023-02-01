@@ -1,28 +1,64 @@
-use std::sync::{Arc, Mutex};
 
-use noise::{Simplex, NoiseFn, Perlin};
-use sandworld::{Particle, ParticleType};
+use noise::{NoiseFn, Perlin};
+use sandworld::{WorldGenerator, Particle, ParticleType};
 use gridmath::GridVec;
 
-pub fn blankworld_generator(_worldpos: GridVec) -> Particle {
-    Particle::new(ParticleType::Air)
+
+pub struct Blankworld {}
+
+pub struct FlatPlain {
+    pub stone_height: i32,
+    pub sand_height: i32,
 }
 
-pub fn stone_plain(worldpos: GridVec) -> Particle {
-    Particle::new(if worldpos.y > 0 { ParticleType::Air } else { ParticleType::Stone })
+pub struct BasicPerlin {
+    noise: Perlin,
+    threshold: f64,
+    scale_x: f64,
+    scale_y: f64,
 }
 
-pub fn basic_simplex(worldpos: GridVec) -> Particle {
-    let sample_pos = [worldpos.x as f64 * 0.01, worldpos.y as f64 * 0.01];
-    let noise_val = Simplex::new(0).get(sample_pos);
-    
-    Particle::new(if noise_val < 0.05 { ParticleType::Air } else { ParticleType::Stone })    
+impl WorldGenerator for Blankworld {
+    fn get_particle(&self, world_pos: GridVec) -> Particle {
+        Particle::new(ParticleType::Air)
+    }
 }
 
-pub fn basic_perlin(worldpos: GridVec) -> Particle {
-    let noise = Perlin::new(0);
-    let sample_pos = [worldpos.x as f64 * 0.01, worldpos.y as f64 * 0.01];
-    let noise_val = noise.get(sample_pos);
+impl WorldGenerator for FlatPlain {
+    fn get_particle(&self, world_pos: GridVec) -> Particle {
+        Particle::new(
+            if world_pos.y > self.stone_height { 
+                if world_pos.y > self.sand_height {
+                    ParticleType::Air 
+                }
+                else {
+                    ParticleType::Sand
+                }
+            } 
+            else { 
+                ParticleType::Stone 
+            }
+        )
         
-    Particle::new(if noise_val < 0.05 { ParticleType::Air } else { ParticleType::Stone })   
+    }
+}
+
+impl BasicPerlin {
+    pub fn new(seed: u32) -> Self {
+        BasicPerlin {
+            noise: Perlin::new(seed),
+            threshold: 0.05,
+            scale_x: 0.01,
+            scale_y: 0.01,
+        }
+    }
+}
+
+impl WorldGenerator for BasicPerlin {
+    fn get_particle(&self, world_pos: GridVec) -> Particle {
+        let sample_pos = [world_pos.x as f64 * self.scale_x, world_pos.y as f64 * self.scale_y];
+        let noise_val = self.noise.get(sample_pos);
+            
+        Particle::new(if noise_val < self.threshold { ParticleType::Air } else { ParticleType::Stone }) 
+    }
 }

@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, sync::Arc};
 use bevy::{prelude::*, render::{render_resource::{Extent3d, TextureFormat}, camera::{RenderTarget}} };
 use gridmath::{GridVec, GridBounds};
 use sandworld::CHUNK_SIZE;
@@ -9,7 +9,12 @@ pub struct SandSimulationPlugin;
 
 impl Plugin for SandSimulationPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(Sandworld {world: sandworld::World::new(crate::worldgen::basic_perlin) })
+        app.insert_resource(Sandworld {
+            world: sandworld::World::new(
+                Arc::new(
+                    crate::worldgen::BasicPerlin::new(0)
+                )
+        ) })
         .insert_resource(DrawOptions {
             update_bounds: false,
             chunk_bounds: false,

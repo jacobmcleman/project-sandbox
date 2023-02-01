@@ -1,8 +1,10 @@
 pub const CHUNK_SIZE: u8 = 64;
+use std::sync::Arc;
+
 use gridmath::*;
 use rand::{Rng, rngs::ThreadRng};
 use crate::region::REGION_SIZE;
-use crate::particle::*;
+use crate::{particle::*, WorldGenerator};
 
 pub struct Chunk {
     pub position: GridVec,
@@ -102,7 +104,7 @@ impl Chunk {
         return created;
     }
     
-    pub fn generate(position: GridVec, generator: fn(GridVec) -> Particle) -> Self{
+    pub fn generate(position: GridVec, generator: &Arc<dyn WorldGenerator + Send + Sync>) -> Self{
         let mut chunk = Chunk::new(position);
         
         for y in 0..CHUNK_SIZE {
@@ -111,7 +113,7 @@ impl Chunk {
                     x as i32 + (CHUNK_SIZE as i32 * chunk.position.x),
                      y as i32 + (CHUNK_SIZE as i32 * chunk.position.y));
                 
-                chunk.set_particle(x, y, generator(worldpos));
+                chunk.set_particle(x, y, generator.get_particle(worldpos));
             }
         }
         

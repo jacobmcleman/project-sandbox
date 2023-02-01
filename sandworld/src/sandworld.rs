@@ -1,6 +1,7 @@
 use gridmath::*;
 use rand::{RngCore};
 use rayon::prelude::*;
+use std::sync::Arc;
 use std::{sync::atomic::AtomicU64};
 
 use crate::chunk::*;
@@ -12,9 +13,13 @@ pub const WORLD_HEIGHT: i32 = 960;
 
 pub const TRUE_REGION_SIZE: usize = REGION_SIZE as usize * CHUNK_SIZE as usize;
 
+pub trait WorldGenerator {
+    fn get_particle(&self, world_pos: GridVec) -> Particle;
+}
+
 pub struct World {
     regions: Vec<Region>,
-    generator: fn(GridVec)->Particle,
+    generator: Arc<dyn WorldGenerator + Sync + Send>,
 }
 
 pub struct WorldUpdateStats {
@@ -24,7 +29,7 @@ pub struct WorldUpdateStats {
 }
 
 impl World {
-    pub fn new(generator: fn(GridVec)->Particle) -> Self {
+    pub fn new(generator: Arc<dyn WorldGenerator + Sync + Send>) -> Self {
         let created: World = World {
             regions: Vec::new(),
             generator,
@@ -34,7 +39,7 @@ impl World {
     }
 
     fn add_region(&mut self, regpos: GridVec) {
-        let mut added = Region::new(regpos, self.generator);
+        let mut added = Region::new(regpos, self.generator.clone());
 
         for region in self.regions.iter_mut() {
             region.check_add_neighbor(&mut added);
