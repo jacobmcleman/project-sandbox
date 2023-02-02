@@ -11,7 +11,7 @@ pub struct SandSimulationPlugin;
 impl Plugin for SandSimulationPlugin {
     fn build(&self, app: &mut App) {
         let mut rng = rand::thread_rng();
-        let seed: u32 = 0;// rng.gen();
+        let seed: u32 = rng.gen();
         
         println!("Seed: {}", seed);
         
