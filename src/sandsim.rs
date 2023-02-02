@@ -11,14 +11,14 @@ pub struct SandSimulationPlugin;
 impl Plugin for SandSimulationPlugin {
     fn build(&self, app: &mut App) {
         let mut rng = rand::thread_rng();
-        let seed = rng.gen();
+        let seed: u32 = 0;// rng.gen();
         
         println!("Seed: {}", seed);
         
         app.insert_resource(Sandworld {
             world: sandworld::World::new(
                 Arc::new(
-                    crate::worldgen::LayeredPerlin::new(seed, 0.003, 0.01, 0.0001)
+                    crate::worldgen::LayeredPerlin::new(seed, 0.003, 0.01, 2.)
                 )
         ) })
         .insert_resource(DrawOptions {

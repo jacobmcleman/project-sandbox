@@ -22,7 +22,7 @@ pub struct LayeredPerlin {
     noise: Perlin,
     scale_macro: f64,
     scale_detail: f64,
-    scale_cave_density: f64,
+    cave_noisiness: f64,
 }
 
 impl WorldGenerator for Blankworld {
@@ -76,12 +76,12 @@ impl WorldGenerator for BasicPerlin {
 }
 
 impl LayeredPerlin {
-    pub fn new(seed: u32, scale_macro: f64, scale_detail: f64, scale_cave_density: f64) -> Self {
+    pub fn new(seed: u32, scale_macro: f64, scale_detail: f64, cave_noisiness: f64) -> Self {
         LayeredPerlin {
             noise: Perlin::new(seed),
             scale_macro,
             scale_detail,
-            scale_cave_density,
+            cave_noisiness,
         }
     }
 }
@@ -95,7 +95,7 @@ impl WorldGenerator for LayeredPerlin {
         let detail_noise_val = self.noise.get(detail_sample_pos);
         //let cave_sample_noise_val = self.noise.get(cave_sample_pos);
         
-        Particle::new(if detail_noise_val < macro_noise_val * 3.0 { 
+        Particle::new(if detail_noise_val < macro_noise_val * self.cave_noisiness { 
             ParticleType::Air
         } 
         else { 
