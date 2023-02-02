@@ -10,6 +10,7 @@ pub enum ParticleType {
     Steam,
     Lava,
     Source,
+    LSource,
     Boundary,
     RegionBoundary,
     Dirty,
@@ -79,6 +80,7 @@ pub fn get_color_for_type(particle_type: ParticleType) -> [u8; 4] {
         ParticleType::Lava => [0xf0, 0x95, 0x16, 0xff], //#f09516
         ParticleType::Air => [0x1e, 0x1e, 0x1e, 0xff],
         ParticleType::Source => [0xf7, 0xdf, 0x00, 0xff],
+        ParticleType::LSource => [0xff, 0xdf, 0x00, 0xff],
         ParticleType::Dirty => [0xFF, 0x00, 0xFF, 0xff],
         ParticleType::RegionBoundary => [0xFF, 0xFF, 0x00, 0xFF],
         _ => [0x00, 0x00, 0x00, 0xff],

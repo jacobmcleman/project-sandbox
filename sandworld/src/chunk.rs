@@ -503,6 +503,12 @@ impl Chunk {
                         if y > 0 { self.add_particle(x, y - 1, Particle::new(ParticleType::Water)); }
                         if y < CHUNK_SIZE - 1 { self.add_particle(x, y + 1, Particle::new(ParticleType::Water)); }
                     }
+                    if cur_part.particle_type == ParticleType::LSource {
+                        if x > 0 { self.add_particle(x - 1, y, Particle::new(ParticleType::Lava)); }
+                        if x < CHUNK_SIZE - 1 { self.add_particle(x + 1, y, Particle::new(ParticleType::Lava)); }
+                        if y > 0 { self.add_particle(x, y - 1, Particle::new(ParticleType::Lava)); }
+                        if y < CHUNK_SIZE - 1 { self.add_particle(x, y + 1, Particle::new(ParticleType::Lava)); }
+                    }
                     else if cur_part.particle_type == ParticleType::Steam {
                         let non_air = 8 - self.count_neighbors_of_type(x as i16 , y as i16, ParticleType::Air);
                         if rng.gen_bool(0.005 * (non_air + 1) as f64) {

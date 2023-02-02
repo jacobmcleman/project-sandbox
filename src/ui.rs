@@ -190,7 +190,8 @@ fn setup_buttons(mut commands: Commands, asset_server: Res<AssetServer>) {
     spawn_tool_selector_button(&mut commands, &asset_server, "Water", ParticleType::Water, 10);
     spawn_tool_selector_button(&mut commands, &asset_server, "Lava", ParticleType::Lava, 10);
     spawn_tool_selector_button(&mut commands, &asset_server, "Steam", ParticleType::Steam, 10);
-    spawn_tool_selector_button(&mut commands, &asset_server, "Source", ParticleType::Source, 1);
+    spawn_tool_selector_button(&mut commands, &asset_server, "WSource", ParticleType::Source, 1);
+    spawn_tool_selector_button(&mut commands, &asset_server, "LSource", ParticleType::LSource, 1);
 }
 
 fn button_system(

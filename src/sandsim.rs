@@ -2,6 +2,7 @@ use std::{collections::VecDeque, sync::Arc};
 use bevy::{prelude::*, render::{render_resource::{Extent3d, TextureFormat}, camera::{RenderTarget}} };
 use gridmath::{GridVec, GridBounds};
 use sandworld::CHUNK_SIZE;
+use rand::{Rng, rngs::ThreadRng};
 
 use crate::camera::cam_bounds;
 
@@ -9,10 +10,15 @@ pub struct SandSimulationPlugin;
 
 impl Plugin for SandSimulationPlugin {
     fn build(&self, app: &mut App) {
+        let mut rng = rand::thread_rng();
+        let seed = rng.gen();
+        
+        println!("Seed: {}", seed);
+        
         app.insert_resource(Sandworld {
             world: sandworld::World::new(
                 Arc::new(
-                    crate::worldgen::BasicPerlin::new(0)
+                    crate::worldgen::LayeredPerlin::new(seed, 0.003, 0.01, 0.0001)
                 )
         ) })
         .insert_resource(DrawOptions {

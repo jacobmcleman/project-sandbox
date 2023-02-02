@@ -1,5 +1,5 @@
 
-use noise::{NoiseFn, Perlin};
+use noise::{NoiseFn, Perlin, Simplex};
 use sandworld::{WorldGenerator, Particle, ParticleType};
 use gridmath::GridVec;
 
@@ -13,9 +13,16 @@ pub struct FlatPlain {
 
 pub struct BasicPerlin {
     noise: Perlin,
-    threshold: f64,
+    stone_threshold: f64,
     scale_x: f64,
     scale_y: f64,
+}
+
+pub struct LayeredPerlin {
+    noise: Perlin,
+    scale_macro: f64,
+    scale_detail: f64,
+    scale_cave_density: f64,
 }
 
 impl WorldGenerator for Blankworld {
@@ -44,12 +51,12 @@ impl WorldGenerator for FlatPlain {
 }
 
 impl BasicPerlin {
-    pub fn new(seed: u32) -> Self {
+    pub fn new(seed: u32, scale: f64) -> Self {
         BasicPerlin {
             noise: Perlin::new(seed),
-            threshold: 0.05,
-            scale_x: 0.01,
-            scale_y: 0.01,
+            stone_threshold: 0.05,
+            scale_x: scale,
+            scale_y: scale,
         }
     }
 }
@@ -59,6 +66,40 @@ impl WorldGenerator for BasicPerlin {
         let sample_pos = [world_pos.x as f64 * self.scale_x, world_pos.y as f64 * self.scale_y];
         let noise_val = self.noise.get(sample_pos);
             
-        Particle::new(if noise_val < self.threshold { ParticleType::Air } else { ParticleType::Stone }) 
+        Particle::new(if noise_val < self.stone_threshold { 
+            ParticleType::Air
+        } 
+        else { 
+            ParticleType::Stone
+        }) 
+    }
+}
+
+impl LayeredPerlin {
+    pub fn new(seed: u32, scale_macro: f64, scale_detail: f64, scale_cave_density: f64) -> Self {
+        LayeredPerlin {
+            noise: Perlin::new(seed),
+            scale_macro,
+            scale_detail,
+            scale_cave_density,
+        }
+    }
+}
+
+impl WorldGenerator for LayeredPerlin {
+    fn get_particle(&self, world_pos: GridVec) -> Particle {
+        let macro_sample_pos = [world_pos.x as f64 * self.scale_macro, world_pos.y as f64 * self.scale_macro];
+        let detail_sample_pos = [world_pos.x as f64 * self.scale_detail, world_pos.y as f64 * self.scale_detail];
+        //let cave_sample_pos = [world_pos.x as f64 * self.scale_cave_density, world_pos.y as f64 * self.scale_cave_density];
+        let macro_noise_val = self.noise.get(macro_sample_pos);
+        let detail_noise_val = self.noise.get(detail_sample_pos);
+        //let cave_sample_noise_val = self.noise.get(cave_sample_pos);
+        
+        Particle::new(if detail_noise_val < macro_noise_val * 3.0 { 
+            ParticleType::Air
+        } 
+        else { 
+            ParticleType::Stone
+        }) 
     }
 }

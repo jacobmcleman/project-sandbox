@@ -2686,6 +2686,7 @@ dependencies = [
  "bevy",
  "gridmath",
  "noise",
+ "rand 0.8.5",
  "sandworld",
 ]
 
