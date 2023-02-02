@@ -1,6 +1,7 @@
 use gridmath::*;
 use rand::{RngCore};
 use rayon::prelude::*;
+use std::sync::Arc;
 use std::{sync::atomic::AtomicU64};
 
 use crate::chunk::*;
@@ -12,8 +13,13 @@ pub const WORLD_HEIGHT: i32 = 960;
 
 pub const TRUE_REGION_SIZE: usize = REGION_SIZE as usize * CHUNK_SIZE as usize;
 
+pub trait WorldGenerator {
+    fn get_particle(&self, world_pos: GridVec) -> Particle;
+}
+
 pub struct World {
-    regions: Vec<Region>
+    regions: Vec<Region>,
+    generator: Arc<dyn WorldGenerator + Sync + Send>,
 }
 
 pub struct WorldUpdateStats {
@@ -23,16 +29,17 @@ pub struct WorldUpdateStats {
 }
 
 impl World {
-    pub fn new() -> Self {
+    pub fn new(generator: Arc<dyn WorldGenerator + Sync + Send>) -> Self {
         let created: World = World {
-            regions: Vec::new()
+            regions: Vec::new(),
+            generator,
         };
 
         return created;
     }
 
     fn add_region(&mut self, regpos: GridVec) {
-        let mut added = Region::new(regpos);
+        let mut added = Region::new(regpos, self.generator.clone());
 
         for region in self.regions.iter_mut() {
             region.check_add_neighbor(&mut added);
@@ -199,8 +206,10 @@ impl World {
 
         for y in bottom..top {
             for x in left..right {
-                if replace { self.replace_particle(GridVec{x, y}, new_val.clone()); }
-                else { self.add_particle(GridVec{x, y}, new_val.clone()); }
+                if pos.sq_distance(GridVec{x, y}) < radius.pow(2) {
+                    if replace { self.replace_particle(GridVec{x, y}, new_val.clone()); }
+                    else { self.add_particle(GridVec{x, y}, new_val.clone()); }
+                }
             }
         }
     }

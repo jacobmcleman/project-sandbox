@@ -1,8 +1,10 @@
 pub const CHUNK_SIZE: u8 = 64;
+use std::sync::Arc;
+
 use gridmath::*;
 use rand::{Rng, rngs::ThreadRng};
 use crate::region::REGION_SIZE;
-use crate::particle::*;
+use crate::{particle::*, WorldGenerator};
 
 pub struct Chunk {
     pub position: GridVec,
@@ -100,6 +102,22 @@ impl Chunk {
         };
 
         return created;
+    }
+    
+    pub fn generate(position: GridVec, generator: &Arc<dyn WorldGenerator + Send + Sync>) -> Self{
+        let mut chunk = Chunk::new(position);
+        
+        for y in 0..CHUNK_SIZE {
+            for x in 0..CHUNK_SIZE {
+                let worldpos = GridVec::new(
+                    x as i32 + (CHUNK_SIZE as i32 * chunk.position.x),
+                     y as i32 + (CHUNK_SIZE as i32 * chunk.position.y));
+                
+                chunk.set_particle(x, y, generator.get_particle(worldpos));
+            }
+        }
+        
+        chunk
     }
     
     fn get_index_in_chunk(x: u8, y: u8) -> usize {
@@ -252,7 +270,10 @@ impl Chunk {
                 return priority_movement; 
             }
             if test_particle.particle_type == ParticleType::Air { return true; }
-            else if replace_water && test_particle.particle_type == ParticleType::Water { return true; }
+            else if replace_water 
+                && (test_particle.particle_type == ParticleType::Water || test_particle.particle_type == ParticleType::Lava) { 
+                    return true; 
+            }
         }
         return false;
     }
@@ -387,6 +408,37 @@ impl Chunk {
             }
         }
     }
+    
+    fn get_local_part(&self, x: i16, y: i16) -> ParticleType {
+        if self.contains(x, y) {
+            self.get_particle(x as u8, y as u8).particle_type
+        }
+        else if let Some(neighbor) = self.get_neighbor( Chunk::get_oob_direction(x, y) ) {
+            let dir = Chunk::get_oob_direction(x, y);
+            let adjusted_x = x - (dir.x as i16 * CHUNK_SIZE as i16);
+            let adjusted_y = y - (dir.y as i16 * CHUNK_SIZE as i16);
+            
+            unsafe {
+                (*neighbor).get_particle(adjusted_x as u8, adjusted_y as u8).particle_type
+            }
+        }
+        else {
+            ParticleType::Air
+        }
+    }
+    
+    fn count_neighbors_of_type(&self, x: i16, y: i16, search: ParticleType) -> u8 {
+        let mut count = 0;
+        if self.get_local_part(x + 1, y + 1) == search { count += 1; }
+        if self.get_local_part(x, y + 1) == search { count += 1; }
+        if self.get_local_part(x - 1, y + 1) == search { count += 1; }
+        if self.get_local_part(x + 1, y) == search { count += 1; }
+        if self.get_local_part(x - 1, y) == search { count += 1; }
+        if self.get_local_part(x + 1, y - 1) == search { count += 1; }
+        if self.get_local_part(x, y - 1) == search { count += 1; }
+        if self.get_local_part(x - 1, y - 1) == search { count += 1; }
+        return count;
+    }
 
     fn try_erode(&mut self, rng: &mut ThreadRng, x: i16, y: i16, vel: &GridVec) {
         if self.contains(x, y) {
@@ -396,14 +448,27 @@ impl Chunk {
                     ParticleType::Sand => {
                         let next_x = x as i16 + vel.x as i16;
                         let next_y = y as i16 + vel.y as i16;
-                        if self.contains(next_x, next_y) && rng.gen_bool(0.2) {
+                        if self.contains(next_x, next_y) && rng.gen_bool(0.1) {
                             self.set_particle(x as u8, y as u8, self.get_particle(next_x as u8, next_y as u8));
                             self.set_particle(next_x as u8, next_y as u8, part);
                         }
                     }
-                    ParticleType::Stone => {
-                        if rng.gen_bool(0.01) {
+                    ParticleType::Gravel => {
+                        if rng.gen_bool(0.002) {
                             self.set_particle(x as u8, y as u8, Particle { particle_type: ParticleType::Sand, updated_this_frame: true })
+                        }
+                        else {
+                            let next_x = x as i16 + vel.x as i16;
+                            let next_y = y as i16 + vel.y as i16;
+                            if self.contains(next_x, next_y) && rng.gen_bool(0.001) {
+                                self.set_particle(x as u8, y as u8, self.get_particle(next_x as u8, next_y as u8));
+                                self.set_particle(next_x as u8, next_y as u8, part);
+                            }
+                        }
+                    }
+                    ParticleType::Stone => {
+                        if rng.gen_bool(0.002) {
+                            self.set_particle(x as u8, y as u8, Particle { particle_type: ParticleType::Gravel, updated_this_frame: true });
                         }
                     }
                     _ => ()
@@ -414,6 +479,7 @@ impl Chunk {
             let dir = Chunk::get_oob_direction(x, y);
             let adjusted_x = x - (dir.x as i16 * CHUNK_SIZE as i16);
             let adjusted_y = y - (dir.y as i16 * CHUNK_SIZE as i16);
+            
             unsafe {
                 (*neighbor).try_erode(rng, adjusted_x, adjusted_y, vel);
             }
@@ -436,6 +502,51 @@ impl Chunk {
                         if x < CHUNK_SIZE - 1 { self.add_particle(x + 1, y, Particle::new(ParticleType::Water)); }
                         if y > 0 { self.add_particle(x, y - 1, Particle::new(ParticleType::Water)); }
                         if y < CHUNK_SIZE - 1 { self.add_particle(x, y + 1, Particle::new(ParticleType::Water)); }
+                    }
+                    if cur_part.particle_type == ParticleType::LSource {
+                        if x > 0 { self.add_particle(x - 1, y, Particle::new(ParticleType::Lava)); }
+                        if x < CHUNK_SIZE - 1 { self.add_particle(x + 1, y, Particle::new(ParticleType::Lava)); }
+                        if y > 0 { self.add_particle(x, y - 1, Particle::new(ParticleType::Lava)); }
+                        if y < CHUNK_SIZE - 1 { self.add_particle(x, y + 1, Particle::new(ParticleType::Lava)); }
+                    }
+                    else if cur_part.particle_type == ParticleType::Steam {
+                        let non_air = 8 - self.count_neighbors_of_type(x as i16 , y as i16, ParticleType::Air);
+                        if rng.gen_bool(0.005 * (non_air + 1) as f64) {
+                            self.set_particle(x, y, Particle::new(ParticleType::Water));
+                        }
+                    }
+                    else if cur_part.particle_type == ParticleType::Lava {
+                        let adj_water = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Water);
+                        let adj_stone = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Stone);
+                        let adj_lava = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Lava);
+                        if rng.gen_bool(0.04 * adj_water as f64) {
+                            self.set_particle(x, y, Particle::new(ParticleType::Stone));                            
+                        }
+                        if adj_stone > adj_lava && rng.gen_bool(0.02 * (adj_stone - adj_lava) as f64){
+                            self.set_particle(x, y, Particle::new(ParticleType::Stone));                            
+                        }
+                    }
+                    else if cur_part.particle_type == ParticleType::Water {
+                        let adj_lava = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Lava);
+                        if rng.gen_bool(0.1 * adj_lava as f64) {
+                            self.set_particle(x, y, Particle::new(ParticleType::Steam));                            
+                        }
+                    }
+                    else if cur_part.particle_type == ParticleType::Stone 
+                        || cur_part.particle_type == ParticleType::Gravel
+                        || cur_part.particle_type == ParticleType::Sand {
+                        let adj_lava = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Lava);
+                        
+                        let start_melt = match cur_part.particle_type {
+                            ParticleType::Stone => 4,
+                            _=> 3,
+                        };
+                        
+                        if adj_lava > start_melt {
+                            if rng.gen_bool((1. / (8 - start_melt) as f64) * (adj_lava - start_melt) as f64) {
+                                self.set_particle(x, y, Particle::new(ParticleType::Lava));                            
+                            }
+                        }
                     }
                     
                     let available_moves = Particle::get_possible_moves(cur_part.particle_type);

@@ -1,10 +1,10 @@
 pub const REGION_SIZE: usize = 16;
 
-use std::sync::atomic::AtomicU64;
+use std::sync::{atomic::AtomicU64, Arc};
 
 use gridmath::*;
 use rayon::prelude::*;
-use crate::{chunk::*, World, Particle, ParticleType};
+use crate::{chunk::*, World, Particle, ParticleType, WorldGenerator};
 
 pub struct Region {
     pub position: GridVec,
@@ -16,10 +16,11 @@ pub struct Region {
     // Chunks that have been updated since last polled
     updated_chunks: Vec<GridVec>,
     pub update_priority: u64,
+    generator: Arc<dyn WorldGenerator + Send + Sync>,
 }
 
 impl Region {
-    pub fn new(position: GridVec) -> Self {
+    pub fn new(position: GridVec, generator: Arc<dyn WorldGenerator + Send + Sync>) -> Self {
         let mut reg = Region {
             position,
             staleness: 0,
@@ -27,7 +28,8 @@ impl Region {
             chunks: vec![],
             added_chunks: vec![],
             updated_chunks: vec![],
-            update_priority: 0
+            update_priority: 0,
+            generator
         };
 
         for y in 0..REGION_SIZE as i32 {
@@ -40,7 +42,7 @@ impl Region {
     }
 
     fn add_chunk(&mut self, chunkpos: GridVec) {
-        let mut added = Box::new(Chunk::new(chunkpos));
+        let mut added = Box::new(Chunk::generate(chunkpos, &self.generator));
 
         for chunk in self.chunks.iter_mut() {
             chunk.check_add_neighbor(&mut added);
