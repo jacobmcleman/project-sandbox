@@ -29,6 +29,7 @@ impl Plugin for SandSimulationPlugin {
         })
         .insert_resource(BrushOptions {
             material: sandworld::ParticleType::Sand,
+            melt_mode: false,
             radius: 10,
         })
         .insert_resource(WorldStats {
@@ -64,6 +65,7 @@ pub struct DrawOptions {
 #[derive(Resource)]
 pub struct BrushOptions {
     pub material: sandworld::ParticleType,
+    pub melt_mode: bool,
     pub radius: i32,
 }
 
@@ -262,7 +264,12 @@ fn world_interact(
             let gridpos = GridVec::new(world_pos.x as i32, world_pos.y as i32);
 
             if buttons.pressed(MouseButton::Left){
-                sand.world.place_circle(gridpos, brush_options.radius, sandworld::Particle::new(brush_options.material), false);
+                if brush_options.melt_mode {
+                    sand.world.melt_circle(gridpos, brush_options.radius, 0.01);
+                }
+                else {
+                    sand.world.place_circle(gridpos, brush_options.radius, sandworld::Particle::new(brush_options.material), false);
+                }
             }
             else if buttons.pressed(MouseButton::Right) {
                 sand.world.place_circle(gridpos, 10, sandworld::Particle::new(sandworld::ParticleType::Air), true);

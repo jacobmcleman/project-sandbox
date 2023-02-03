@@ -141,13 +141,14 @@ fn update_performance_text(
 #[derive(Component)]
 struct ToolSelector {
     material: sandworld::ParticleType,
+    melt_mode: bool,
     radius: i32,
 }
 
 fn spawn_tool_selector_button(
     commands: &mut Commands, 
     asset_server: &Res<AssetServer>, 
-    label: &str, material: ParticleType, radius: i32) {
+    label: &str, material: ParticleType, radius: i32, melt_mode: bool) {
     commands
         .spawn(ButtonBundle {
             style: Style {
@@ -169,6 +170,7 @@ fn spawn_tool_selector_button(
         })
         .insert(ToolSelector {
             material,
+            melt_mode,
             radius,
         })
         .with_children(|parent| {
@@ -184,14 +186,15 @@ fn spawn_tool_selector_button(
 }
 
 fn setup_buttons(mut commands: Commands, asset_server: Res<AssetServer>) {
-    spawn_tool_selector_button(&mut commands, &asset_server, "Sand", ParticleType::Sand, 10);
-    spawn_tool_selector_button(&mut commands, &asset_server, "Gravel", ParticleType::Gravel, 10);
-    spawn_tool_selector_button(&mut commands, &asset_server, "Stone", ParticleType::Stone, 20);
-    spawn_tool_selector_button(&mut commands, &asset_server, "Water", ParticleType::Water, 10);
-    spawn_tool_selector_button(&mut commands, &asset_server, "Lava", ParticleType::Lava, 10);
-    spawn_tool_selector_button(&mut commands, &asset_server, "Steam", ParticleType::Steam, 10);
-    spawn_tool_selector_button(&mut commands, &asset_server, "WSource", ParticleType::Source, 1);
-    spawn_tool_selector_button(&mut commands, &asset_server, "LSource", ParticleType::LSource, 1);
+    spawn_tool_selector_button(&mut commands, &asset_server, "MELT", ParticleType::Dirty, 10, true);
+    spawn_tool_selector_button(&mut commands, &asset_server, "Sand", ParticleType::Sand, 10, false);
+    spawn_tool_selector_button(&mut commands, &asset_server, "Gravel", ParticleType::Gravel, 10, false);
+    spawn_tool_selector_button(&mut commands, &asset_server, "Stone", ParticleType::Stone, 20, false);
+    spawn_tool_selector_button(&mut commands, &asset_server, "Water", ParticleType::Water, 10, false);
+    spawn_tool_selector_button(&mut commands, &asset_server, "Lava", ParticleType::Lava, 10, false);
+    spawn_tool_selector_button(&mut commands, &asset_server, "Steam", ParticleType::Steam, 10, false);
+    spawn_tool_selector_button(&mut commands, &asset_server, "WSource", ParticleType::Source, 1, false);
+    spawn_tool_selector_button(&mut commands, &asset_server, "LSource", ParticleType::LSource, 1, false);
 }
 
 fn button_system(
@@ -209,6 +212,7 @@ fn button_system(
             Interaction::Clicked => {
                 *color = PRESSED_BUTTON.into();
                 brush_options.material = selector.material;
+                brush_options.melt_mode = selector.melt_mode;
                 brush_options.radius = selector.radius;
                 capture_state.click_consumed = true;
             }

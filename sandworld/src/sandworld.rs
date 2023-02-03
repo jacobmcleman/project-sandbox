@@ -1,5 +1,5 @@
 use gridmath::*;
-use rand::{RngCore};
+use rand::{RngCore, Rng};
 use rayon::prelude::*;
 use std::sync::Arc;
 use std::{sync::atomic::AtomicU64};
@@ -180,6 +180,18 @@ impl World {
         let chunklocal = World::get_chunklocal(pos);
         self.get_chunk_mut(&chunkpos).unwrap().set_particle(chunklocal.x as u8, chunklocal.y as u8, new_val);
     }
+    
+    pub fn replace_particle_filtered(&mut self, pos: GridVec, new_val: Particle, replace_type: ParticleType) {
+        if !self.contains(pos) {
+            let chunkpos = World::get_chunkpos(&pos);
+            let regpos = World::get_regionpos_for_chunkpos(&chunkpos);
+            self.add_region(regpos);
+        }
+
+        let chunkpos = World::get_chunkpos(&pos);
+        let chunklocal = World::get_chunklocal(pos);
+        self.get_chunk_mut(&chunkpos).unwrap().replace_particle_filtered(chunklocal.x as u8, chunklocal.y as u8, new_val, replace_type);
+    }
 
     pub fn add_particle(&mut self, pos: GridVec, new_val: Particle) {
         if !self.contains(pos) {
@@ -209,6 +221,30 @@ impl World {
                 if pos.sq_distance(GridVec{x, y}) < radius.pow(2) {
                     if replace { self.replace_particle(GridVec{x, y}, new_val.clone()); }
                     else { self.add_particle(GridVec{x, y}, new_val.clone()); }
+                }
+            }
+        }
+    }
+    
+    pub fn melt_circle(&mut self, pos: GridVec, radius: i32, melt_strength: f64) {
+        let left = pos.x - radius;
+        let right = pos.x + radius;
+        let bottom = pos.y - radius;
+        let top = pos.y + radius;
+        
+        let mut rng = rand::thread_rng();
+
+        for y in bottom..top {
+            for x in left..right {
+                if pos.sq_distance(GridVec{x, y}) < radius.pow(2) {
+                    let rad_t = f64::sqrt(pos.sq_distance(GridVec{x, y}) as f64) / radius as f64;
+                    let local_strength = 0.5 - (rad_t * (0.5 - melt_strength));
+                    if rng.gen_bool(local_strength) {
+                        self.replace_particle_filtered(GridVec{x, y}, Particle::new(ParticleType::Lava), ParticleType::Stone);
+                        self.replace_particle_filtered(GridVec{x, y}, Particle::new(ParticleType::Lava), ParticleType::Gravel);
+                        self.replace_particle_filtered(GridVec{x, y}, Particle::new(ParticleType::Lava), ParticleType::Sand);
+                        self.replace_particle_filtered(GridVec{x, y}, Particle::new(ParticleType::Steam), ParticleType::Water);
+                    }
                 }
             }
         }

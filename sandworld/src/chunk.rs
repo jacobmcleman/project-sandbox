@@ -356,7 +356,7 @@ impl Chunk {
         let chunk_diff = (from_chunk.position - self.position) * CHUNK_SIZE as i32;
         GridVec::new(from_x as i32, from_y as i32) + chunk_diff
     }
-
+    
     pub fn set_particle(&mut self, x: u8, y: u8, val: Particle) {
         self.particles[Chunk::get_index_in_chunk(x, y)] = val;
         self.mark_dirty(x as i32, y as i32);
@@ -385,7 +385,11 @@ impl Chunk {
     }
 
     pub fn add_particle(&mut self, x: u8, y: u8, val: Particle) {
-        if self.get_particle(x, y).particle_type == ParticleType::Air {
+        self.replace_particle_filtered(x, y, val, ParticleType::Air)
+    }
+    
+    pub fn replace_particle_filtered(&mut self, x: u8, y: u8, val: Particle, replace_type: ParticleType) {
+        if self.get_particle(x, y).particle_type == replace_type {
             self.particles[Chunk::get_index_in_chunk(x, y)] = val;
             self.mark_dirty(x as i32, y as i32);
         }
