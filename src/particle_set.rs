@@ -17,17 +17,18 @@ struct ReadParticleType {
     pub color: [u8; 4],
 }
 
+#[derive(Resource)]
+pub struct LoadedParticleSets {
+    pub set_handles: Vec<Handle<ParticleSet>>
+}
+
 pub fn read_particle_sets(
     asset_server: Res<AssetServer>,
-    particle_sets: Res<Assets<ParticleSet>>,
+    mut loaded_sets: ResMut<LoadedParticleSets>
 ) {
     let base_set_handle: Handle<ParticleSet> = asset_server.load("particle_types/base.partset");
-    //let world_set_handle: Handle<ParticleSet> = asset_server.load("particle_types/world.partset");
+    let world_set_handle: Handle<ParticleSet> = asset_server.load("particle_types/world.partset");
 
-    if let Some(base_set) = particle_sets.get(&base_set_handle) {
-        println!("Loaded set {} from base set with {} members", base_set.set_name, base_set.types.len());
-    }
-    //if let Some(world_set) = particle_sets.get(&world_set_handle) {
-    //    println!("Loaded set {} from base set", world_set.set_name);
-    //}
+    loaded_sets.set_handles.push(base_set_handle);
+    loaded_sets.set_handles.push(world_set_handle);
 }

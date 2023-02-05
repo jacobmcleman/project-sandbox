@@ -29,13 +29,16 @@ impl Plugin for SandSimulationPlugin {
             chunk_texture_update_time: VecDeque::new(),
             target_chunk_updates: 0,
         })
+        .insert_resource(crate::particle_set::LoadedParticleSets {
+            set_handles: Vec::new()
+        })
         .add_system(create_spawned_chunks.label(crate::UpdateStages::WorldUpdate))
         .add_system(sand_update.label(crate::UpdateStages::WorldUpdate))
         .add_system(update_chunk_textures.label(crate::UpdateStages::WorldDraw))
         .add_system(world_interact.label(crate::UpdateStages::Input))
         .add_system(cull_hidden_chunks.label(crate::UpdateStages::WorldUpdate))
         .add_system(draw_mode_controls.label(crate::UpdateStages::Input))
-        .add_system(crate::particle_set::read_particle_sets)
+        .add_startup_system(crate::particle_set::read_particle_sets)
         ;
     }
 }
