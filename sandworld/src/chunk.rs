@@ -522,17 +522,17 @@ impl Chunk {
                         let adj_water = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Water);
                         let adj_stone = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Stone);
                         let adj_lava = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Lava);
-                        if rng.gen_bool(0.1 * adj_water as f64) {
+                        if adj_water > 1 && rng.gen_bool(0.1 * (adj_water + adj_stone / 2) as f64) {
                             self.set_particle(x, y, Particle::new(ParticleType::Stone));                            
                         }
-                        if adj_stone > adj_lava && rng.gen_bool(0.02 * (adj_stone - adj_lava) as f64){
+                        else if adj_stone > adj_lava && rng.gen_bool(0.02 * (adj_stone - adj_lava) as f64){
                             self.set_particle(x, y, Particle::new(ParticleType::Stone));                            
                         }
                     }
                     else if cur_part.particle_type == ParticleType::Water {
                         let adj_lava = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Lava);
                         let adj_ice = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Ice);
-                        if rng.gen_bool(0.1 * adj_lava as f64) {
+                        if rng.gen_bool(0.01 * adj_lava as f64) {
                             self.set_particle(x, y, Particle::new(ParticleType::Steam));                            
                         }
                         else if adj_ice > 3 && rng.gen_bool(0.01 * (adj_ice - 3) as f64) {
