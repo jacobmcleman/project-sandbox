@@ -56,12 +56,17 @@ impl Particle {
         }
     }
 
-    pub fn can_replace_water(particle_type: ParticleType) -> bool {
+    pub fn get_can_replace(particle_type: ParticleType, replace_type: ParticleType) -> bool {
+        Particle::get_replace_list(particle_type).contains(&replace_type)
+    }
+    
+    pub fn get_replace_list(particle_type: ParticleType) -> Vec<ParticleType> {
         match particle_type {
-            ParticleType::Sand => true,
-            ParticleType::Gravel => true,
-            ParticleType::Steam => true,
-            _ => false,
+            ParticleType::Sand => vec![ParticleType::Water, ParticleType::Steam],
+            ParticleType::Gravel => vec![ParticleType::Water, ParticleType::Steam, ParticleType::Lava],
+            ParticleType::Steam => vec![ParticleType::Water, ParticleType::Lava],
+            ParticleType::Lava => vec![ParticleType::Water, ParticleType::Steam, ParticleType::Sand],
+            _ => vec![]
         }
     }
 }
