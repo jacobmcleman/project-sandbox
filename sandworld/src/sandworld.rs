@@ -244,6 +244,7 @@ impl World {
                         self.replace_particle_filtered(GridVec{x, y}, Particle::new(ParticleType::Lava), ParticleType::Gravel);
                         self.replace_particle_filtered(GridVec{x, y}, Particle::new(ParticleType::Lava), ParticleType::Sand);
                         self.replace_particle_filtered(GridVec{x, y}, Particle::new(ParticleType::Steam), ParticleType::Water);
+                        self.replace_particle_filtered(GridVec{x, y}, Particle::new(ParticleType::Water), ParticleType::Ice);
                     }
                 }
             }
@@ -265,6 +266,29 @@ impl World {
                     let local_strength = 0.5 - (rad_t * (0.5 - break_strength));
                     if rng.gen_bool(local_strength) {
                         self.replace_particle_filtered(GridVec{x, y}, Particle::new(ParticleType::Gravel), ParticleType::Stone);
+                    }
+                }
+            }
+        }
+    }
+    
+    pub fn chill_circle(&mut self, pos: GridVec, radius: i32, chill_strength: f64) {
+        let left = pos.x - radius;
+        let right = pos.x + radius;
+        let bottom = pos.y - radius;
+        let top = pos.y + radius;
+        
+        let mut rng = rand::thread_rng();
+
+        for y in bottom..top {
+            for x in left..right {
+                if pos.sq_distance(GridVec{x, y}) < radius.pow(2) {
+                    let rad_t = f64::sqrt(pos.sq_distance(GridVec{x, y}) as f64) / radius as f64;
+                    let local_strength = 0.5 - (rad_t * (0.5 - chill_strength));
+                    if rng.gen_bool(local_strength) {
+                        self.replace_particle_filtered(GridVec{x, y}, Particle::new(ParticleType::Stone), ParticleType::Lava);
+                        self.replace_particle_filtered(GridVec{x, y}, Particle::new(ParticleType::Water), ParticleType::Steam);
+                        self.replace_particle_filtered(GridVec{x, y}, Particle::new(ParticleType::Ice), ParticleType::Water);
                     }
                 }
             }

@@ -9,6 +9,7 @@ pub enum ParticleType {
     Gravel,
     Steam,
     Lava,
+    Ice,
     Source,
     LSource,
     Boundary,
@@ -78,6 +79,7 @@ pub fn get_color_for_type(particle_type: ParticleType) -> [u8; 4] {
         ParticleType::Stone => [0x6b, 0x6f, 0x75, 0xff], //#6b6f75
         ParticleType::Steam => [0xe6, 0xec, 0xf0, 0xff], //#e6ecf0
         ParticleType::Lava => [0xf0, 0x95, 0x16, 0xff], //#f09516
+        ParticleType::Ice => [0xbf, 0xdb, 0xff, 0xff], //#bfdbff
         ParticleType::Air => [0x1e, 0x1e, 0x1e, 0xff],
         ParticleType::Source => [0xf7, 0xdf, 0x00, 0xff],
         ParticleType::LSource => [0xff, 0xdf, 0x00, 0xff],

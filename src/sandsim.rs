@@ -66,6 +66,7 @@ pub enum BrushMode {
     Place(sandworld::ParticleType),
     Melt,
     Break,
+    Chill,
 }
 
 #[derive(Resource)]
@@ -272,7 +273,8 @@ fn world_interact(
                 match brush_options.brush_mode {
                     BrushMode::Place(part_type) => sand.world.place_circle(gridpos, brush_options.radius, sandworld::Particle::new(part_type), false),
                     BrushMode::Melt => sand.world.melt_circle(gridpos, brush_options.radius, 0.01),
-                    BrushMode::Break => sand.world.break_circle(gridpos, brush_options.radius, 0.01),
+                    BrushMode::Break => sand.world.break_circle(gridpos, brush_options.radius, 0.1),
+                    BrushMode::Chill => sand.world.chill_circle(gridpos, brush_options.radius, 0.01),
                 }
             }
             else if buttons.pressed(MouseButton::Right) {

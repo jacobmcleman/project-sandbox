@@ -515,7 +515,8 @@ impl Chunk {
                     }
                     else if cur_part.particle_type == ParticleType::Steam {
                         let non_air = 8 - self.count_neighbors_of_type(x as i16 , y as i16, ParticleType::Air);
-                        if rng.gen_bool(0.005 * (non_air + 1) as f64) {
+                        let ice = self.count_neighbors_of_type(x as i16 , y as i16, ParticleType::Ice);
+                        if rng.gen_bool(0.01 * (non_air + 1 + 4 * ice) as f64) {
                             self.set_particle(x, y, Particle::new(ParticleType::Water));
                         }
                     }
@@ -532,8 +533,23 @@ impl Chunk {
                     }
                     else if cur_part.particle_type == ParticleType::Water {
                         let adj_lava = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Lava);
+                        let adj_ice = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Ice);
                         if rng.gen_bool(0.1 * adj_lava as f64) {
                             self.set_particle(x, y, Particle::new(ParticleType::Steam));                            
+                        }
+                        else if adj_ice > 3 && rng.gen_bool(0.01 * (adj_ice - 3) as f64) {
+                            self.set_particle(x, y, Particle::new(ParticleType::Ice));
+                        }
+                    }
+                    else if cur_part.particle_type == ParticleType::Ice {
+                        let adj_lava = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Lava);
+                        let adj_steam = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Steam);
+                        let adj_water = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Water);
+                        let adj_ice = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Ice);
+                        let adj_heat = 2 * adj_water + 3 * adj_steam + 4 * adj_lava;
+                        
+                        if adj_heat > adj_ice && rng.gen_bool(0.01 * (adj_heat - adj_ice) as f64) {
+                            self.set_particle(x, y, Particle::new(ParticleType::Water));
                         }
                     }
                     else if cur_part.particle_type == ParticleType::Stone 
