@@ -1,7 +1,7 @@
 use std::{collections::VecDeque, sync::Arc};
 use bevy::{prelude::*, render::{render_resource::{Extent3d, TextureFormat}, camera::{RenderTarget}} };
 use gridmath::{GridVec, GridBounds};
-use sandworld::CHUNK_SIZE;
+use sandworld::{CHUNK_SIZE, ParticleType};
 use rand::{Rng, rngs::ThreadRng};
 
 use crate::camera::cam_bounds;
@@ -28,8 +28,7 @@ impl Plugin for SandSimulationPlugin {
             force_redraw_all: false,
         })
         .insert_resource(BrushOptions {
-            material: sandworld::ParticleType::Sand,
-            melt_mode: false,
+            brush_mode: BrushMode::Place(ParticleType::Sand),
             radius: 10,
         })
         .insert_resource(WorldStats {
@@ -62,10 +61,16 @@ pub struct DrawOptions {
     pub force_redraw_all: bool,
 }
 
+#[derive(PartialEq, Eq, Clone)]
+pub enum BrushMode {
+    Place(sandworld::ParticleType),
+    Melt,
+    Break,
+}
+
 #[derive(Resource)]
 pub struct BrushOptions {
-    pub material: sandworld::ParticleType,
-    pub melt_mode: bool,
+    pub brush_mode: BrushMode,
     pub radius: i32,
 }
 
@@ -264,11 +269,10 @@ fn world_interact(
             let gridpos = GridVec::new(world_pos.x as i32, world_pos.y as i32);
 
             if buttons.pressed(MouseButton::Left){
-                if brush_options.melt_mode {
-                    sand.world.melt_circle(gridpos, brush_options.radius, 0.01);
-                }
-                else {
-                    sand.world.place_circle(gridpos, brush_options.radius, sandworld::Particle::new(brush_options.material), false);
+                match brush_options.brush_mode {
+                    BrushMode::Place(part_type) => sand.world.place_circle(gridpos, brush_options.radius, sandworld::Particle::new(part_type), false),
+                    BrushMode::Melt => sand.world.melt_circle(gridpos, brush_options.radius, 0.01),
+                    BrushMode::Break => sand.world.break_circle(gridpos, brush_options.radius, 0.01),
                 }
             }
             else if buttons.pressed(MouseButton::Right) {
