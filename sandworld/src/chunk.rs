@@ -263,32 +263,30 @@ impl Chunk {
         }
     }
     
-    fn get_part_can_move(&self, test_pos_x: i16, test_pos_y: i16, priority_movement: bool, replace_water: bool) -> bool {
+    fn get_part_can_move(&self, test_pos_x: i16, test_pos_y: i16, priority_movement: bool, test_type: ParticleType) -> bool {
         if let Some(test_particle) = self.get_test_particle(test_pos_x, test_pos_y) {
             if test_particle.updated_this_frame { 
                 // Need to allow things to fall into spaces otherwise weird air bubbles are allowed to persist
                 return priority_movement; 
             }
             if test_particle.particle_type == ParticleType::Air { return true; }
-            else if replace_water 
-                && (test_particle.particle_type == ParticleType::Water || test_particle.particle_type == ParticleType::Lava) { 
-                    return true; 
+            else if Particle::get_can_replace(test_type, test_particle.particle_type) { 
+                return true; 
             }
         }
         return false;
     }
 
-    fn test_vec(&self, base_x: i16, base_y: i16, test_vec_x: i8, test_vec_y: i8, replace_water: bool) -> bool {
+    fn test_vec(&self, base_x: i16, base_y: i16, test_vec_x: i8, test_vec_y: i8, test_type: ParticleType) -> bool {
         if test_vec_x.abs() > 1 || test_vec_y.abs() > 1 {
             // need to step
             let test_pos_x = base_x + test_vec_x.signum() as i16;
             let test_pos_y = base_y + test_vec_y.signum() as i16;
             
-            if self.get_part_can_move(test_pos_x, test_pos_y, test_vec_y < 0, replace_water) {
+            if self.get_part_can_move(test_pos_x, test_pos_y, test_vec_y < 0, test_type) {
                 // Recurse to call next step if this step was clear
                 self.test_vec(test_pos_x, test_pos_y, 
-                    test_vec_x - test_vec_x.signum(), test_vec_y - test_vec_y.signum(), 
-                    replace_water)
+                    test_vec_x - test_vec_x.signum(), test_vec_y - test_vec_y.signum(), test_type)
             }
             else { 
                 false
@@ -298,7 +296,7 @@ impl Chunk {
             let test_pos_x = base_x as i16 + test_vec_x as i16;
             let test_pos_y = base_y as i16 + test_vec_y as i16;
             
-            self.get_part_can_move(test_pos_x, test_pos_y, test_vec_y < 0, replace_water)
+            self.get_part_can_move(test_pos_x, test_pos_y, test_vec_y < 0, test_type)
         }
     }
 
@@ -524,17 +522,17 @@ impl Chunk {
                         let adj_water = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Water);
                         let adj_stone = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Stone);
                         let adj_lava = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Lava);
-                        if rng.gen_bool(0.04 * adj_water as f64) {
+                        if adj_water > 1 && rng.gen_bool(0.1 * (adj_water + adj_stone / 2) as f64) {
                             self.set_particle(x, y, Particle::new(ParticleType::Stone));                            
                         }
-                        if adj_stone > adj_lava && rng.gen_bool(0.02 * (adj_stone - adj_lava) as f64){
+                        else if adj_stone > adj_lava && rng.gen_bool(0.02 * (adj_stone - adj_lava) as f64){
                             self.set_particle(x, y, Particle::new(ParticleType::Stone));                            
                         }
                     }
                     else if cur_part.particle_type == ParticleType::Water {
                         let adj_lava = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Lava);
                         let adj_ice = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Ice);
-                        if rng.gen_bool(0.1 * adj_lava as f64) {
+                        if rng.gen_bool(0.01 * adj_lava as f64) {
                             self.set_particle(x, y, Particle::new(ParticleType::Steam));                            
                         }
                         else if adj_ice > 3 && rng.gen_bool(0.01 * (adj_ice - 3) as f64) {
@@ -573,9 +571,8 @@ impl Chunk {
                     if available_moves.len() > 0 {
                         let mut possible_moves = Vec::<GridVec>::new();
                         for move_set in available_moves {
-                            let can_replace_water = Particle::can_replace_water(cur_part.particle_type);
                             for vec in move_set {
-                                if self.test_vec(x as i16, y as i16, vec.x as i8, vec.y as i8, can_replace_water) {
+                                if self.test_vec(x as i16, y as i16, vec.x as i8, vec.y as i8, cur_part.particle_type) {
                                     possible_moves.push(vec.clone());
                                 }
                             }

@@ -56,12 +56,13 @@ impl Particle {
         }
     }
 
-    pub fn can_replace_water(particle_type: ParticleType) -> bool {
+    pub fn get_can_replace(particle_type: ParticleType, replace_type: ParticleType) -> bool {
         match particle_type {
-            ParticleType::Sand => true,
-            ParticleType::Gravel => true,
-            ParticleType::Steam => true,
-            _ => false,
+            ParticleType::Sand => [ParticleType::Water, ParticleType::Steam].contains(&replace_type),
+            ParticleType::Gravel => [ParticleType::Water, ParticleType::Steam, ParticleType::Lava].contains(&replace_type),
+            ParticleType::Steam => [ParticleType::Water, ParticleType::Lava].contains(&replace_type),
+            ParticleType::Lava => [ParticleType::Water, ParticleType::Steam, ParticleType::Sand].contains(&replace_type),
+            _ => false
         }
     }
 }
