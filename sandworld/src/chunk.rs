@@ -288,6 +288,19 @@ impl Chunk {
                 self.test_vec(test_pos_x, test_pos_y, 
                     test_vec_x - test_vec_x.signum(), test_vec_y - test_vec_y.signum(), test_type)
             }
+            else if test_vec_x != 0 && test_vec_y != 0 {
+                if test_vec_x.abs() > test_vec_y.abs() && self.get_part_can_move(test_pos_x, base_y, test_vec_y < 0, test_type) {
+                    self.test_vec(test_pos_x, base_y, 
+                        test_vec_x - test_vec_x.signum(), test_vec_y, test_type)
+                }
+                else if  test_vec_x.abs() < test_vec_y.abs() && self.get_part_can_move(base_x, test_pos_y, test_vec_y < 0, test_type) {
+                    self.test_vec(base_x, test_pos_y, 
+                        test_vec_x, test_vec_y - test_vec_y.signum(), test_type)
+                }
+                else {
+                    false
+                }
+            }
             else { 
                 false
             }
