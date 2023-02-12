@@ -442,17 +442,33 @@ impl Chunk {
         }
     }
     
+    fn iterate_neighbor_parts(&self, x: i16, y: i16, call: &mut dyn FnMut(ParticleType) -> ()) {
+        call(self.get_local_part(x + 1, y + 1));
+        call(self.get_local_part(x, y + 1));
+        call(self.get_local_part(x - 1, y + 1));
+        call(self.get_local_part(x + 1, y) );
+        call(self.get_local_part(x - 1, y));
+        call(self.get_local_part(x + 1, y - 1));
+        call(self.get_local_part(x, y - 1));
+        call(self.get_local_part(x - 1, y - 1));
+    }
+    
     fn count_neighbors_of_type(&self, x: i16, y: i16, search: ParticleType) -> u8 {
         let mut count = 0;
-        if self.get_local_part(x + 1, y + 1) == search { count += 1; }
-        if self.get_local_part(x, y + 1) == search { count += 1; }
-        if self.get_local_part(x - 1, y + 1) == search { count += 1; }
-        if self.get_local_part(x + 1, y) == search { count += 1; }
-        if self.get_local_part(x - 1, y) == search { count += 1; }
-        if self.get_local_part(x + 1, y - 1) == search { count += 1; }
-        if self.get_local_part(x, y - 1) == search { count += 1; }
-        if self.get_local_part(x - 1, y - 1) == search { count += 1; }
+        self.iterate_neighbor_parts(x, y, &mut |part_type: ParticleType| {
+            if part_type == search {
+                count += 1;
+            }
+        });
         return count;
+    }
+    
+    fn caclulate_local_temp(&self, x: i16, y: i16) -> i32 {
+        let mut total = 0;
+        self.iterate_neighbor_parts(x, y, &mut |part_type: ParticleType| {
+            total += get_heat_for_type(part_type)
+        });
+        return total;
     }
 
     fn try_erode(&mut self, rng: &mut ThreadRng, x: i16, y: i16, vel: &GridVec) {
@@ -524,60 +540,9 @@ impl Chunk {
                         if y > 0 { self.add_particle(x, y - 1, Particle::new(ParticleType::Lava)); }
                         if y < CHUNK_SIZE - 1 { self.add_particle(x, y + 1, Particle::new(ParticleType::Lava)); }
                     }
-                    else if cur_part.particle_type == ParticleType::Steam {
-                        let non_air = 8 - self.count_neighbors_of_type(x as i16 , y as i16, ParticleType::Air);
-                        let ice = self.count_neighbors_of_type(x as i16 , y as i16, ParticleType::Ice);
-                        if rng.gen_bool(0.01 * (non_air + 1 + 4 * ice) as f64) {
-                            self.set_particle(x, y, Particle::new(ParticleType::Water));
-                        }
-                    }
-                    else if cur_part.particle_type == ParticleType::Lava {
-                        let adj_water = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Water);
-                        let adj_stone = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Stone);
-                        let adj_lava = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Lava);
-                        if adj_water > 1 && rng.gen_bool(0.1 * (adj_water + adj_stone / 2) as f64) {
-                            self.set_particle(x, y, Particle::new(ParticleType::Stone));                            
-                        }
-                        else if adj_stone > adj_lava && rng.gen_bool(0.02 * (adj_stone - adj_lava) as f64){
-                            self.set_particle(x, y, Particle::new(ParticleType::Stone));                            
-                        }
-                    }
-                    else if cur_part.particle_type == ParticleType::Water {
-                        let adj_lava = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Lava);
-                        let adj_ice = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Ice);
-                        if rng.gen_bool(0.01 * adj_lava as f64) {
-                            self.set_particle(x, y, Particle::new(ParticleType::Steam));                            
-                        }
-                        else if adj_ice > 3 && rng.gen_bool(0.01 * (adj_ice - 3) as f64) {
-                            self.set_particle(x, y, Particle::new(ParticleType::Ice));
-                        }
-                    }
-                    else if cur_part.particle_type == ParticleType::Ice {
-                        let adj_lava = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Lava);
-                        let adj_steam = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Steam);
-                        let adj_water = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Water);
-                        let adj_ice = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Ice);
-                        let adj_heat = 2 * adj_water + 3 * adj_steam + 4 * adj_lava;
-                        
-                        if adj_heat > adj_ice && rng.gen_bool(0.01 * (adj_heat - adj_ice) as f64) {
-                            self.set_particle(x, y, Particle::new(ParticleType::Water));
-                        }
-                    }
-                    else if cur_part.particle_type == ParticleType::Stone 
-                        || cur_part.particle_type == ParticleType::Gravel
-                        || cur_part.particle_type == ParticleType::Sand {
-                        let adj_lava = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Lava);
-                        
-                        let start_melt = match cur_part.particle_type {
-                            ParticleType::Stone => 4,
-                            _=> 3,
-                        };
-                        
-                        if adj_lava > start_melt {
-                            if rng.gen_bool((1. / (8 - start_melt) as f64) * (adj_lava - start_melt) as f64) {
-                                self.set_particle(x, y, Particle::new(ParticleType::Lava));                            
-                            }
-                        }
+                    
+                    if let Some(new_state) = try_state_change(cur_part.particle_type, self.caclulate_local_temp(x as i16, y as i16), &mut rng) {
+                        self.set_particle(x, y, Particle::new(new_state));
                     }
                     
                     let available_moves = Particle::get_possible_moves(cur_part.particle_type);

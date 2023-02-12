@@ -1,4 +1,5 @@
 use gridmath::GridVec;
+use rand::Rng;
 
 #[derive(PartialEq, Eq, Debug, Copy, Clone)]
 pub enum ParticleType {
@@ -21,6 +22,11 @@ pub enum ParticleType {
 pub struct Particle {
     pub particle_type: ParticleType,
     pub(crate) updated_this_frame: bool,
+}
+
+pub struct StateChange {
+    melt: Option<(i32, ParticleType, f64)>,
+    freeze: Option<(i32, ParticleType, f64)>,
 }
 
 impl Particle {
@@ -46,7 +52,8 @@ impl Particle {
                 ],
             ParticleType::Steam => vec![
                 vec![GridVec{x: 1, y: 2}, GridVec{x: -1, y: 2}, GridVec{x: 0, y: 2}, GridVec{x: 1, y: 1}, GridVec{x: -1, y: 1}, GridVec{x: 0, y: 1}],
-                vec![GridVec{x: 1, y: 0}, GridVec{x: -1, y: 0}, GridVec{x: 1, y: -1}, GridVec{x: -1, y: -1}, GridVec{x: 2, y: 0}, GridVec{x: -2, y: 0}, GridVec{x: 2, y: 1}, GridVec{x: 2, y: 11}],
+                vec![GridVec{x: 1, y: 0}, GridVec{x: -1, y: 0}, GridVec{x: 2, y: 0}, GridVec{x: -2, y: 0}, GridVec{x: 2, y: 1}, GridVec{x: -2, y: 1}],
+                vec![GridVec{x: 1, y: -1}, GridVec{x: -1, y: -1}],
                 ],
             ParticleType::Lava => vec![
                 vec![GridVec{x: 1, y: -2}, GridVec{x: -1, y: -2}, GridVec{x: 0, y: -2}, GridVec{x: 0, y: -1}],
@@ -58,10 +65,10 @@ impl Particle {
 
     pub fn get_can_replace(particle_type: ParticleType, replace_type: ParticleType) -> bool {
         match particle_type {
-            ParticleType::Sand => [ParticleType::Water, ParticleType::Steam].contains(&replace_type),
+            ParticleType::Sand => [ParticleType::Water, ParticleType::Lava].contains(&replace_type),
             ParticleType::Gravel => [ParticleType::Water, ParticleType::Steam, ParticleType::Lava].contains(&replace_type),
             ParticleType::Steam => [ParticleType::Water, ParticleType::Lava].contains(&replace_type),
-            ParticleType::Lava => [ParticleType::Water, ParticleType::Steam, ParticleType::Sand].contains(&replace_type),
+            ParticleType::Lava => [ParticleType::Water, ParticleType::Steam].contains(&replace_type),
             _ => false
         }
     }
@@ -88,4 +95,46 @@ pub fn get_color_for_type(particle_type: ParticleType) -> [u8; 4] {
         ParticleType::RegionBoundary => [0xFF, 0xFF, 0x00, 0xFF],
         _ => [0x00, 0x00, 0x00, 0xff],
     }
+}
+
+pub fn get_heat_for_type(particle_type: ParticleType) -> i32 {
+    match particle_type {
+        ParticleType::Ice => -8,
+        ParticleType::Water => -3,
+        ParticleType::Stone => 2,
+        ParticleType::Sand => 1,
+        ParticleType::Gravel => 1,
+        ParticleType::Lava => 64,
+        ParticleType::Steam => 8,
+        _ => 0,
+    }
+}
+
+pub fn get_state_change_for_type(particle_type: ParticleType) -> StateChange {
+    match particle_type {
+        ParticleType::Ice => StateChange{    melt: Some((-28, ParticleType::Water, 0.5)), freeze: None },
+        ParticleType::Water => StateChange{  melt: Some((64, ParticleType::Steam, 0.15)), freeze: Some((-40, ParticleType::Ice, 0.15)) },
+        ParticleType::Steam => StateChange{  melt: None,                                  freeze: Some((50, ParticleType::Water, 0.05))},
+        ParticleType::Stone => StateChange{  melt: Some((300, ParticleType::Lava, 0.2)),  freeze: None },
+        ParticleType::Gravel => StateChange{ melt: Some((250, ParticleType::Lava, 0.25)),  freeze: None },
+        ParticleType::Sand => StateChange{   melt: Some((180, ParticleType::Lava, 0.5)), freeze: None },
+        ParticleType::Lava => StateChange{   melt: None,                                  freeze: Some((196, ParticleType::Stone, 0.1)) },
+        _ => StateChange {                   melt: None,                                  freeze: None },
+    }
+}
+
+pub fn try_state_change(particle_type: ParticleType, local_temperature: i32, rng: &mut rand::rngs::ThreadRng) -> Option<ParticleType> {
+    let state_change = get_state_change_for_type(particle_type);
+    
+    if let Some((melt_temp, melt_type, melt_chance)) = state_change.melt {
+        if local_temperature >= melt_temp && rng.gen_bool((melt_chance * (1. + ((local_temperature - melt_temp) as f64 / melt_temp.abs() as f64))).clamp(0., 1.)) {
+            return Some(melt_type);
+        }
+    }
+    if let Some((freeze_temp, freeze_type, freeze_chance)) = state_change.freeze {
+        if local_temperature <= freeze_temp && rng.gen_bool((freeze_chance * (1. + ((freeze_temp - local_temperature) as f64 / freeze_temp.abs() as f64))).clamp(0., 1.)) {
+            return Some(freeze_type);
+        }
+    }
+    return None;
 }
