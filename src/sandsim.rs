@@ -272,9 +272,9 @@ fn world_interact(
             if buttons.pressed(MouseButton::Left){
                 match brush_options.brush_mode {
                     BrushMode::Place(part_type) => sand.world.place_circle(gridpos, brush_options.radius, sandworld::Particle::new(part_type), false),
-                    BrushMode::Melt => sand.world.melt_circle(gridpos, brush_options.radius, 0.01),
+                    BrushMode::Melt => sand.world.temp_change_circle(gridpos, brush_options.radius, 0.01, 300),
                     BrushMode::Break => sand.world.break_circle(gridpos, brush_options.radius, 0.1),
-                    BrushMode::Chill => sand.world.chill_circle(gridpos, brush_options.radius, 0.01),
+                    BrushMode::Chill => sand.world.temp_change_circle(gridpos, brush_options.radius, 0.01, -100),
                 }
             }
             else if buttons.pressed(MouseButton::Right) {

@@ -405,6 +405,14 @@ impl Chunk {
             self.mark_dirty(x as i32, y as i32);
         }
     }
+    
+        
+    pub(crate) fn try_state_change(&mut self, x: u8, y: u8, temp: i32, rng: &mut ThreadRng) {
+        let cur_part = self.get_particle(x, y);
+        if let Some(new_state) = try_state_change(cur_part.particle_type, temp, rng) {
+            self.set_particle(x, y, Particle::new(new_state));
+        }
+    }
 
     fn _is_border(x: u8, y: u8) -> bool {
         x == 0 || y == 0 || x == CHUNK_SIZE - 1  || y == CHUNK_SIZE - 1
