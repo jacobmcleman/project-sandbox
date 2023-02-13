@@ -203,7 +203,7 @@ impl World {
 
         let chunkpos = World::get_chunkpos(&pos);
         let chunklocal = World::get_chunklocal(pos);
-        self.get_chunk_mut(&chunkpos).unwrap().replace_particle_filtered(chunklocal.x as u8, chunklocal.y as u8, new_val, replace_type);
+        self.get_chunk_mut(&chunkpos).unwrap().replace_particle_filtered(chunklocal.x as i16, chunklocal.y as i16, new_val, replace_type);
     }
 
     pub fn add_particle(&mut self, pos: GridVec, new_val: Particle) {
@@ -216,7 +216,7 @@ impl World {
         let chunkpos = World::get_chunkpos(&pos);
         let chunklocal = World::get_chunklocal(pos);
 
-        self.get_chunk_mut(&chunkpos).unwrap().add_particle(chunklocal.x as u8, chunklocal.y as u8, new_val);
+        self.get_chunk_mut(&chunkpos).unwrap().add_particle(chunklocal.x as i16, chunklocal.y as i16, new_val);
     }
 
     pub fn clear_circle(&mut self, pos: GridVec, radius: i32) {

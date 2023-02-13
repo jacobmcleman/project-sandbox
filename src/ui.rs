@@ -196,6 +196,7 @@ fn setup_buttons(mut commands: Commands, asset_server: Res<AssetServer>) {
     spawn_tool_selector_button(&mut commands, &asset_server, "Lava", BrushMode::Place(ParticleType::Lava), 10);
     spawn_tool_selector_button(&mut commands, &asset_server, "WSource", BrushMode::Place(ParticleType::Source), 1);
     spawn_tool_selector_button(&mut commands, &asset_server, "LSource", BrushMode::Place(ParticleType::LSource), 1);
+    spawn_tool_selector_button(&mut commands, &asset_server, "Laser", BrushMode::Place(ParticleType::LaserEmitter), 1);
 }
 
 fn button_system(

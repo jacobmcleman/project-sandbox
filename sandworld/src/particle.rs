@@ -13,6 +13,8 @@ pub enum ParticleType {
     Ice,
     Source,
     LSource,
+    LaserBeam,
+    LaserEmitter,
     Boundary,
     RegionBoundary,
     Dirty,
@@ -28,6 +30,16 @@ pub struct StateChange {
     melt: Option<(i32, ParticleType, f64)>,
     freeze: Option<(i32, ParticleType, f64)>,
 }
+
+pub(crate) struct CustomUpdateRules;
+
+pub(crate) enum ChunkCommand {
+    Add((GridVec, ParticleType)),
+    Move(Vec<GridVec>),
+    MoveOrDestroy(Vec<GridVec>),
+    Remove,
+}
+
 
 impl Particle {
     pub fn new(particle_type: ParticleType) -> Self {
@@ -69,6 +81,7 @@ impl Particle {
             ParticleType::Gravel => [ParticleType::Water, ParticleType::Steam, ParticleType::Lava].contains(&replace_type),
             ParticleType::Steam => [ParticleType::Water, ParticleType::Lava].contains(&replace_type),
             ParticleType::Lava => [ParticleType::Water, ParticleType::Steam].contains(&replace_type),
+            ParticleType::LaserBeam => [ParticleType::Water, ParticleType::Steam].contains(&replace_type),
             _ => false
         }
     }
@@ -91,6 +104,8 @@ pub fn get_color_for_type(particle_type: ParticleType) -> [u8; 4] {
         ParticleType::Air => [0x1e, 0x1e, 0x1e, 0xff],
         ParticleType::Source => [0xf7, 0xdf, 0x00, 0xff],
         ParticleType::LSource => [0xff, 0xdf, 0x00, 0xff],
+        ParticleType::LaserBeam => [0xff, 0x11, 0x11, 0xff],
+        ParticleType::LaserEmitter => [0xff, 0xee, 0xee, 0xff],
         ParticleType::Dirty => [0xFF, 0x00, 0xFF, 0xff],
         ParticleType::RegionBoundary => [0xFF, 0xFF, 0x00, 0xFF],
         _ => [0x00, 0x00, 0x00, 0xff],
@@ -106,6 +121,8 @@ pub fn get_heat_for_type(particle_type: ParticleType) -> i32 {
         ParticleType::Gravel => 1,
         ParticleType::Lava => 64,
         ParticleType::Steam => 8,
+        ParticleType::LaserBeam => 512,
+        ParticleType::LaserEmitter => 1024,
         _ => 0,
     }
 }
@@ -138,3 +155,46 @@ pub fn try_state_change(particle_type: ParticleType, local_temperature: i32, rng
     }
     return None;
 }
+
+pub(crate) fn update_for_type(particle_type: ParticleType, x: u8, y: u8) -> Option<Vec<ChunkCommand>> {
+    match particle_type {
+        ParticleType::Source => Some(CustomUpdateRules::water_source_update(x, y)),
+        ParticleType::LSource => Some(CustomUpdateRules::lava_source_update(x, y)),
+        ParticleType::LaserBeam => Some(CustomUpdateRules::laser_beam_update(x, y)),
+        ParticleType::LaserEmitter => Some(CustomUpdateRules::laser_emitter_update(x, y)),
+        _ => None
+    }
+}
+
+
+impl CustomUpdateRules {
+    fn water_source_update(x: u8, y: u8) -> Vec<ChunkCommand> {
+        vec![
+            ChunkCommand::Add((GridVec{x: x as i32 - 1, y: y as i32}, ParticleType::Water)),
+            ChunkCommand::Add((GridVec{x: x as i32 + 1, y: y as i32}, ParticleType::Water)),
+            ChunkCommand::Add((GridVec{x: x as i32, y: y as i32 - 1}, ParticleType::Water)),
+            ChunkCommand::Add((GridVec{x: x as i32, y: y as i32 + 1}, ParticleType::Water)),
+        ]
+    }
+    
+    fn lava_source_update(x: u8, y: u8) -> Vec<ChunkCommand> {
+        vec![
+            ChunkCommand::Add((GridVec{x: x as i32 - 1, y: y as i32}, ParticleType::Lava)),
+            ChunkCommand::Add((GridVec{x: x as i32 + 1, y: y as i32}, ParticleType::Lava)),
+            ChunkCommand::Add((GridVec{x: x as i32, y: y as i32 - 1}, ParticleType::Lava)),
+            ChunkCommand::Add((GridVec{x: x as i32, y: y as i32 + 1}, ParticleType::Lava)),
+        ]
+    }
+    
+    fn laser_beam_update(_x: u8, _y: u8) -> Vec<ChunkCommand> {
+        vec![
+            ChunkCommand::MoveOrDestroy(vec![GridVec{x: 0, y: 1}, GridVec{x: 0, y: 2}]),
+        ]
+    }
+    
+    fn laser_emitter_update(x: u8, y: u8) -> Vec<ChunkCommand> {
+        vec![
+            ChunkCommand::Add((GridVec{x: x as i32, y: y as i32 + 1}, ParticleType::LaserBeam)),
+        ]
+    }
+} 
