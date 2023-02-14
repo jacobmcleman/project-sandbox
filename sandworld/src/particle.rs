@@ -120,7 +120,7 @@ pub fn get_heat_for_type(particle_type: ParticleType) -> i32 {
         ParticleType::Sand => 1,
         ParticleType::Gravel => 1,
         ParticleType::Lava => 64,
-        ParticleType::Steam => 8,
+        ParticleType::Steam => 6,
         ParticleType::LaserBeam => 512,
         ParticleType::LaserEmitter => 1024,
         _ => 0,
@@ -132,10 +132,10 @@ pub fn get_state_change_for_type(particle_type: ParticleType) -> StateChange {
         ParticleType::Ice => StateChange{    melt: Some((-28, ParticleType::Water, 0.5)), freeze: None },
         ParticleType::Water => StateChange{  melt: Some((64, ParticleType::Steam, 0.15)), freeze: Some((-40, ParticleType::Ice, 0.15)) },
         ParticleType::Steam => StateChange{  melt: None,                                  freeze: Some((50, ParticleType::Water, 0.05))},
-        ParticleType::Stone => StateChange{  melt: Some((300, ParticleType::Lava, 0.2)),  freeze: None },
+        ParticleType::Stone => StateChange{  melt: Some((300, ParticleType::Lava, 0.05)),  freeze: None },
         ParticleType::Gravel => StateChange{ melt: Some((250, ParticleType::Lava, 0.25)),  freeze: None },
         ParticleType::Sand => StateChange{   melt: Some((180, ParticleType::Lava, 0.5)), freeze: None },
-        ParticleType::Lava => StateChange{   melt: None,                                  freeze: Some((196, ParticleType::Stone, 0.1)) },
+        ParticleType::Lava => StateChange{   melt: None,                                  freeze: Some((255, ParticleType::Stone, 0.1)) },
         _ => StateChange {                   melt: None,                                  freeze: None },
     }
 }
@@ -188,13 +188,13 @@ impl CustomUpdateRules {
     
     fn laser_beam_update(_x: u8, _y: u8) -> Vec<ChunkCommand> {
         vec![
-            ChunkCommand::MoveOrDestroy(vec![GridVec{x: 0, y: 1}, GridVec{x: 0, y: 2}]),
+            ChunkCommand::MoveOrDestroy(vec![GridVec{x: 1, y: 0}, GridVec{x: 2, y: 0}]),
         ]
     }
     
     fn laser_emitter_update(x: u8, y: u8) -> Vec<ChunkCommand> {
         vec![
-            ChunkCommand::Add((GridVec{x: x as i32, y: y as i32 + 1}, ParticleType::LaserBeam)),
+            ChunkCommand::Add((GridVec{x: x as i32 + 1, y: y as i32}, ParticleType::LaserBeam)),
         ]
     }
 } 

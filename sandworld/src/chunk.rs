@@ -267,7 +267,7 @@ impl Chunk {
         if let Some(test_particle) = self.get_test_particle(test_pos_x, test_pos_y) {
             if test_particle.updated_this_frame { 
                 // Need to allow things to fall into spaces otherwise weird air bubbles are allowed to persist
-                return priority_movement; 
+                return priority_movement || Particle::get_can_replace(test_type, test_particle.particle_type); 
             }
             if test_particle.particle_type == ParticleType::Air { return true; }
             else if Particle::get_can_replace(test_type, test_particle.particle_type) { 
