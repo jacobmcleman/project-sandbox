@@ -293,7 +293,7 @@ impl Region {
         self.calc_update_priority();
 
         self.chunks.iter().for_each(|chunk| {
-            if chunk.dirty.is_some() || chunk.updated_last_frame.is_some()  {
+            if chunk.dirty.read().unwrap().is_some() || chunk.updated_last_frame.is_some()  {
                 self.updated_chunks.push(chunk.position);
             }
         });

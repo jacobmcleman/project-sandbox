@@ -1,5 +1,5 @@
 pub const CHUNK_SIZE: u8 = 64;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use gridmath::*;
 use rand::{Rng, rngs::ThreadRng};
@@ -10,7 +10,7 @@ pub struct Chunk {
     pub position: GridVec,
     neighbors: Neighbors,
     particles: [Particle; CHUNK_SIZE as usize * CHUNK_SIZE as usize],
-    pub(crate) dirty: Option<GridBounds>,
+    pub(crate) dirty: RwLock<Option<GridBounds>>,
     pub(crate) update_this_frame: Option<GridBounds>,
     pub(crate) updated_last_frame: Option<GridBounds>,
 }
@@ -96,7 +96,7 @@ impl Chunk {
             position,
             neighbors: Neighbors::new(),
             particles: [Particle::default(); CHUNK_SIZE as usize *  CHUNK_SIZE as usize],
-            dirty: None,
+            dirty: RwLock::new(None),
             update_this_frame: None,
             updated_last_frame: None,
         };
@@ -359,8 +359,7 @@ impl Chunk {
             }
         }
 
-        self.mark_dirty(0, 0);
-        self.mark_dirty(CHUNK_SIZE as i32, CHUNK_SIZE as i32)
+        self.mark_self_dirty();
     }
 
     pub fn chunkpos_to_local_chunkpos(&self, from_chunk: &Chunk, from_x: u8, from_y: u8) -> GridVec {
@@ -373,12 +372,24 @@ impl Chunk {
         self.mark_dirty(x as i32, y as i32);
         self.particles[Chunk::get_index_in_chunk(x, y)].updated_this_frame = true;
     }
+    
+    pub fn mark_region_dirty(&mut self, bounds: GridBounds) {
+        let chunk_bounds = GridBounds::new_from_corner(GridVec::new(0, 0), GridVec::new(CHUNK_SIZE as i32, CHUNK_SIZE as i32));
+        let dirty_bounds = chunk_bounds.intersect(bounds);
+        
+        if dirty_bounds.is_some() {
+            let new_bounds = GridBounds::option_union(*self.dirty.read().unwrap(), dirty_bounds);
+            *self.dirty.write().unwrap() = new_bounds; 
+        }
+    }
+    
+    pub fn mark_self_dirty(&mut self) {
+        self.mark_region_dirty(GridBounds::new_from_corner(GridVec::new(-2, -2), GridVec::new(CHUNK_SIZE as i32 + 4, CHUNK_SIZE as i32 + 4)));
+    }
 
     pub fn mark_dirty(&mut self, x: i32, y: i32) {
-        let chunk_bounds = GridBounds::new_from_corner(GridVec::new(0, 0), GridVec::new(CHUNK_SIZE as i32, CHUNK_SIZE as i32));
-        let dirty_bounds = chunk_bounds.intersect(GridBounds::new(GridVec { x, y }, GridVec { x: 4, y: 4 }));
-
-        self.dirty = chunk_bounds.intersect_option(GridBounds::option_union(self.dirty, dirty_bounds));
+        let dirty_bounds = GridBounds::new(GridVec { x, y }, GridVec { x: 4, y: 4 });        
+        self.mark_region_dirty(dirty_bounds);
 
         if self.contains(x as i16, y as i16){
             let local_x = x as u8;
@@ -402,7 +413,6 @@ impl Chunk {
     pub fn replace_particle_filtered(&mut self, x: i16, y: i16, val: Particle, replace_type: ParticleType) {
         if self.get_local_part(x, y) == replace_type {
             self.set_local_part(x, y, val);
-            self.mark_dirty(x as i32, y as i32);
         }
     }
     
@@ -419,8 +429,8 @@ impl Chunk {
     }
 
     pub(crate) fn commit_updates(&mut self) {
-        self.update_this_frame = self.dirty;
-        self.dirty = None;
+        self.update_this_frame = *self.dirty.read().unwrap();
+        *self.dirty.write().unwrap() = None;
 
         if let Some(to_update) = GridBounds::option_union(self.update_this_frame, self.updated_last_frame) {
             for point in to_update.slide_iter() {

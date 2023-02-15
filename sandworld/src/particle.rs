@@ -188,7 +188,7 @@ impl CustomUpdateRules {
     
     fn laser_beam_update(_x: u8, _y: u8) -> Vec<ChunkCommand> {
         vec![
-            ChunkCommand::MoveOrDestroy(vec![GridVec{x: 1, y: 0}, GridVec{x: 2, y: 0}]),
+            ChunkCommand::MoveOrDestroy(vec![GridVec{x: 1, y: 0}]),
         ]
     }
     
