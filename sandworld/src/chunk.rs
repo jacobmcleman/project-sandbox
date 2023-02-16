@@ -476,14 +476,14 @@ impl Chunk {
     }
     
     fn iterate_neighbor_parts(&self, x: i16, y: i16, call: &mut dyn FnMut(ParticleType) -> ()) {
-        call(self.get_local_part(x + 1, y + 1));
         call(self.get_local_part(x, y + 1));
-        call(self.get_local_part(x - 1, y + 1));
+        call(self.get_local_part(x + 1, y + 1));
         call(self.get_local_part(x + 1, y) );
-        call(self.get_local_part(x - 1, y));
         call(self.get_local_part(x + 1, y - 1));
         call(self.get_local_part(x, y - 1));
         call(self.get_local_part(x - 1, y - 1));
+        call(self.get_local_part(x - 1, y));
+        call(self.get_local_part(x - 1, y + 1));
     }
     
     fn count_neighbors_of_type(&self, x: i16, y: i16, search: ParticleType) -> u8 {
@@ -494,6 +494,17 @@ impl Chunk {
             }
         });
         return count;
+    }
+    
+    fn get_neighbors(&self, x: i16, y: i16) -> [ParticleType; 8] {
+        let mut neighbors: [ParticleType; 8] = [ParticleType::Air; 8];
+        let mut index = 0;
+        
+        self.iterate_neighbor_parts(x, y, &mut |part_type: ParticleType| {
+            neighbors[index] = part_type;
+            index += 1;
+        });
+        return neighbors;
     }
     
     fn caclulate_local_temp(&self, x: i16, y: i16) -> i32 {
@@ -519,7 +530,7 @@ impl Chunk {
                     }
                     ParticleType::Gravel => {
                         if rng.gen_bool(0.002) {
-                            self.set_particle(x as u8, y as u8, Particle::new(ParticleType::Sand))
+                            self.set_particle(x as u8, y as u8, Particle::new_already_updated(ParticleType::Sand))
                         }
                         else {
                             let next_x = x as i16 + vel.x as i16;
@@ -532,7 +543,7 @@ impl Chunk {
                     }
                     ParticleType::Stone => {
                         if rng.gen_bool(0.002) {
-                            self.set_particle(x as u8, y as u8, Particle::new(ParticleType::Gravel));
+                            self.set_particle(x as u8, y as u8, Particle::new_already_updated(ParticleType::Gravel));
                         }
                     }
                     _ => ()
@@ -623,16 +634,18 @@ impl Chunk {
                     // Custom Logic
                     let mut move_override = None;
                     let mut destroy_if_not_moved = false;
-                    if let Some(commands) = update_for_type(cur_part.particle_type, x, y) {
+                    if let Some(update_fn) = get_update_fn_for_type(cur_part.particle_type) {
+                        let commands = update_fn(GridVec::new(x as i32, y as i32), cur_part, self.get_neighbors(x as i16, y as i16));
                         for command in commands {
                             match command {
-                                ChunkCommand::Add((position, particle_type)) => self.add_particle(position.x as i16, position.y as i16, Particle::new(particle_type)), 
+                                ChunkCommand::Add((position, particle_type, particle_data)) => self.add_particle(position.x as i16, position.y as i16, Particle::new_with_data(particle_type, particle_data)), 
                                 ChunkCommand::Move(movement) => move_override = Some(movement),
                                 ChunkCommand::MoveOrDestroy(movement) => {
                                     move_override = Some(movement);
                                     destroy_if_not_moved = true;
                                 },
                                 ChunkCommand::Remove => self.set_particle(x, y, Particle::new(ParticleType::Air)),
+                                ChunkCommand::Mutate(particle_type, particle_data) => self.set_particle(x, y, Particle::new_with_data(particle_type, particle_data)),
                             }
                         }
                     }

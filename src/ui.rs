@@ -187,16 +187,16 @@ fn setup_buttons(mut commands: Commands, asset_server: Res<AssetServer>) {
     spawn_tool_selector_button(&mut commands, &asset_server, "MELT", BrushMode::Melt, 10);
     spawn_tool_selector_button(&mut commands, &asset_server, "BREAK", BrushMode::Break, 10);
     spawn_tool_selector_button(&mut commands, &asset_server, "CHILL", BrushMode::Chill, 20);
-    spawn_tool_selector_button(&mut commands, &asset_server, "Stone", BrushMode::Place(ParticleType::Stone), 20);
-    spawn_tool_selector_button(&mut commands, &asset_server, "Gravel", BrushMode::Place(ParticleType::Gravel), 10);
-    spawn_tool_selector_button(&mut commands, &asset_server, "Sand", BrushMode::Place(ParticleType::Sand), 10);
-    spawn_tool_selector_button(&mut commands, &asset_server, "Ice", BrushMode::Place(ParticleType::Ice), 10);
-    spawn_tool_selector_button(&mut commands, &asset_server, "Water", BrushMode::Place(ParticleType::Water), 10);
-    spawn_tool_selector_button(&mut commands, &asset_server, "Steam", BrushMode::Place(ParticleType::Steam), 10);
-    spawn_tool_selector_button(&mut commands, &asset_server, "Lava", BrushMode::Place(ParticleType::Lava), 10);
-    spawn_tool_selector_button(&mut commands, &asset_server, "WSource", BrushMode::Place(ParticleType::Source), 1);
-    spawn_tool_selector_button(&mut commands, &asset_server, "LSource", BrushMode::Place(ParticleType::LSource), 1);
-    spawn_tool_selector_button(&mut commands, &asset_server, "Laser", BrushMode::Place(ParticleType::LaserEmitter), 1);
+    spawn_tool_selector_button(&mut commands, &asset_server, "Stone", BrushMode::Place(ParticleType::Stone, 0), 20);
+    spawn_tool_selector_button(&mut commands, &asset_server, "Gravel", BrushMode::Place(ParticleType::Gravel, 0), 10);
+    spawn_tool_selector_button(&mut commands, &asset_server, "Sand", BrushMode::Place(ParticleType::Sand, 0), 10);
+    spawn_tool_selector_button(&mut commands, &asset_server, "Ice", BrushMode::Place(ParticleType::Ice, 0), 10);
+    spawn_tool_selector_button(&mut commands, &asset_server, "Water", BrushMode::Place(ParticleType::Water, 0), 10);
+    spawn_tool_selector_button(&mut commands, &asset_server, "Steam", BrushMode::Place(ParticleType::Steam, 0), 10);
+    spawn_tool_selector_button(&mut commands, &asset_server, "Lava", BrushMode::Place(ParticleType::Lava, 0), 10);
+    spawn_tool_selector_button(&mut commands, &asset_server, "Emit", BrushMode::Place(ParticleType::Source, 0), 1);
+    spawn_tool_selector_button(&mut commands, &asset_server, "LaserR", BrushMode::Place(ParticleType::LaserEmitter, 1), 1);
+    spawn_tool_selector_button(&mut commands, &asset_server, "LaserL", BrushMode::Place(ParticleType::LaserEmitter, 3), 1);
 }
 
 fn button_system(

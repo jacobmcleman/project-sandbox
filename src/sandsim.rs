@@ -28,7 +28,7 @@ impl Plugin for SandSimulationPlugin {
             force_redraw_all: false,
         })
         .insert_resource(BrushOptions {
-            brush_mode: BrushMode::Place(ParticleType::Sand),
+            brush_mode: BrushMode::Place(ParticleType::Sand, 0),
             radius: 10,
         })
         .insert_resource(WorldStats {
@@ -63,7 +63,7 @@ pub struct DrawOptions {
 
 #[derive(PartialEq, Eq, Clone)]
 pub enum BrushMode {
-    Place(sandworld::ParticleType),
+    Place(sandworld::ParticleType, u8),
     Melt,
     Break,
     Chill,
@@ -271,7 +271,7 @@ fn world_interact(
 
             if buttons.pressed(MouseButton::Left){
                 match brush_options.brush_mode {
-                    BrushMode::Place(part_type) => sand.world.place_circle(gridpos, brush_options.radius, sandworld::Particle::new(part_type), false),
+                    BrushMode::Place(part_type, data) => sand.world.place_circle(gridpos, brush_options.radius, sandworld::Particle::new_with_data(part_type, data), false),
                     BrushMode::Melt => sand.world.temp_change_circle(gridpos, brush_options.radius, 0.01, 300),
                     BrushMode::Break => sand.world.break_circle(gridpos, brush_options.radius, 0.1),
                     BrushMode::Chill => sand.world.temp_change_circle(gridpos, brush_options.radius, 0.01, -100),
