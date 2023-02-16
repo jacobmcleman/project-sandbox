@@ -265,7 +265,7 @@ impl Chunk {
     
     fn get_part_can_move(&self, test_pos_x: i16, test_pos_y: i16, priority_movement: bool, test_type: ParticleType) -> bool {
         if let Some(test_particle) = self.get_test_particle(test_pos_x, test_pos_y) {
-            if test_particle.updated_this_frame { 
+            if test_particle.updated_this_frame() { 
                 // Need to allow things to fall into spaces otherwise weird air bubbles are allowed to persist
                 return priority_movement || Particle::get_can_replace(test_type, test_particle.particle_type); 
             }
@@ -370,7 +370,7 @@ impl Chunk {
     pub fn set_particle(&mut self, x: u8, y: u8, val: Particle) {
         self.particles[Chunk::get_index_in_chunk(x, y)] = val;
         self.mark_dirty(x as i32, y as i32);
-        self.particles[Chunk::get_index_in_chunk(x, y)].updated_this_frame = true;
+        self.particles[Chunk::get_index_in_chunk(x, y)].set_updated_this_frame(true);
     }
     
     pub fn mark_region_dirty(&mut self, bounds: GridBounds) {
@@ -437,7 +437,7 @@ impl Chunk {
                 let x = point.x as u8;
                 let y = point.y as u8;
                 
-                self.get_particle_mut(x, y).updated_this_frame = false;
+                self.get_particle_mut(x, y).set_updated_this_frame(false);
             }
         }
     }
@@ -507,7 +507,7 @@ impl Chunk {
     fn try_erode(&mut self, rng: &mut ThreadRng, x: i16, y: i16, vel: &GridVec) {
         if self.contains(x, y) {
             let part = self.get_particle(x as u8, y as u8);
-            if !part.updated_this_frame {
+            if !part.updated_this_frame() {
                 match part.particle_type {
                     ParticleType::Sand => {
                         let next_x = x as i16 + vel.x as i16;
@@ -519,7 +519,7 @@ impl Chunk {
                     }
                     ParticleType::Gravel => {
                         if rng.gen_bool(0.002) {
-                            self.set_particle(x as u8, y as u8, Particle { particle_type: ParticleType::Sand, updated_this_frame: true })
+                            self.set_particle(x as u8, y as u8, Particle::new(ParticleType::Sand))
                         }
                         else {
                             let next_x = x as i16 + vel.x as i16;
@@ -532,7 +532,7 @@ impl Chunk {
                     }
                     ParticleType::Stone => {
                         if rng.gen_bool(0.002) {
-                            self.set_particle(x as u8, y as u8, Particle { particle_type: ParticleType::Gravel, updated_this_frame: true });
+                            self.set_particle(x as u8, y as u8, Particle::new(ParticleType::Gravel));
                         }
                     }
                     _ => ()
@@ -619,7 +619,7 @@ impl Chunk {
                 
                 let cur_part = self.get_particle(x, y);
 
-                if !cur_part.updated_this_frame {           
+                if !cur_part.updated_this_frame() {           
                     // Custom Logic
                     let mut move_override = None;
                     let mut destroy_if_not_moved = false;

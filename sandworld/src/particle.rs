@@ -23,7 +23,11 @@ pub enum ParticleType {
 #[derive(Debug, Copy, Clone)]
 pub struct Particle {
     pub particle_type: ParticleType,
-    pub(crate) updated_this_frame: bool,
+    /*
+        Highest bit is reserved for particle update flag
+        Other bits may be used for custom particle logic
+    */
+    data: u8, 
 }
 
 pub struct StateChange {
@@ -43,7 +47,20 @@ pub(crate) enum ChunkCommand {
 
 impl Particle {
     pub fn new(particle_type: ParticleType) -> Self {
-        Particle{particle_type, updated_this_frame: false}
+        Particle{particle_type, data: 0}
+    }
+    
+    pub(crate) fn updated_this_frame(&self) -> bool {
+        return self.data & (1<<7) != 0
+    }
+    
+    pub(crate) fn set_updated_this_frame(&mut self, val: bool) {
+        if val {
+            self.data |= 1<<7;
+        }
+        else {
+            self.data &= !(1<<7);
+        }
     }
 
     pub fn get_possible_moves(particle_type: ParticleType) -> Vec::<Vec::<GridVec>> {
@@ -88,7 +105,7 @@ impl Particle {
 }
 
 impl Default for Particle {
-    fn default() -> Self { Particle{particle_type: ParticleType::Air, updated_this_frame: false} }
+    fn default() -> Self { Particle::new(ParticleType::Air) }
 }
 
 
