@@ -1,5 +1,5 @@
 pub const CHUNK_SIZE: u8 = 64;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use gridmath::*;
 use rand::{Rng, rngs::ThreadRng};
@@ -10,7 +10,7 @@ pub struct Chunk {
     pub position: GridVec,
     neighbors: Neighbors,
     particles: [Particle; CHUNK_SIZE as usize * CHUNK_SIZE as usize],
-    pub(crate) dirty: Option<GridBounds>,
+    pub(crate) dirty: RwLock<Option<GridBounds>>,
     pub(crate) update_this_frame: Option<GridBounds>,
     pub(crate) updated_last_frame: Option<GridBounds>,
 }
@@ -96,7 +96,7 @@ impl Chunk {
             position,
             neighbors: Neighbors::new(),
             particles: [Particle::default(); CHUNK_SIZE as usize *  CHUNK_SIZE as usize],
-            dirty: None,
+            dirty: RwLock::new(None),
             update_this_frame: None,
             updated_last_frame: None,
         };
@@ -265,9 +265,9 @@ impl Chunk {
     
     fn get_part_can_move(&self, test_pos_x: i16, test_pos_y: i16, priority_movement: bool, test_type: ParticleType) -> bool {
         if let Some(test_particle) = self.get_test_particle(test_pos_x, test_pos_y) {
-            if test_particle.updated_this_frame { 
+            if test_particle.updated_this_frame() { 
                 // Need to allow things to fall into spaces otherwise weird air bubbles are allowed to persist
-                return priority_movement; 
+                return priority_movement || Particle::get_can_replace(test_type, test_particle.particle_type); 
             }
             if test_particle.particle_type == ParticleType::Air { return true; }
             else if Particle::get_can_replace(test_type, test_particle.particle_type) { 
@@ -359,8 +359,7 @@ impl Chunk {
             }
         }
 
-        self.mark_dirty(0, 0);
-        self.mark_dirty(CHUNK_SIZE as i32, CHUNK_SIZE as i32)
+        self.mark_self_dirty();
     }
 
     pub fn chunkpos_to_local_chunkpos(&self, from_chunk: &Chunk, from_x: u8, from_y: u8) -> GridVec {
@@ -371,14 +370,26 @@ impl Chunk {
     pub fn set_particle(&mut self, x: u8, y: u8, val: Particle) {
         self.particles[Chunk::get_index_in_chunk(x, y)] = val;
         self.mark_dirty(x as i32, y as i32);
-        self.particles[Chunk::get_index_in_chunk(x, y)].updated_this_frame = true;
+        self.particles[Chunk::get_index_in_chunk(x, y)].set_updated_this_frame(true);
+    }
+    
+    pub fn mark_region_dirty(&mut self, bounds: GridBounds) {
+        let chunk_bounds = GridBounds::new_from_corner(GridVec::new(0, 0), GridVec::new(CHUNK_SIZE as i32, CHUNK_SIZE as i32));
+        let dirty_bounds = chunk_bounds.intersect(bounds);
+        
+        if dirty_bounds.is_some() {
+            let new_bounds = GridBounds::option_union(*self.dirty.read().unwrap(), dirty_bounds);
+            *self.dirty.write().unwrap() = new_bounds; 
+        }
+    }
+    
+    pub fn mark_self_dirty(&mut self) {
+        self.mark_region_dirty(GridBounds::new_from_corner(GridVec::new(-2, -2), GridVec::new(CHUNK_SIZE as i32 + 4, CHUNK_SIZE as i32 + 4)));
     }
 
     pub fn mark_dirty(&mut self, x: i32, y: i32) {
-        let chunk_bounds = GridBounds::new_from_corner(GridVec::new(0, 0), GridVec::new(CHUNK_SIZE as i32, CHUNK_SIZE as i32));
-        let dirty_bounds = chunk_bounds.intersect(GridBounds::new(GridVec { x, y }, GridVec { x: 4, y: 4 }));
-
-        self.dirty = chunk_bounds.intersect_option(GridBounds::option_union(self.dirty, dirty_bounds));
+        let dirty_bounds = GridBounds::new(GridVec { x, y }, GridVec { x: 4, y: 4 });        
+        self.mark_region_dirty(dirty_bounds);
 
         if self.contains(x as i16, y as i16){
             let local_x = x as u8;
@@ -395,14 +406,21 @@ impl Chunk {
         }
     }
 
-    pub fn add_particle(&mut self, x: u8, y: u8, val: Particle) {
+    pub fn add_particle(&mut self, x: i16, y: i16, val: Particle) {
         self.replace_particle_filtered(x, y, val, ParticleType::Air)
     }
     
-    pub fn replace_particle_filtered(&mut self, x: u8, y: u8, val: Particle, replace_type: ParticleType) {
-        if self.get_particle(x, y).particle_type == replace_type {
-            self.particles[Chunk::get_index_in_chunk(x, y)] = val;
-            self.mark_dirty(x as i32, y as i32);
+    pub fn replace_particle_filtered(&mut self, x: i16, y: i16, val: Particle, replace_type: ParticleType) {
+        if self.get_local_part(x, y) == replace_type {
+            self.set_local_part(x, y, val);
+        }
+    }
+    
+        
+    pub(crate) fn try_state_change(&mut self, x: u8, y: u8, temp: i32, rng: &mut ThreadRng) {
+        let cur_part = self.get_particle(x, y);
+        if let Some(new_state) = try_state_change(cur_part.particle_type, temp, rng) {
+            self.set_particle(x, y, Particle::new(new_state));
         }
     }
 
@@ -411,20 +429,35 @@ impl Chunk {
     }
 
     pub(crate) fn commit_updates(&mut self) {
-        self.update_this_frame = self.dirty;
-        self.dirty = None;
+        self.update_this_frame = *self.dirty.read().unwrap();
+        *self.dirty.write().unwrap() = None;
 
         if let Some(to_update) = GridBounds::option_union(self.update_this_frame, self.updated_last_frame) {
             for point in to_update.slide_iter() {
                 let x = point.x as u8;
                 let y = point.y as u8;
                 
-                self.get_particle_mut(x, y).updated_this_frame = false;
+                self.get_particle_mut(x, y).set_updated_this_frame(false);
             }
         }
     }
     
-    fn get_local_part(&self, x: i16, y: i16) -> ParticleType {
+    pub fn set_local_part(&mut self, x: i16, y: i16, val: Particle) {
+        if self.contains(x, y) {
+            self.set_particle(x as u8, y as u8, val);
+        }
+        else if let Some(neighbor) = self.get_neighbor( Chunk::get_oob_direction(x, y) ) {
+            let dir = Chunk::get_oob_direction(x, y);
+            let adjusted_x = x - (dir.x as i16 * CHUNK_SIZE as i16);
+            let adjusted_y = y - (dir.y as i16 * CHUNK_SIZE as i16);
+            
+            unsafe {
+                (*neighbor).set_particle(adjusted_x as u8, adjusted_y as u8, val)
+            }
+        }
+    }
+    
+    pub fn get_local_part(&self, x: i16, y: i16) -> ParticleType {
         if self.contains(x, y) {
             self.get_particle(x as u8, y as u8).particle_type
         }
@@ -442,23 +475,50 @@ impl Chunk {
         }
     }
     
+    fn iterate_neighbor_parts(&self, x: i16, y: i16, call: &mut dyn FnMut(ParticleType) -> ()) {
+        call(self.get_local_part(x, y + 1));
+        call(self.get_local_part(x + 1, y + 1));
+        call(self.get_local_part(x + 1, y) );
+        call(self.get_local_part(x + 1, y - 1));
+        call(self.get_local_part(x, y - 1));
+        call(self.get_local_part(x - 1, y - 1));
+        call(self.get_local_part(x - 1, y));
+        call(self.get_local_part(x - 1, y + 1));
+    }
+    
     fn count_neighbors_of_type(&self, x: i16, y: i16, search: ParticleType) -> u8 {
         let mut count = 0;
-        if self.get_local_part(x + 1, y + 1) == search { count += 1; }
-        if self.get_local_part(x, y + 1) == search { count += 1; }
-        if self.get_local_part(x - 1, y + 1) == search { count += 1; }
-        if self.get_local_part(x + 1, y) == search { count += 1; }
-        if self.get_local_part(x - 1, y) == search { count += 1; }
-        if self.get_local_part(x + 1, y - 1) == search { count += 1; }
-        if self.get_local_part(x, y - 1) == search { count += 1; }
-        if self.get_local_part(x - 1, y - 1) == search { count += 1; }
+        self.iterate_neighbor_parts(x, y, &mut |part_type: ParticleType| {
+            if part_type == search {
+                count += 1;
+            }
+        });
         return count;
+    }
+    
+    fn get_neighbors(&self, x: i16, y: i16) -> [ParticleType; 8] {
+        let mut neighbors: [ParticleType; 8] = [ParticleType::Air; 8];
+        let mut index = 0;
+        
+        self.iterate_neighbor_parts(x, y, &mut |part_type: ParticleType| {
+            neighbors[index] = part_type;
+            index += 1;
+        });
+        return neighbors;
+    }
+    
+    fn caclulate_local_temp(&self, x: i16, y: i16) -> i32 {
+        let mut total = 0;
+        self.iterate_neighbor_parts(x, y, &mut |part_type: ParticleType| {
+            total += get_heat_for_type(part_type)
+        });
+        return total;
     }
 
     fn try_erode(&mut self, rng: &mut ThreadRng, x: i16, y: i16, vel: &GridVec) {
         if self.contains(x, y) {
             let part = self.get_particle(x as u8, y as u8);
-            if !part.updated_this_frame {
+            if !part.updated_this_frame() {
                 match part.particle_type {
                     ParticleType::Sand => {
                         let next_x = x as i16 + vel.x as i16;
@@ -470,7 +530,7 @@ impl Chunk {
                     }
                     ParticleType::Gravel => {
                         if rng.gen_bool(0.002) {
-                            self.set_particle(x as u8, y as u8, Particle { particle_type: ParticleType::Sand, updated_this_frame: true })
+                            self.set_particle(x as u8, y as u8, Particle::new_already_updated(ParticleType::Sand))
                         }
                         else {
                             let next_x = x as i16 + vel.x as i16;
@@ -483,7 +543,7 @@ impl Chunk {
                     }
                     ParticleType::Stone => {
                         if rng.gen_bool(0.002) {
-                            self.set_particle(x as u8, y as u8, Particle { particle_type: ParticleType::Gravel, updated_this_frame: true });
+                            self.set_particle(x as u8, y as u8, Particle::new_already_updated(ParticleType::Gravel));
                         }
                     }
                     _ => ()
@@ -500,6 +560,65 @@ impl Chunk {
             }
         }
     }
+    
+    fn particle_movement(&mut self, x: u8, y: u8, cur_part: &Particle, rng: &mut ThreadRng, move_override: Option<Vec<GridVec>>) -> GridVec {
+        let available_moves = if let Some(movement) = move_override { 
+            vec![movement]
+        }
+        else {
+            Particle::get_possible_moves(cur_part.particle_type)
+        };
+        
+        if available_moves.len() > 0 {
+            let mut possible_moves = Vec::<GridVec>::new();
+            for move_set in available_moves {
+                for vec in move_set {
+                    if self.test_vec(x as i16, y as i16, vec.x as i8, vec.y as i8, cur_part.particle_type) {
+                        possible_moves.push(vec.clone());
+                    }
+                }
+                
+                if !possible_moves.is_empty() { break; }
+            }
+            
+            if possible_moves.len() > 0 {
+                let chosen_vec = possible_moves[rng.gen_range(0..possible_moves.len())];
+                let chosen_x = x as i16 + chosen_vec.x as i16;
+                let chosen_y = y as i16 + chosen_vec.y as i16;
+                
+                self.make_move(x, y, chosen_x, chosen_y, cur_part);
+                
+                chosen_vec
+            }
+            else {
+                GridVec::new(0, 0)
+            }
+        }
+        else {
+            GridVec::new(0, 0)
+        }
+    }
+    
+    fn make_move(&mut self, x: u8, y: u8, chosen_x: i16, chosen_y: i16, cur_part: &Particle) {
+        if self.contains(chosen_x, chosen_y) {
+            self.set_particle(x, y, self.get_particle(chosen_x as u8, chosen_y as u8));
+            self.set_particle(chosen_x as u8, chosen_y as u8, cur_part.clone());
+        }
+        else {
+            let neighbor_direction = Chunk::get_oob_direction(chosen_x, chosen_y);
+            let neighbor = self.get_neighbor(neighbor_direction);
+            if let Some(chunk) = neighbor {
+                let mut other_chunk_x = chosen_x % (CHUNK_SIZE as i16);
+                let mut other_chunk_y = chosen_y % (CHUNK_SIZE as i16);
+                if other_chunk_x < 0 { other_chunk_x += CHUNK_SIZE as i16; }
+                if other_chunk_y < 0 { other_chunk_y += CHUNK_SIZE as i16; }
+                unsafe {
+                    self.set_particle(x, y, (*chunk).get_particle(other_chunk_x as u8, other_chunk_y as u8));
+                    (*chunk).set_particle(other_chunk_x as u8, other_chunk_y as u8, cur_part.clone());
+                }
+            }
+        }
+    }
 
     pub(crate) fn update(&mut self) {      
         let mut rng = rand::thread_rng();
@@ -511,119 +630,45 @@ impl Chunk {
                 
                 let cur_part = self.get_particle(x, y);
 
-                if !cur_part.updated_this_frame {
-                    if cur_part.particle_type == ParticleType::Source {
-                        if x > 0 { self.add_particle(x - 1, y, Particle::new(ParticleType::Water)); }
-                        if x < CHUNK_SIZE - 1 { self.add_particle(x + 1, y, Particle::new(ParticleType::Water)); }
-                        if y > 0 { self.add_particle(x, y - 1, Particle::new(ParticleType::Water)); }
-                        if y < CHUNK_SIZE - 1 { self.add_particle(x, y + 1, Particle::new(ParticleType::Water)); }
-                    }
-                    if cur_part.particle_type == ParticleType::LSource {
-                        if x > 0 { self.add_particle(x - 1, y, Particle::new(ParticleType::Lava)); }
-                        if x < CHUNK_SIZE - 1 { self.add_particle(x + 1, y, Particle::new(ParticleType::Lava)); }
-                        if y > 0 { self.add_particle(x, y - 1, Particle::new(ParticleType::Lava)); }
-                        if y < CHUNK_SIZE - 1 { self.add_particle(x, y + 1, Particle::new(ParticleType::Lava)); }
-                    }
-                    else if cur_part.particle_type == ParticleType::Steam {
-                        let non_air = 8 - self.count_neighbors_of_type(x as i16 , y as i16, ParticleType::Air);
-                        let ice = self.count_neighbors_of_type(x as i16 , y as i16, ParticleType::Ice);
-                        if rng.gen_bool(0.01 * (non_air + 1 + 4 * ice) as f64) {
-                            self.set_particle(x, y, Particle::new(ParticleType::Water));
-                        }
-                    }
-                    else if cur_part.particle_type == ParticleType::Lava {
-                        let adj_water = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Water);
-                        let adj_stone = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Stone);
-                        let adj_lava = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Lava);
-                        if adj_water > 1 && rng.gen_bool(0.1 * (adj_water + adj_stone / 2) as f64) {
-                            self.set_particle(x, y, Particle::new(ParticleType::Stone));                            
-                        }
-                        else if adj_stone > adj_lava && rng.gen_bool(0.02 * (adj_stone - adj_lava) as f64){
-                            self.set_particle(x, y, Particle::new(ParticleType::Stone));                            
-                        }
-                    }
-                    else if cur_part.particle_type == ParticleType::Water {
-                        let adj_lava = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Lava);
-                        let adj_ice = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Ice);
-                        if rng.gen_bool(0.01 * adj_lava as f64) {
-                            self.set_particle(x, y, Particle::new(ParticleType::Steam));                            
-                        }
-                        else if adj_ice > 3 && rng.gen_bool(0.01 * (adj_ice - 3) as f64) {
-                            self.set_particle(x, y, Particle::new(ParticleType::Ice));
-                        }
-                    }
-                    else if cur_part.particle_type == ParticleType::Ice {
-                        let adj_lava = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Lava);
-                        let adj_steam = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Steam);
-                        let adj_water = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Water);
-                        let adj_ice = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Ice);
-                        let adj_heat = 2 * adj_water + 3 * adj_steam + 4 * adj_lava;
-                        
-                        if adj_heat > adj_ice && rng.gen_bool(0.01 * (adj_heat - adj_ice) as f64) {
-                            self.set_particle(x, y, Particle::new(ParticleType::Water));
-                        }
-                    }
-                    else if cur_part.particle_type == ParticleType::Stone 
-                        || cur_part.particle_type == ParticleType::Gravel
-                        || cur_part.particle_type == ParticleType::Sand {
-                        let adj_lava = self.count_neighbors_of_type(x as i16, y as i16, ParticleType::Lava);
-                        
-                        let start_melt = match cur_part.particle_type {
-                            ParticleType::Stone => 4,
-                            _=> 3,
-                        };
-                        
-                        if adj_lava > start_melt {
-                            if rng.gen_bool((1. / (8 - start_melt) as f64) * (adj_lava - start_melt) as f64) {
-                                self.set_particle(x, y, Particle::new(ParticleType::Lava));                            
+                if !cur_part.updated_this_frame() {           
+                    // Custom Logic
+                    let mut move_override = None;
+                    let mut destroy_if_not_moved = false;
+                    if let Some(update_fn) = get_update_fn_for_type(cur_part.particle_type) {
+                        let commands = update_fn(GridVec::new(x as i32, y as i32), cur_part, self.get_neighbors(x as i16, y as i16));
+                        for command in commands {
+                            match command {
+                                ChunkCommand::Add((position, particle_type, particle_data)) => self.add_particle(position.x as i16, position.y as i16, Particle::new_with_data(particle_type, particle_data)), 
+                                ChunkCommand::Move(movement) => move_override = Some(movement),
+                                ChunkCommand::MoveOrDestroy(movement) => {
+                                    move_override = Some(movement);
+                                    destroy_if_not_moved = true;
+                                },
+                                ChunkCommand::Remove => self.set_particle(x, y, Particle::new(ParticleType::Air)),
+                                ChunkCommand::Mutate(particle_type, particle_data) => self.set_particle(x, y, Particle::new_with_data(particle_type, particle_data)),
                             }
                         }
                     }
                     
-                    let available_moves = Particle::get_possible_moves(cur_part.particle_type);
-                    if available_moves.len() > 0 {
-                        let mut possible_moves = Vec::<GridVec>::new();
-                        for move_set in available_moves {
-                            for vec in move_set {
-                                if self.test_vec(x as i16, y as i16, vec.x as i8, vec.y as i8, cur_part.particle_type) {
-                                    possible_moves.push(vec.clone());
-                                }
-                            }
-                            
-                            if !possible_moves.is_empty() { break; }
-                        }
-                        
-                        if possible_moves.len() > 0 {
-                            let chosen_vec = possible_moves[rng.gen_range(0..possible_moves.len())];
-                            let chosen_x = x as i16 + chosen_vec.x as i16;
-                            let chosen_y = y as i16 + chosen_vec.y as i16;
-
-                            if cur_part.particle_type == ParticleType::Water && chosen_vec.manhattan_length() > 1 {
-                                self.try_erode(&mut rng, x as i16, y as i16 - 1, &chosen_vec);
-                                self.try_erode(&mut rng, x as i16, y as i16 + 1, &chosen_vec);
-                                self.try_erode(&mut rng, x as i16 - 1, y as i16, &chosen_vec);
-                                self.try_erode(&mut rng, x as i16 + 1, y as i16, &chosen_vec);
-                            }
-
-                            if self.contains(chosen_x, chosen_y) {
-                                self.set_particle(x, y, self.get_particle(chosen_x as u8, chosen_y as u8));
-                                self.set_particle(chosen_x as u8, chosen_y as u8, cur_part.clone());
-                            }
-                            else {
-                                let neighbor_direction = Chunk::get_oob_direction(chosen_x, chosen_y);
-                                let neighbor = self.get_neighbor(neighbor_direction);
-                                if let Some(chunk) = neighbor {
-                                    let mut other_chunk_x = chosen_x % (CHUNK_SIZE as i16);
-                                    let mut other_chunk_y = chosen_y % (CHUNK_SIZE as i16);
-                                    if other_chunk_x < 0 { other_chunk_x += CHUNK_SIZE as i16; }
-                                    if other_chunk_y < 0 { other_chunk_y += CHUNK_SIZE as i16; }
-                                    unsafe {
-                                        self.set_particle(x, y, (*chunk).get_particle(other_chunk_x as u8, other_chunk_y as u8));
-                                        (*chunk).set_particle(other_chunk_x as u8, other_chunk_y as u8, cur_part.clone());
-                                    }
-                                }
-                            }
-                        }
+                    // Temperature
+                    if let Some(new_state) = try_state_change(cur_part.particle_type, self.caclulate_local_temp(x as i16, y as i16), &mut rng) {
+                        self.set_particle(x, y, Particle::new(new_state));
+                    }
+                    
+                    // Movement
+                    let move_amount = self.particle_movement(x, y, &cur_part, &mut rng, move_override);
+                    
+                    // Erosion
+                    if cur_part.particle_type == ParticleType::Water && move_amount.manhattan_length() > 1 {
+                        self.try_erode(&mut rng, x as i16, y as i16 - 1, &move_amount);
+                        self.try_erode(&mut rng, x as i16, y as i16 + 1, &move_amount);
+                        self.try_erode(&mut rng, x as i16 - 1, y as i16, &move_amount);
+                        self.try_erode(&mut rng, x as i16 + 1, y as i16, &move_amount);
+                    }
+                    
+                    // Tail custom logic 
+                    if destroy_if_not_moved && move_amount.manhattan_length() == 0 {
+                        self.set_particle(x, y, Particle::new(ParticleType::Air))
                     }
                 }
             }

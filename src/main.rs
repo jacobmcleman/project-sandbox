@@ -1,16 +1,17 @@
 #![deny(clippy::all)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use bevy::{prelude::*, window::PresentMode };
+use std::mem::size_of;
 
-mod sandsim;
+use bevy::{prelude::*, window::PresentMode};
+
 mod camera;
-mod ui;
 mod perf;
+mod sandsim;
+mod ui;
 mod worldgen;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[derive(SystemLabel)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemLabel)]
 enum UpdateStages {
     UI,
     Input,
@@ -18,20 +19,23 @@ enum UpdateStages {
     WorldDraw,
 }
 
-fn main(){
+fn main() {
+    println!("particle size: {}", size_of::<sandworld::Particle>());
+
     App::new()
-        .add_plugins(DefaultPlugins
-            .set(ImagePlugin::default_nearest())
-            .set(WindowPlugin {
-                window: WindowDescriptor {
-                    title: "Project Sandbox - Bevy".to_string(),
-                    width: 500.,
-                    height: 300.,
-                    present_mode: PresentMode::AutoVsync,
+        .add_plugins(
+            DefaultPlugins
+                .set(ImagePlugin::default_nearest())
+                .set(WindowPlugin {
+                    window: WindowDescriptor {
+                        title: "Project Sandbox - Bevy".to_string(),
+                        width: 500.,
+                        height: 300.,
+                        present_mode: PresentMode::AutoVsync,
+                        ..default()
+                    },
                     ..default()
-                },
-                ..default()
-             })
+                }),
         )
         .add_plugin(crate::sandsim::SandSimulationPlugin)
         .add_plugin(crate::camera::CameraPlugin)

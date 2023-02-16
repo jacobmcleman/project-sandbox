@@ -56,6 +56,14 @@ impl GridVec {
             (combo & 0x00000000FFFFFFFF) as i32, 
             ((combo & 0xFFFFFFFF00000000) >> 32) as i32)
     }
+    
+    /*
+        Returns vector that is the same as the current one but with at 
+        most length one in any direction
+    */
+    pub fn manhattan_unit(&self) -> GridVec {
+        GridVec { x: self.x.signum(), y: self.y.signum() }
+    }
 }
 
 impl ops::Add<GridVec> for GridVec {
