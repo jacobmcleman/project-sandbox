@@ -22,12 +22,12 @@ impl Plugin for UiPlugin {
             })
             .add_system(
                 button_system
-                    .label(crate::UpdateStages::UI)
+                    .in_set(crate::UpdateStages::UI)
                     .before(crate::UpdateStages::Input),
             )
             .add_system(
                 update_performance_text
-                    .label(crate::UpdateStages::UI)
+                    .in_set(crate::UpdateStages::UI)
                     .after(crate::UpdateStages::WorldUpdate),
             );
     }
@@ -110,7 +110,7 @@ fn update_performance_text(
 ) {
     let (_, mut text, mut vis) = text_query.single_mut();
     if draw_options.world_stats {
-        vis.is_visible = true;
+        *vis = Visibility::Inherited;
 
         text.sections[0].value = format!(
             "FPS: {} ({:.1}ms)",
@@ -161,7 +161,7 @@ fn update_performance_text(
             1000. / chunk_updates_per_second_avg
         );
     } else {
-        vis.is_visible = false;
+        *vis = Visibility::Hidden;
     }
 }
 
@@ -282,6 +282,20 @@ fn setup_buttons(mut commands: Commands, asset_server: Res<AssetServer>) {
         &asset_server,
         "LaserL",
         BrushMode::Place(ParticleType::LaserEmitter, 3),
+        1,
+    );
+    spawn_tool_selector_button(
+        &mut commands,
+        &asset_server,
+        "LaserU",
+        BrushMode::Place(ParticleType::LaserEmitter, 0),
+        1,
+    );
+    spawn_tool_selector_button(
+        &mut commands,
+        &asset_server,
+        "LaserD",
+        BrushMode::Place(ParticleType::LaserEmitter, 2),
         1,
     );
 }

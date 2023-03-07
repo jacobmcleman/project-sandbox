@@ -6,7 +6,7 @@ pub struct CameraPlugin;
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
         app.add_startup_system(spawn_camera)
-            .add_system(camera_movement.label(crate::UpdateStages::Input));
+            .add_system(camera_movement.in_set(crate::UpdateStages::Input));
     }
 }
 
@@ -22,11 +22,11 @@ fn spawn_camera(mut commands: Commands) {
 }
 
 pub fn cam_bounds(ortho: &OrthographicProjection, transform: &GlobalTransform) -> GridBounds {
-    let width = (ortho.right - ortho.left) * ortho.scale;
-    let height = (ortho.top - ortho.bottom) * ortho.scale;
+    let width = ortho.area.width() * ortho.scale;
+    let height = ortho.area.height() * ortho.scale; 
     let center = gridmath::GridVec::new(
-        ((ortho.right + ortho.left) / 2.).round() as i32,
-        ((ortho.top + ortho.bottom) / 2.).round() as i32,
+        ortho.area.center().x.round() as i32,
+        ortho.area.center().y.round() as i32,
     ) + gridmath::GridVec::new(
         transform.translation().x as i32,
         transform.translation().y as i32,

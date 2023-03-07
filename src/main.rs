@@ -3,7 +3,7 @@
 
 use std::mem::size_of;
 
-use bevy::{prelude::*, window::PresentMode};
+use bevy::{prelude::*, window::PresentMode, window::WindowResolution};
 
 mod camera;
 mod perf;
@@ -11,7 +11,7 @@ mod sandsim;
 mod ui;
 mod worldgen;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemLabel)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet)]
 enum UpdateStages {
     UI,
     Input,
@@ -27,13 +27,12 @@ fn main() {
             DefaultPlugins
                 .set(ImagePlugin::default_nearest())
                 .set(WindowPlugin {
-                    window: WindowDescriptor {
+                    primary_window: Some(Window {
                         title: "Project Sandbox - Bevy".to_string(),
-                        width: 500.,
-                        height: 300.,
+                        resolution: WindowResolution::new(1920., 1080.),
                         present_mode: PresentMode::AutoVsync,
                         ..default()
-                    },
+                    }),
                     ..default()
                 }),
         )
