@@ -1,9 +1,8 @@
 use bevy::{
     prelude::*,
     render::{
-        camera::RenderTarget,
-        render_resource::{Extent3d, TextureFormat},
-    },
+        render_resource::{Extent3d, TextureFormat}, view::visibility,
+    }, window::PrimaryWindow,
 };
 use gridmath::{GridBounds, GridVec};
 use rand::{Rng};
@@ -42,12 +41,12 @@ impl Plugin for SandSimulationPlugin {
             chunk_texture_update_time: VecDeque::new(),
             target_chunk_updates: 0,
         })
-        .add_system(create_spawned_chunks.label(crate::UpdateStages::WorldUpdate))
-        .add_system(sand_update.label(crate::UpdateStages::WorldUpdate))
-        .add_system(update_chunk_textures.label(crate::UpdateStages::WorldDraw))
-        .add_system(world_interact.label(crate::UpdateStages::Input))
-        .add_system(cull_hidden_chunks.label(crate::UpdateStages::WorldUpdate))
-        .add_system(draw_mode_controls.label(crate::UpdateStages::Input));
+        .add_system(create_spawned_chunks.in_set(crate::UpdateStages::WorldUpdate))
+        .add_system(sand_update.in_set(crate::UpdateStages::WorldUpdate))
+        .add_system(update_chunk_textures.in_set(crate::UpdateStages::WorldDraw))
+        .add_system(world_interact.in_set(crate::UpdateStages::Input))
+        .add_system(cull_hidden_chunks.in_set(crate::UpdateStages::WorldUpdate))
+        .add_system(draw_mode_controls.in_set(crate::UpdateStages::Input));
     }
 }
 
@@ -163,8 +162,10 @@ fn cull_hidden_chunks(
 ) {
     let (ortho, cam_transform) = cam_query.single();
     let bounds = cam_bounds(ortho, cam_transform);
+    
+    
 
-    chunk_query.par_for_each_mut(16, |(chunk, mut vis)| {
+    chunk_query.par_iter_mut().for_each_mut(|(chunk, mut vis)| {
         let chunk_bounds = GridBounds::new_from_corner(
             chunk.chunk_pos * (CHUNK_SIZE as i32),
             GridVec {
@@ -172,7 +173,8 @@ fn cull_hidden_chunks(
                 y: CHUNK_SIZE as i32,
             },
         );
-        vis.is_visible = bounds.overlaps(chunk_bounds);
+        
+        *vis = Visibility::Inherited;
     });
 }
 
@@ -188,7 +190,7 @@ fn update_chunk_textures(
     let update_start = std::time::Instant::now();
 
     if draw_options.force_redraw_all || !updated_chunks.is_empty() {
-        chunk_query.par_for_each_mut(8, |(mut chunk_comp, _visibility)| {
+        chunk_query.par_iter_mut().for_each_mut(|(mut chunk_comp, _visibility)| {
             if draw_options.force_redraw_all || updated_chunks.contains(&chunk_comp.chunk_pos) {
                 chunk_comp.texture_dirty = true;
             }
@@ -196,7 +198,7 @@ fn update_chunk_textures(
     }
 
     for (mut chunk_comp, visibility) in chunk_query.iter_mut() {
-        if chunk_comp.texture_dirty && visibility.is_visible {
+        if chunk_comp.texture_dirty && visibility == Visibility::Inherited {
             if let Some(chunk) = world.world.get_chunk(&chunk_comp.chunk_pos) {
                 images.set_untracked(
                     chunk_comp.chunk_texture_handle.clone(),
@@ -257,7 +259,7 @@ fn sand_update(
 }
 
 fn world_interact(
-    wnds: Res<Windows>,
+    wnds: Query<&Window, With<PrimaryWindow>>,
     capture_state: Res<crate::ui::PointerCaptureState>,
     q_cam: Query<(&Camera, &GlobalTransform)>,
     mut sand: ResMut<Sandworld>,
@@ -271,10 +273,9 @@ fn world_interact(
         let (camera, camera_transform) = q_cam.single();
 
         // get the window that the camera is displaying to (or the primary window)
-        let wnd = if let RenderTarget::Window(id) = camera.target {
-            wnds.get(id).unwrap()
-        } else {
-            wnds.get_primary().unwrap()
+        let Ok(wnd) = wnds.get_single() else {
+            eprintln!("no window!!!");
+            return;
         };
 
         // check if the cursor is inside the window and get its position
