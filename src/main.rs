@@ -10,6 +10,7 @@ mod perf;
 mod sandsim;
 mod ui;
 mod worldgen;
+mod pipe;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet)]
 enum UpdateStages {
@@ -37,6 +38,7 @@ fn main() {
                 }),
         )
         .add_plugin(crate::sandsim::SandSimulationPlugin)
+        .add_plugin(crate::pipe::SandPipePlugin)
         .add_plugin(crate::camera::CameraPlugin)
         .add_plugin(crate::ui::UiPlugin)
         .add_plugin(crate::perf::PerfControlPlugin)

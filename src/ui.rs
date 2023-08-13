@@ -214,6 +214,7 @@ fn setup_buttons(mut commands: Commands, asset_server: Res<AssetServer>) {
     spawn_tool_selector_button(&mut commands, &asset_server, "MELT", BrushMode::Melt, 10);
     spawn_tool_selector_button(&mut commands, &asset_server, "BREAK", BrushMode::Break, 10);
     spawn_tool_selector_button(&mut commands, &asset_server, "CHILL", BrushMode::Chill, 20);
+    spawn_tool_selector_button(&mut commands, &asset_server, "PIPE", BrushMode::PipeInlet, 0);
     spawn_tool_selector_button(
         &mut commands,
         &asset_server,

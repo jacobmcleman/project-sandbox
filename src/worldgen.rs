@@ -44,7 +44,7 @@ impl WorldGenerator for FlatPlain {
 }
 
 impl BasicPerlin {
-    pub fn new(seed: u32, scale: f64) -> Self {
+    pub fn _new(seed: u32, scale: f64) -> Self {
         BasicPerlin {
             noise: Perlin::new(seed),
             stone_threshold: 0.05,

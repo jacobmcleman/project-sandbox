@@ -1,12 +1,11 @@
 use bevy::{
     prelude::*,
-    render::{
-        render_resource::{Extent3d, TextureFormat}, view::visibility,
-    }, window::PrimaryWindow,
+    render::render_resource::{Extent3d, TextureFormat},
+    window::PrimaryWindow,
 };
-use gridmath::{GridBounds, GridVec};
-use rand::{Rng};
-use sandworld::{ParticleType, CHUNK_SIZE};
+use gridmath::GridVec;
+use rand::Rng;
+use sandworld::ParticleType;
 use std::{collections::VecDeque, sync::Arc};
 
 use crate::camera::cam_bounds;
@@ -71,6 +70,8 @@ pub enum BrushMode {
     Melt,
     Break,
     Chill,
+    PipeInlet,
+    PipeOutlet(GridVec),
 }
 
 #[derive(Resource)]
@@ -80,8 +81,8 @@ pub struct BrushOptions {
 }
 
 #[derive(Resource)]
-struct Sandworld {
-    world: sandworld::World,
+pub struct Sandworld {
+    pub world: sandworld::World,
 }
 
 #[derive(Resource)]
@@ -157,23 +158,9 @@ fn create_spawned_chunks(
 }
 
 fn cull_hidden_chunks(
-    mut chunk_query: Query<(&Chunk, &mut Visibility)>,
-    cam_query: Query<(&OrthographicProjection, &GlobalTransform)>,
+    mut chunk_query: Query<&mut Visibility>,
 ) {
-    let (ortho, cam_transform) = cam_query.single();
-    let bounds = cam_bounds(ortho, cam_transform);
-    
-    
-
-    chunk_query.par_iter_mut().for_each_mut(|(chunk, mut vis)| {
-        let chunk_bounds = GridBounds::new_from_corner(
-            chunk.chunk_pos * (CHUNK_SIZE as i32),
-            GridVec {
-                x: CHUNK_SIZE as i32,
-                y: CHUNK_SIZE as i32,
-            },
-        );
-        
+    chunk_query.par_iter_mut().for_each_mut(|mut vis| {
         *vis = Visibility::Inherited;
     });
 }
@@ -264,7 +251,8 @@ fn world_interact(
     q_cam: Query<(&Camera, &GlobalTransform)>,
     mut sand: ResMut<Sandworld>,
     buttons: Res<Input<MouseButton>>,
-    brush_options: Res<BrushOptions>,
+    mut brush_options: ResMut<BrushOptions>,
+    mut commands: Commands,
 ) {
     if !capture_state.click_consumed && buttons.any_pressed([MouseButton::Left, MouseButton::Right])
     {
@@ -297,8 +285,24 @@ fn world_interact(
             let world_pos: Vec2 = world_pos.truncate();
 
             let gridpos = GridVec::new(world_pos.x as i32, world_pos.y as i32);
-
-            if buttons.pressed(MouseButton::Left) {
+            
+            if buttons.just_pressed(MouseButton::Left) {
+                match brush_options.brush_mode {
+                    BrushMode::PipeInlet => {
+                        brush_options.brush_mode = BrushMode::PipeOutlet(gridpos);
+                        println!("pipe inlet {}", gridpos);
+                    }
+                    BrushMode::PipeOutlet(in_pos) => {
+                        commands.spawn(crate::pipe::Pipe {
+                            inlet: in_pos,
+                            outlet: gridpos
+                        });
+                        println!("pipe outlet {}", gridpos);
+                    }
+                    _ => ()
+                }
+            }
+            else if buttons.pressed(MouseButton::Left) {
                 match brush_options.brush_mode {
                     BrushMode::Place(part_type, data) => sand.world.place_circle(
                         gridpos,
@@ -315,6 +319,7 @@ fn world_interact(
                         sand.world
                             .temp_change_circle(gridpos, brush_options.radius, 0.01, -100)
                     }
+                    _ => ()
                 }
             } else if buttons.pressed(MouseButton::Right) {
                 sand.world.place_circle(

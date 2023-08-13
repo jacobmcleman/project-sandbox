@@ -201,6 +201,13 @@ impl GridBounds {
         );
         Some(GridBounds::new_from_extents(bottom_left, top_right))
     }
+    
+    pub fn get_random_within(&self, rng: &mut ThreadRng) -> GridVec {
+        GridVec::new(
+            rng.gen_range(self.bottom_left().x..self.top_right().x), 
+            rng.gen_range(self.bottom_left().y..self.top_right().y)
+        )
+    }
 }
 
 pub struct GridIterator {

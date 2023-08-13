@@ -313,7 +313,7 @@ impl Chunk {
         }
     }
 
-    pub(crate) fn check_add_neighbor(&mut self, new_chunk: &mut Chunk) {
+    pub fn check_add_neighbor(&mut self, new_chunk: &mut Chunk) {
         if !self.position.is_adjacent(new_chunk.position) {
             return;
         }
@@ -368,9 +368,15 @@ impl Chunk {
     }
     
     pub fn set_particle(&mut self, x: u8, y: u8, val: Particle) {
+        self.get_set_particle(x, y, val);
+    }
+    
+    pub fn get_set_particle(&mut self, x: u8, y: u8, val: Particle) -> Particle {
+        let part = self.particles[Chunk::get_index_in_chunk(x, y)];
         self.particles[Chunk::get_index_in_chunk(x, y)] = val;
         self.mark_dirty(x as i32, y as i32);
         self.particles[Chunk::get_index_in_chunk(x, y)].set_updated_this_frame(true);
+        part
     }
     
     pub fn mark_region_dirty(&mut self, bounds: GridBounds) {
@@ -428,7 +434,7 @@ impl Chunk {
         x == 0 || y == 0 || x == CHUNK_SIZE - 1  || y == CHUNK_SIZE - 1
     }
 
-    pub(crate) fn commit_updates(&mut self) {
+    pub fn commit_updates(&mut self) {
         self.update_this_frame = *self.dirty.read().unwrap();
         *self.dirty.write().unwrap() = None;
 

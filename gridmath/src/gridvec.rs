@@ -1,7 +1,7 @@
 use std::ops;
 use std::fmt;
 
-#[derive(PartialEq, Debug, Copy, Clone)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
 pub struct GridVec {
     pub x: i32,
     pub y: i32,

@@ -48,7 +48,7 @@ impl World {
 
         self.regions.push(added);
 
-        println!("Added region {}", regpos);
+        // println!("Added region {}", regpos);
     }
 
     fn add_region_if_needed(&mut self, regpos: GridVec) {
@@ -168,6 +168,18 @@ impl World {
         }
 
         return Particle::new(ParticleType::Boundary);
+    }
+    
+    pub fn take_particle(&mut self, pos: GridVec) -> Particle {
+        if !self.contains(pos) {
+            let chunkpos = World::get_chunkpos(&pos);
+            let regpos = World::get_regionpos_for_chunkpos(&chunkpos);
+            self.add_region(regpos);
+        }
+
+        let chunkpos = World::get_chunkpos(&pos);
+        let chunklocal = World::get_chunklocal(pos);
+        self.get_chunk_mut(&chunkpos).unwrap().get_set_particle(chunklocal.x as u8, chunklocal.y as u8, Particle::new(ParticleType::Air))
     }
 
     pub fn replace_particle(&mut self, pos: GridVec, new_val: Particle) {
