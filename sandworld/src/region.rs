@@ -38,7 +38,7 @@ impl Region {
             }
         }
 
-        reg.chunks.iter_mut().for_each(|chunk| {
+        reg.chunks.par_iter_mut().for_each(|chunk| {
             chunk.regenerate(&reg.generator);
         });
 
