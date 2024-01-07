@@ -2,9 +2,10 @@ use gridmath::*;
 use rand::rngs::ThreadRng;
 use rand::{RngCore, Rng};
 use rayon::prelude::*;
+use std::collections::BinaryHeap;
 use std::sync::Arc;
 use std::time::Instant;
-use std::{sync::atomic::AtomicU64};
+use std::sync::atomic::AtomicU64;
 
 use crate::chunk::*;
 use crate::particle::*;
@@ -297,6 +298,7 @@ impl World {
             self.add_region_if_needed(regpos);
         }
 
+        let max_update_regions = 32;
         let visible_region_count = visible_regions.area();
         let total_visible_priority_boost = 65536;
         let visible_boost_per_region = (total_visible_priority_boost / visible_region_count) as u64;
@@ -304,17 +306,42 @@ impl World {
         let updated_chunk_count = AtomicU64::new(0);
         let updated_region_count = AtomicU64::new(0);
 
-        self.regions.par_sort_unstable_by(|a, b| {
-            let a_val = a.update_priority + if a.get_bounds().overlaps(visible) { visible_boost_per_region } else { 0 };
-            let b_val = b.update_priority + if b.get_bounds().overlaps(visible) { visible_boost_per_region } else { 0 };
-            
-            b_val.cmp(&a_val)
-        });
-
         let mut to_update = Vec::new();
         let mut to_skip = Vec::new();
 
         let mut estimated_chunk_updates = 0;
+
+        let mut heap = BinaryHeap::with_capacity(self.regions.len());
+
+        for region in self.regions.iter_mut() {
+            let up: u64 = region.update_priority + if region.get_bounds().overlaps(visible) { visible_boost_per_region } else { 0 };
+            heap.push(RegUpdateInfoWrapper {
+                reg: region, priority: up
+            });
+        }
+
+        while !heap.is_empty() 
+            && estimated_chunk_updates < target_chunk_updates 
+            && to_update.len() < max_update_regions {
+            let reg_wrap = heap.pop().unwrap();
+            let region = reg_wrap.reg;
+
+            estimated_chunk_updates += region.last_chunk_updates;
+            to_update.push(region);
+        }
+
+        for rem_reg in heap.drain() {
+            let region = rem_reg.reg;
+            to_skip.push(region);
+        }
+
+        /*
+        self.regions.par_sort_unstable_by(|a, b| {
+            let a_val = a.update_priority + if a.get_bounds().overlaps(visible) { visible_boost_per_region } else { 0 };
+            let b_val = b.update_priority + if b.get_bounds().overlaps(visible) { visible_boost_per_region } else { 0 };
+                
+            b_val.cmp(&a_val)
+        });
 
         for region in self.regions.iter_mut() {
             // Check level of commitment for this update
@@ -325,16 +352,21 @@ impl World {
             else {
                 &mut to_skip
             }.push(region);
-            
         }
-
-        to_update.par_iter_mut().for_each(|region| {
-            region.commit_updates();
-            updated_region_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        });
-
-        to_skip.par_iter_mut().for_each(|region| {
-            region.skip_update();
+        */
+        
+        rayon::scope(|s| {
+            s.spawn(|_| {
+                to_update.par_iter_mut().for_each(|region| {
+                    region.commit_updates();
+                    updated_region_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                });
+            });
+            s.spawn(|_| {
+                to_skip.par_iter_mut().for_each(|region| {
+                    region.skip_update();
+                });
+            });
         });
 
         let shift = (rand::thread_rng().next_u32() % 4) as i32;
@@ -356,4 +388,31 @@ impl World {
             region_updates: updated_region_count.load(std::sync::atomic::Ordering::Relaxed),
         }
     }
+}
+
+struct RegUpdateInfoWrapper<'r> {
+    reg: &'r mut Region,
+    priority: u64,
+}
+
+impl Ord for RegUpdateInfoWrapper<'_> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.priority.cmp(&other.priority)
+    }
+}
+
+impl PartialOrd for RegUpdateInfoWrapper<'_> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.priority.partial_cmp(&other.priority)
+    }
+}
+
+impl PartialEq for RegUpdateInfoWrapper<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.priority == other.priority
+    }
+}
+
+impl Eq for RegUpdateInfoWrapper<'_> {
+
 }
