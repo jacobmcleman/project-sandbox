@@ -3,6 +3,7 @@ use rand::rngs::ThreadRng;
 use rand::{RngCore, Rng};
 use rayon::prelude::*;
 use std::sync::Arc;
+use std::time::Instant;
 use std::{sync::atomic::AtomicU64};
 
 use crate::chunk::*;
@@ -40,6 +41,8 @@ impl World {
     }
 
     fn add_region(&mut self, regpos: GridVec) {
+        let start_time = Instant::now();
+
         let mut added = Region::new(regpos, self.generator.clone());
 
         for region in self.regions.iter_mut() {
@@ -48,7 +51,10 @@ impl World {
 
         self.regions.push(added);
 
-        println!("Added region {}", regpos);
+        let end_time = Instant::now();
+        let region_gen_time = end_time - start_time;
+
+        println!("Added region {} - elapsed time {}s", regpos, region_gen_time.as_secs_f64());
     }
 
     fn add_region_if_needed(&mut self, regpos: GridVec) {

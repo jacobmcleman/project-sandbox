@@ -31,18 +31,22 @@ impl Region {
             update_priority: 0,
             generator
         };
-
+        
         for y in 0..REGION_SIZE as i32 {
             for x in 0..REGION_SIZE as i32 {
                 reg.add_chunk(GridVec::new(x, y) + (position * REGION_SIZE as i32));
             }
         }
 
+        reg.chunks.iter_mut().for_each(|chunk| {
+            chunk.regenerate(&reg.generator);
+        });
+
         reg
     }
 
     fn add_chunk(&mut self, chunkpos: GridVec) {
-        let mut added = Box::new(Chunk::generate(chunkpos, &self.generator));
+        let mut added = Box::new(Chunk::new(chunkpos));
 
         for chunk in self.chunks.iter_mut() {
             chunk.check_add_neighbor(&mut added);
