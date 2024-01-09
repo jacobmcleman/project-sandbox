@@ -22,7 +22,7 @@ impl Plugin for SandSimulationPlugin {
 
         app.insert_resource(Sandworld {
             world: sandworld::World::new(Arc::new(crate::worldgen::LayeredPerlin::new(
-                seed, 0.003, 0.01, 2.,
+                seed, 0.003, 0.01, 1.,
             ))),
         })
         .insert_resource(DrawOptions {
@@ -308,7 +308,7 @@ fn world_interact(
                     ),
                     BrushMode::Melt => {
                         sand.world
-                            .temp_change_circle(gridpos, brush_options.radius, 0.01, 500)
+                            .temp_change_circle(gridpos, brush_options.radius, 0.01, 800)
                     }
                     BrushMode::Break => sand.world.break_circle(gridpos, brush_options.radius, 0.1),
                     BrushMode::Chill => {

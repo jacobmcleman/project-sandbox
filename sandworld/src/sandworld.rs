@@ -340,7 +340,7 @@ impl World {
             self.add_region_if_needed(regpos);
         }
 
-        let max_update_regions = 32;
+        let max_update_regions = 16;
         let visible_region_count = visible_regions.area();
         let total_visible_priority_boost = 65536;
         let visible_boost_per_region = (total_visible_priority_boost / visible_region_count) as u64;
@@ -376,26 +376,6 @@ impl World {
             let region = rem_reg.reg;
             to_skip.push(region);
         }
-
-        /*
-        self.regions.par_sort_unstable_by(|a, b| {
-            let a_val = a.update_priority + if a.get_bounds().overlaps(visible) { visible_boost_per_region } else { 0 };
-            let b_val = b.update_priority + if b.get_bounds().overlaps(visible) { visible_boost_per_region } else { 0 };
-                
-            b_val.cmp(&a_val)
-        });
-
-        for region in self.regions.iter_mut() {
-            // Check level of commitment for this update
-            if estimated_chunk_updates < target_chunk_updates {
-                estimated_chunk_updates += region.last_chunk_updates;
-                &mut to_update
-            } 
-            else {
-                &mut to_skip
-            }.push(region);
-        }
-        */
         
         rayon::scope(|s| {
             s.spawn(|_| {
