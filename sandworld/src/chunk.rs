@@ -6,6 +6,7 @@ use rand::{Rng, rngs::ThreadRng};
 use crate::region::REGION_SIZE;
 use crate::{particle::*, WorldGenerator};
 
+#[derive(Debug)]
 pub struct Chunk {
     pub position: GridVec,
     neighbors: Neighbors,
@@ -15,6 +16,7 @@ pub struct Chunk {
     pub(crate) updated_last_frame: Option<GridBounds>,
 }
 
+#[derive(Debug)]
 struct Neighbors {
     top_left: Option<*mut Chunk>,
     top_center: Option<*mut Chunk>,

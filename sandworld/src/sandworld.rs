@@ -2,10 +2,10 @@ use gridmath::*;
 use rand::rngs::ThreadRng;
 use rand::{RngCore, Rng};
 use rayon::prelude::*;
-use std::collections::BinaryHeap;
-use std::sync::Arc;
+use std::collections::{BinaryHeap, VecDeque};
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
-use std::sync::atomic::AtomicU64;
+use std::sync::atomic::{AtomicU64, AtomicBool};
 
 use crate::chunk::*;
 use crate::particle::*;
@@ -22,6 +22,7 @@ pub trait WorldGenerator {
 
 pub struct World {
     regions: Vec<Region>,
+    loading_regions: VecDeque<LoadingRegion>,
     generator: Arc<dyn WorldGenerator + Sync + Send>,
 }
 
@@ -31,17 +32,25 @@ pub struct WorldUpdateStats {
     pub region_updates: u64,
 }
 
+struct LoadingRegion {
+    position: GridVec,
+    generator: Arc<dyn WorldGenerator + Send + Sync>,
+    ready: Arc<AtomicBool>,
+    region: Arc<Mutex<Option<Region>>>,
+}
+
 impl World {
     pub fn new(generator: Arc<dyn WorldGenerator + Sync + Send>) -> Self {
         let created: World = World {
             regions: Vec::new(),
+            loading_regions: VecDeque::new(),
             generator,
         };
 
         return created;
     }
 
-    fn add_region(&mut self, regpos: GridVec) {
+    fn _add_region_immediate(&mut self, regpos: GridVec) {
         let start_time = Instant::now();
 
         let mut added = Region::new(regpos, self.generator.clone());
@@ -56,6 +65,37 @@ impl World {
         let region_gen_time = end_time - start_time;
 
         println!("Added region {} - elapsed time {}s", regpos, region_gen_time.as_secs_f64());
+    }
+
+    fn add_region(&mut self, regpos: GridVec) {
+        for loader in self.loading_regions.iter() {
+            if regpos == loader.position {
+                return; // This one has already been requested and we're working on it, cool it
+            }
+        }
+
+        self.loading_regions.push_back(LoadingRegion::new(regpos, self.generator.clone()));
+        self.loading_regions.back_mut().unwrap().start_load();
+    }
+
+    fn add_loaded_regions_to_sim(&mut self) {
+        if let Some(loader) = self.loading_regions.front() {
+            if loader.ready.fetch_and(true, std::sync::atomic::Ordering::Relaxed) {
+                let loaded = self.loading_regions.pop_front().unwrap();
+
+                if let Ok(add_mutex) = Arc::try_unwrap(loaded.region) {
+                    let mut guard = add_mutex.lock().unwrap();
+                    if let Some(mut add) = guard.take() {
+                        for region in self.regions.iter_mut() {
+                            region.check_add_neighbor(&mut add);
+                        }
+                
+                        self.regions.push(add);
+                    }
+                    
+                }
+            }
+        }
     }
 
     fn add_region_if_needed(&mut self, regpos: GridVec) {
@@ -289,6 +329,8 @@ impl World {
     }
 
     pub fn update(&mut self, visible: GridBounds, target_chunk_updates: u64) -> WorldUpdateStats {
+        self.add_loaded_regions_to_sim();
+
         let visible_regions = GridBounds::new_from_extents(
             Self::get_regionpos_for_pos(&visible.bottom_left()),
             Self::get_regionpos_for_pos(&visible.top_right()) + GridVec::new(1, 1)
@@ -415,4 +457,29 @@ impl PartialEq for RegUpdateInfoWrapper<'_> {
 
 impl Eq for RegUpdateInfoWrapper<'_> {
 
+}
+
+impl LoadingRegion {
+    fn new(position: GridVec, generator: Arc<dyn WorldGenerator + Send + Sync>) -> Self {
+        LoadingRegion {
+            position,
+            generator,
+            ready: Arc::new(false.into()),
+            region: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    fn start_load(&mut self) {
+        let ready = self.ready.clone();
+        let region = self.region.clone();
+        let position = self.position.clone();
+        let generator = self.generator.clone();
+
+        rayon::spawn(move || {
+            let mut reg = Region::new(position, generator);
+            reg.generate_terrain();
+            region.lock().unwrap().replace(reg);
+            ready.store(true, std::sync::atomic::Ordering::Relaxed);
+        });
+    }
 }

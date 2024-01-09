@@ -19,6 +19,7 @@ pub struct Region {
     generator: Arc<dyn WorldGenerator + Send + Sync>,
 }
 
+
 impl Region {
     pub fn new(position: GridVec, generator: Arc<dyn WorldGenerator + Send + Sync>) -> Self {
         let mut reg = Region {
@@ -38,11 +39,13 @@ impl Region {
             }
         }
 
-        reg.chunks.par_iter_mut().for_each(|chunk| {
-            chunk.regenerate(&reg.generator);
-        });
-
         reg
+    }
+
+    pub fn generate_terrain(&mut self) {
+        self.chunks.par_iter_mut().for_each(|chunk| {
+            chunk.regenerate(&self.generator);
+        });
     }
 
     fn add_chunk(&mut self, chunkpos: GridVec) {
