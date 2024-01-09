@@ -2,8 +2,10 @@ use gridmath::*;
 use rand::rngs::ThreadRng;
 use rand::{RngCore, Rng};
 use rayon::prelude::*;
-use std::sync::Arc;
-use std::{sync::atomic::AtomicU64};
+use std::collections::{BinaryHeap, VecDeque};
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
+use std::sync::atomic::{AtomicU64, AtomicBool};
 
 use crate::chunk::*;
 use crate::particle::*;
@@ -20,6 +22,7 @@ pub trait WorldGenerator {
 
 pub struct World {
     regions: Vec<Region>,
+    loading_regions: VecDeque<LoadingRegion>,
     generator: Arc<dyn WorldGenerator + Sync + Send>,
 }
 
@@ -29,17 +32,27 @@ pub struct WorldUpdateStats {
     pub region_updates: u64,
 }
 
+struct LoadingRegion {
+    position: GridVec,
+    generator: Arc<dyn WorldGenerator + Send + Sync>,
+    ready: Arc<AtomicBool>,
+    region: Arc<Mutex<Option<Region>>>,
+}
+
 impl World {
     pub fn new(generator: Arc<dyn WorldGenerator + Sync + Send>) -> Self {
         let created: World = World {
             regions: Vec::new(),
+            loading_regions: VecDeque::new(),
             generator,
         };
 
         return created;
     }
 
-    fn add_region(&mut self, regpos: GridVec) {
+    fn _add_region_immediate(&mut self, regpos: GridVec) {
+        let start_time = Instant::now();
+
         let mut added = Region::new(regpos, self.generator.clone());
 
         for region in self.regions.iter_mut() {
@@ -48,7 +61,41 @@ impl World {
 
         self.regions.push(added);
 
-        println!("Added region {}", regpos);
+        let end_time = Instant::now();
+        let region_gen_time = end_time - start_time;
+
+        println!("Added region {} - elapsed time {}s", regpos, region_gen_time.as_secs_f64());
+    }
+
+    fn add_region(&mut self, regpos: GridVec) {
+        for loader in self.loading_regions.iter() {
+            if regpos == loader.position {
+                return; // This one has already been requested and we're working on it, cool it
+            }
+        }
+
+        self.loading_regions.push_back(LoadingRegion::new(regpos, self.generator.clone()));
+        self.loading_regions.back_mut().unwrap().start_load();
+    }
+
+    fn add_loaded_regions_to_sim(&mut self) {
+        if let Some(loader) = self.loading_regions.front() {
+            if loader.ready.fetch_and(true, std::sync::atomic::Ordering::Relaxed) {
+                let loaded = self.loading_regions.pop_front().unwrap();
+
+                if let Ok(add_mutex) = Arc::try_unwrap(loaded.region) {
+                    let mut guard = add_mutex.lock().unwrap();
+                    if let Some(mut add) = guard.take() {
+                        for region in self.regions.iter_mut() {
+                            region.check_add_neighbor(&mut add);
+                        }
+                
+                        self.regions.push(add);
+                    }
+                    
+                }
+            }
+        }
     }
 
     fn add_region_if_needed(&mut self, regpos: GridVec) {
@@ -282,6 +329,8 @@ impl World {
     }
 
     pub fn update(&mut self, visible: GridBounds, target_chunk_updates: u64) -> WorldUpdateStats {
+        self.add_loaded_regions_to_sim();
+
         let visible_regions = GridBounds::new_from_extents(
             Self::get_regionpos_for_pos(&visible.bottom_left()),
             Self::get_regionpos_for_pos(&visible.top_right()) + GridVec::new(1, 1)
@@ -291,6 +340,7 @@ impl World {
             self.add_region_if_needed(regpos);
         }
 
+        let max_update_regions = 16;
         let visible_region_count = visible_regions.area();
         let total_visible_priority_boost = 65536;
         let visible_boost_per_region = (total_visible_priority_boost / visible_region_count) as u64;
@@ -298,37 +348,47 @@ impl World {
         let updated_chunk_count = AtomicU64::new(0);
         let updated_region_count = AtomicU64::new(0);
 
-        self.regions.par_sort_unstable_by(|a, b| {
-            let a_val = a.update_priority + if a.get_bounds().overlaps(visible) { visible_boost_per_region } else { 0 };
-            let b_val = b.update_priority + if b.get_bounds().overlaps(visible) { visible_boost_per_region } else { 0 };
-            
-            b_val.cmp(&a_val)
-        });
-
         let mut to_update = Vec::new();
         let mut to_skip = Vec::new();
 
         let mut estimated_chunk_updates = 0;
 
+        let mut heap = BinaryHeap::with_capacity(self.regions.len());
+
         for region in self.regions.iter_mut() {
-            // Check level of commitment for this update
-            if estimated_chunk_updates < target_chunk_updates {
-                estimated_chunk_updates += region.last_chunk_updates;
-                &mut to_update
-            } 
-            else {
-                &mut to_skip
-            }.push(region);
-            
+            let up: u64 = region.update_priority + if region.get_bounds().overlaps(visible) { visible_boost_per_region } else { 0 };
+            heap.push(RegUpdateInfoWrapper {
+                reg: region, priority: up
+            });
         }
 
-        to_update.par_iter_mut().for_each(|region| {
-            region.commit_updates();
-            updated_region_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        });
+        while !heap.is_empty() 
+            && estimated_chunk_updates < target_chunk_updates 
+            && to_update.len() < max_update_regions {
+            let reg_wrap = heap.pop().unwrap();
+            let region = reg_wrap.reg;
 
-        to_skip.par_iter_mut().for_each(|region| {
-            region.skip_update();
+            estimated_chunk_updates += region.last_chunk_updates;
+            to_update.push(region);
+        }
+
+        for rem_reg in heap.drain() {
+            let region = rem_reg.reg;
+            to_skip.push(region);
+        }
+        
+        rayon::scope(|s| {
+            s.spawn(|_| {
+                to_update.par_iter_mut().for_each(|region| {
+                    region.commit_updates();
+                    updated_region_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                });
+            });
+            s.spawn(|_| {
+                to_skip.par_iter_mut().for_each(|region| {
+                    region.skip_update();
+                });
+            });
         });
 
         let shift = (rand::thread_rng().next_u32() % 4) as i32;
@@ -349,5 +409,57 @@ impl World {
             loaded_regions: self.regions.len(),
             region_updates: updated_region_count.load(std::sync::atomic::Ordering::Relaxed),
         }
+    }
+}
+
+struct RegUpdateInfoWrapper<'r> {
+    reg: &'r mut Region,
+    priority: u64,
+}
+
+impl Ord for RegUpdateInfoWrapper<'_> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.priority.cmp(&other.priority)
+    }
+}
+
+impl PartialOrd for RegUpdateInfoWrapper<'_> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.priority.partial_cmp(&other.priority)
+    }
+}
+
+impl PartialEq for RegUpdateInfoWrapper<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.priority == other.priority
+    }
+}
+
+impl Eq for RegUpdateInfoWrapper<'_> {
+
+}
+
+impl LoadingRegion {
+    fn new(position: GridVec, generator: Arc<dyn WorldGenerator + Send + Sync>) -> Self {
+        LoadingRegion {
+            position,
+            generator,
+            ready: Arc::new(false.into()),
+            region: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    fn start_load(&mut self) {
+        let ready = self.ready.clone();
+        let region = self.region.clone();
+        let position = self.position.clone();
+        let generator = self.generator.clone();
+
+        rayon::spawn(move || {
+            let mut reg = Region::new(position, generator);
+            reg.generate_terrain();
+            region.lock().unwrap().replace(reg);
+            ready.store(true, std::sync::atomic::Ordering::Relaxed);
+        });
     }
 }

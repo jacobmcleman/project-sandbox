@@ -155,11 +155,11 @@ pub fn get_state_change_for_type(particle_type: ParticleType) -> StateChange {
     match particle_type {
         ParticleType::Ice => StateChange{    melt: Some((-28, ParticleType::Water, 0.5)), freeze: None },
         ParticleType::Water => StateChange{  melt: Some((64, ParticleType::Steam, 0.15)), freeze: Some((-40, ParticleType::Ice, 0.15)) },
-        ParticleType::Steam => StateChange{  melt: None,                                  freeze: Some((50, ParticleType::Water, 0.05))},
-        ParticleType::Stone => StateChange{  melt: Some((300, ParticleType::Lava, 0.05)),  freeze: None },
+        ParticleType::Steam => StateChange{  melt: None,                                  freeze: Some((50, ParticleType::Water, 0.15))},
+        ParticleType::Stone => StateChange{  melt: Some((300, ParticleType::Lava, 0.07)),  freeze: None },
         ParticleType::Gravel => StateChange{ melt: Some((250, ParticleType::Lava, 0.25)),  freeze: None },
         ParticleType::Sand => StateChange{   melt: Some((230, ParticleType::Lava, 0.5)), freeze: None },
-        ParticleType::Lava => StateChange{   melt: None,                                  freeze: Some((255, ParticleType::Stone, 0.1)) },
+        ParticleType::Lava => StateChange{   melt: None,                                  freeze: Some((255, ParticleType::Stone, 0.12)) },
         _ => StateChange {                   melt: None,                                  freeze: None },
     }
 }

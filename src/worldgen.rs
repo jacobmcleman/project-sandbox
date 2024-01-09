@@ -91,16 +91,29 @@ impl WorldGenerator for LayeredPerlin {
             world_pos.x as f64 * self.scale_detail,
             world_pos.y as f64 * self.scale_detail,
         ];
+        let lava_sample_pos = [
+            world_pos.x as f64 * self.scale_detail * 0.13,
+            world_pos.y as f64 * self.scale_detail * 0.21,
+        ];
+
         //let cave_sample_pos = [world_pos.x as f64 * self.scale_cave_density, world_pos.y as f64 * self.scale_cave_density];
-        let macro_noise_val = self.noise.get(macro_sample_pos);
-        let detail_noise_val = self.noise.get(detail_sample_pos);
+        let macro_noise_val = self.noise.get(macro_sample_pos) / 2. + 1.;
+        let detail_noise_val = self.noise.get(detail_sample_pos) / 2. + 1.;
         //let cave_sample_noise_val = self.noise.get(cave_sample_pos);
 
+        let lava_noise_val = self.noise.get(lava_sample_pos).powi(2);
+        
         Particle::new(
             if detail_noise_val < macro_noise_val * self.cave_noisiness {
                 ParticleType::Air
             } else {
-                ParticleType::Stone
+                let surf_dist = 0.90 - (macro_noise_val * self.cave_noisiness / detail_noise_val);
+                if lava_noise_val < 0.005 * surf_dist {
+                    ParticleType::Lava
+                }
+                else {
+                    ParticleType::Stone
+                }
             },
         )
     }

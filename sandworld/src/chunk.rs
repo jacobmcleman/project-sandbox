@@ -6,6 +6,7 @@ use rand::{Rng, rngs::ThreadRng};
 use crate::region::REGION_SIZE;
 use crate::{particle::*, WorldGenerator};
 
+#[derive(Debug)]
 pub struct Chunk {
     pub position: GridVec,
     neighbors: Neighbors,
@@ -15,6 +16,7 @@ pub struct Chunk {
     pub(crate) updated_last_frame: Option<GridBounds>,
 }
 
+#[derive(Debug)]
 struct Neighbors {
     top_left: Option<*mut Chunk>,
     top_center: Option<*mut Chunk>,
@@ -106,18 +108,21 @@ impl Chunk {
     
     pub fn generate(position: GridVec, generator: &Arc<dyn WorldGenerator + Send + Sync>) -> Self{
         let mut chunk = Chunk::new(position);
-        
+        chunk.regenerate(generator);
+        chunk
+    }
+
+    pub fn regenerate(&mut self, generator: &Arc<dyn WorldGenerator + Send + Sync>) {
         for y in 0..CHUNK_SIZE {
             for x in 0..CHUNK_SIZE {
                 let worldpos = GridVec::new(
-                    x as i32 + (CHUNK_SIZE as i32 * chunk.position.x),
-                     y as i32 + (CHUNK_SIZE as i32 * chunk.position.y));
+                    x as i32 + (CHUNK_SIZE as i32 * self.position.x),
+                     y as i32 + (CHUNK_SIZE as i32 * self.position.y));
                 
-                chunk.set_particle(x, y, generator.get_particle(worldpos));
+                self.set_particle_sloppy(x, y, generator.get_particle(worldpos));
+                self.mark_self_dirty();
             }
         }
-        
-        chunk
     }
     
     fn get_index_in_chunk(x: u8, y: u8) -> usize {
@@ -368,8 +373,14 @@ impl Chunk {
     }
     
     pub fn set_particle(&mut self, x: u8, y: u8, val: Particle) {
-        self.particles[Chunk::get_index_in_chunk(x, y)] = val;
+        self.set_particle_sloppy(x, y, val);
         self.mark_dirty(x as i32, y as i32);
+    }
+
+    // Do a set operation without handling dirty markings
+    // Only use for things like a batch set where the dirty bits will be handled later in one batch
+    pub fn set_particle_sloppy(&mut self, x: u8, y: u8, val: Particle) {
+        self.particles[Chunk::get_index_in_chunk(x, y)] = val;
         self.particles[Chunk::get_index_in_chunk(x, y)].set_updated_this_frame(true);
     }
     
