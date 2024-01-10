@@ -161,13 +161,13 @@ fn create_spawned_chunks(
 fn cull_hidden_chunks(
     mut chunk_query: Query<(&Chunk, &mut Visibility)>,
     mut world_stats: ResMut<WorldStats>,
-    cam_query: Query<(&OrthographicProjection, &GlobalTransform)>,
+    cam_query: Query<(&OrthographicProjection, &Camera, &GlobalTransform)>,
 ) {
     let culled_chunks = AtomicU64::new(0);
     let culling_start = std::time::Instant::now();
 
-    let (ortho, cam_transform) = cam_query.single();
-    let bounds = cam_bounds(ortho, cam_transform); 
+    let (ortho, camera, cam_transform) = cam_query.single();
+    let bounds = cam_bounds(ortho, camera, cam_transform); 
 
     chunk_query.par_iter_mut().for_each_mut(|(chunk, mut vis)| {
         
@@ -246,7 +246,7 @@ fn sand_update(
     mut world: ResMut<Sandworld>,
     mut world_stats: ResMut<WorldStats>,
     perf_settings: Res<crate::perf::PerfSettings>,
-    cam_query: Query<(&OrthographicProjection, &GlobalTransform)>,
+    cam_query: Query<(&OrthographicProjection, &Camera, &GlobalTransform)>,
 ) {
     let mut target_chunk_updates = 128;
 
@@ -263,8 +263,8 @@ fn sand_update(
         world_stats.target_chunk_updates = target_chunk_updates;
     }
 
-    let (ortho, cam_transform) = cam_query.single();
-    let bounds = cam_bounds(ortho, cam_transform);
+    let (ortho, camera, cam_transform) = cam_query.single();
+    let bounds = cam_bounds(ortho, camera, cam_transform);
 
     let update_start = std::time::Instant::now();
     let stats = world.world.update(bounds, target_chunk_updates);
