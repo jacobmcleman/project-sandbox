@@ -1,5 +1,6 @@
 use bevy::prelude::*;
-use gridmath::GridBounds;
+use gridmath::{GridBounds, GridVec};
+use sandworld::CHUNK_SIZE;
 
 pub struct CameraPlugin;
 
@@ -22,18 +23,16 @@ fn spawn_camera(mut commands: Commands) {
 }
 
 pub fn cam_bounds(ortho: &OrthographicProjection, transform: &GlobalTransform) -> GridBounds {
-    let width = ortho.area.width() * ortho.scale;
-    let height = ortho.area.height() * ortho.scale; 
-    let center = gridmath::GridVec::new(
-        ortho.area.center().x.round() as i32,
-        ortho.area.center().y.round() as i32,
-    ) + gridmath::GridVec::new(
-        transform.translation().x as i32,
-        transform.translation().y as i32,
-    );
-    let half_extents =
-        gridmath::GridVec::new((width / 2.).ceil() as i32, (height / 2.).ceil() as i32);
-    gridmath::GridBounds::new(center, half_extents)
+    let camera_pos = transform.translation();
+    let scale =   ortho.scale;
+    let left =    (ortho.area.min.x * 2.5 * scale + camera_pos.x - CHUNK_SIZE as f32).floor() as i32;
+    let right =   (ortho.area.max.x * 2.5 * scale + camera_pos.x + CHUNK_SIZE as f32).ceil()  as i32;
+    let bottom =  (ortho.area.min.y * 2.5 * scale + camera_pos.y - CHUNK_SIZE as f32).floor() as i32;
+    let top =     (ortho.area.max.y * 2.5 * scale + camera_pos.y + CHUNK_SIZE as f32).ceil()  as i32;
+
+    GridBounds::new_from_extents(
+        GridVec::new(left, bottom),
+        GridVec::new(right, top))
 }
 
 fn camera_movement(

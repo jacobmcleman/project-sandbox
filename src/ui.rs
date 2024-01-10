@@ -88,6 +88,14 @@ fn spawn_performance_info_text(mut commands: Commands, asset_server: Res<AssetSe
                         color: Color::rgb(0.9, 0.9, 0.6),
                     },
                 },
+                TextSection {
+                    value: "\nAvg chunk culling time".to_string(),
+                    style: TextStyle {
+                        font: asset_server.load("fonts/FiraMono-Medium.ttf"),
+                        font_size: 20.0,
+                        color: Color::rgb(0.9, 0.9, 0.6),
+                    },
+                },
             ])
             .with_style(Style {
                 position_type: PositionType::Absolute,
@@ -126,22 +134,44 @@ fn update_performance_text(
                 world_stats.chunk_updates, stats.target_chunk_updates
             );
 
-            let mut texture_update_time_avg = 0.;
-            let mut texture_update_per_chunk_avg = 0.;
-            for (time, count) in &stats.chunk_texture_update_time {
-                texture_update_time_avg += time;
-                texture_update_per_chunk_avg += time / (*count as f64);
-            }
-            texture_update_time_avg =
-                texture_update_time_avg / (stats.chunk_texture_update_time.len() as f64);
-            texture_update_per_chunk_avg =
-                texture_update_per_chunk_avg / (stats.chunk_texture_update_time.len() as f64);
+            if stats.chunk_texture_update_time.len() > 0 {
+                let mut texture_update_time_avg = 0.;
+                let mut texture_update_per_chunk_avg = 0.;
+                for (time, count) in &stats.chunk_texture_update_time {
+                    texture_update_time_avg += time;
+                    texture_update_per_chunk_avg += time / (*count as f64);
+                }
+                texture_update_time_avg =
+                    texture_update_time_avg / (stats.chunk_texture_update_time.len() as f64);
+                texture_update_per_chunk_avg =
+                    texture_update_per_chunk_avg / (stats.chunk_texture_update_time.len() as f64);
 
-            text.sections[5].value = format!(
-                "\nTex Update time:  {:.2}ms - Avg time per chunk: {:.3}ms",
-                texture_update_time_avg * 1000.,
-                texture_update_per_chunk_avg * 1000.
-            );
+                text.sections[5].value = format!(
+                    "\nTex Update time:  {:.2}ms - Avg time per chunk: {:.3}ms",
+                    texture_update_time_avg * 1000.,
+                    texture_update_per_chunk_avg * 1000.
+                );
+            }
+            if stats.chunk_cull_time.len() > 0 {
+                let mut cull_time_avg = 0.;
+                let mut culled_chunks_avg = 0;
+                for (time, count) in &stats.chunk_cull_time {
+                    cull_time_avg += time;
+                    culled_chunks_avg += count;
+                }
+                cull_time_avg =
+                    cull_time_avg / (stats.chunk_cull_time.len() as f64);
+
+                culled_chunks_avg =
+                    culled_chunks_avg / stats.chunk_cull_time.len() as u64;
+    
+                text.sections[6].value = format!(
+                    "\nChunk cull time:  {:.2}ms - Avg chunks culled: {:.3}",
+                    cull_time_avg * 1000.,
+                    culled_chunks_avg
+                );
+            }
+            
         }
 
         let mut chunk_updates_per_second_avg = 0.;
