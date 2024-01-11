@@ -7,7 +7,7 @@ use bevy::{
 use gridmath::{GridBounds, GridVec};
 use rand::{Rng};
 use sandworld::{ParticleType, CHUNK_SIZE};
-use std::{collections::VecDeque, sync::Arc};
+use std::{collections::VecDeque, sync::{Arc, atomic::{AtomicU64, Ordering}}};
 
 use crate::camera::cam_bounds;
 
@@ -39,6 +39,7 @@ impl Plugin for SandSimulationPlugin {
             update_stats: None,
             sand_update_time: VecDeque::new(),
             chunk_texture_update_time: VecDeque::new(),
+            chunk_cull_time: VecDeque::new(),
             target_chunk_updates: 0,
         })
         .add_system(create_spawned_chunks.in_set(crate::UpdateStages::WorldUpdate))
@@ -89,6 +90,7 @@ pub struct WorldStats {
     pub update_stats: Option<sandworld::WorldUpdateStats>,
     pub sand_update_time: VecDeque<(f64, u64)>, // Pairs of update time and updated chunk counts
     pub chunk_texture_update_time: VecDeque<(f64, u64)>, // Pairs of update time and updated chunk counts
+    pub chunk_cull_time: VecDeque<(f64, u64)>, // Pairs of culling time and culled chunk counts
     pub target_chunk_updates: u64,
 }
 
@@ -158,14 +160,17 @@ fn create_spawned_chunks(
 
 fn cull_hidden_chunks(
     mut chunk_query: Query<(&Chunk, &mut Visibility)>,
-    cam_query: Query<(&OrthographicProjection, &GlobalTransform)>,
+    mut world_stats: ResMut<WorldStats>,
+    cam_query: Query<(&OrthographicProjection, &Camera, &GlobalTransform)>,
 ) {
-    let (ortho, cam_transform) = cam_query.single();
-    let bounds = cam_bounds(ortho, cam_transform);
-    
-    
+    let culled_chunks = AtomicU64::new(0);
+    let culling_start = std::time::Instant::now();
+
+    let (ortho, camera, cam_transform) = cam_query.single();
+    let bounds = cam_bounds(ortho, camera, cam_transform); 
 
     chunk_query.par_iter_mut().for_each_mut(|(chunk, mut vis)| {
+        
         let chunk_bounds = GridBounds::new_from_corner(
             chunk.chunk_pos * (CHUNK_SIZE as i32),
             GridVec {
@@ -173,9 +178,25 @@ fn cull_hidden_chunks(
                 y: CHUNK_SIZE as i32,
             },
         );
-        
-        *vis = Visibility::Inherited;
+
+        if !chunk_bounds.overlaps(bounds) {
+            culled_chunks.fetch_add(1, Ordering::Relaxed);
+            *vis = Visibility::Hidden;
+        }
+        else {
+            *vis = Visibility::Inherited;
+        }
     });
+
+    let culling_end = std::time::Instant::now();
+    let culling_time = culling_end - culling_start;
+
+    world_stats
+        .chunk_cull_time
+        .push_back((culling_time.as_secs_f64(), culled_chunks.load(Ordering::Relaxed)));
+    if world_stats.chunk_cull_time.len() > 64 {
+        world_stats.chunk_cull_time.pop_front();
+    }
 }
 
 fn update_chunk_textures(
@@ -225,7 +246,7 @@ fn sand_update(
     mut world: ResMut<Sandworld>,
     mut world_stats: ResMut<WorldStats>,
     perf_settings: Res<crate::perf::PerfSettings>,
-    cam_query: Query<(&OrthographicProjection, &GlobalTransform)>,
+    cam_query: Query<(&OrthographicProjection, &Camera, &GlobalTransform)>,
 ) {
     let mut target_chunk_updates = 128;
 
@@ -242,8 +263,8 @@ fn sand_update(
         world_stats.target_chunk_updates = target_chunk_updates;
     }
 
-    let (ortho, cam_transform) = cam_query.single();
-    let bounds = cam_bounds(ortho, cam_transform);
+    let (ortho, camera, cam_transform) = cam_query.single();
+    let bounds = cam_bounds(ortho, camera, cam_transform);
 
     let update_start = std::time::Instant::now();
     let stats = world.world.update(bounds, target_chunk_updates);
