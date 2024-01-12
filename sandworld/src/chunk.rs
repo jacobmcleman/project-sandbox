@@ -540,7 +540,7 @@ impl Chunk {
                         }
                     }
                     ParticleType::Gravel => {
-                        if rng.gen_bool(0.002) {
+                        if rng.gen_bool(0.001) {
                             self.set_particle(x as u8, y as u8, Particle::new_already_updated(ParticleType::Sand))
                         }
                         else {
@@ -553,7 +553,7 @@ impl Chunk {
                         }
                     }
                     ParticleType::Stone => {
-                        if rng.gen_bool(0.002) {
+                        if rng.gen_bool(0.0005) {
                             self.set_particle(x as u8, y as u8, Particle::new_already_updated(ParticleType::Gravel));
                         }
                     }

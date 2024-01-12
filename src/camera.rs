@@ -39,7 +39,7 @@ fn camera_movement(
     let (_camera, mut ortho, mut camera_transform) = query.single_mut();
 
     let mut log_scale = ortho.scale.ln();
-    let move_speed = 128.;
+    let move_speed = 256.;
     let zoom_speed = 0.5;
 
     let max_zoom = 2.;

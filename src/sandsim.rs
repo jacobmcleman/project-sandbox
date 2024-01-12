@@ -21,9 +21,12 @@ impl Plugin for SandSimulationPlugin {
         println!("Seed: {}", seed);
 
         app.insert_resource(Sandworld {
-            world: sandworld::World::new(Arc::new(crate::worldgen::LayeredPerlin::new(
-                seed, 0.003, 0.01, 1.,
+            world: sandworld::World::new(Arc::new(crate::worldgen::WorldBuilder::new(
+                seed, 5000., 1500., 500., 500., 400.,
             ))),
+            /*world: sandworld::World::new(Arc::new(crate::worldgen::LayeredPerlin::new(
+                seed, 0.003, 0.01, 1.,
+            ))),*/
         })
         .insert_resource(DrawOptions {
             update_bounds: false,
