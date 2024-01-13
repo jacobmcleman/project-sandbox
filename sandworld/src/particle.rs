@@ -151,16 +151,39 @@ pub fn get_heat_for_type(particle_type: ParticleType) -> i32 {
     }
 }
 
+pub fn get_viscosity_for_type(particle_type: ParticleType, temp: i32) -> i32 {
+    match particle_type {
+        ParticleType::Water => 1,
+        ParticleType::Lava => (500 / (temp + 1)).max(0),
+        ParticleType::Steam => -1,
+        _ => 0
+    }
+}
+
 pub fn get_state_change_for_type(particle_type: ParticleType) -> StateChange {
     match particle_type {
         ParticleType::Ice => StateChange{    melt: Some((-28, ParticleType::Water, 0.5)), freeze: None },
         ParticleType::Water => StateChange{  melt: Some((64, ParticleType::Steam, 0.15)), freeze: Some((-40, ParticleType::Ice, 0.15)) },
         ParticleType::Steam => StateChange{  melt: None,                                  freeze: Some((50, ParticleType::Water, 0.15))},
-        ParticleType::Stone => StateChange{  melt: Some((300, ParticleType::Lava, 0.07)),  freeze: None },
+        ParticleType::Stone => StateChange{  melt: Some((300, ParticleType::Lava, 0.17)),  freeze: None },
         ParticleType::Gravel => StateChange{ melt: Some((250, ParticleType::Lava, 0.25)),  freeze: None },
         ParticleType::Sand => StateChange{   melt: Some((230, ParticleType::Lava, 0.5)), freeze: None },
-        ParticleType::Lava => StateChange{   melt: None,                                  freeze: Some((255, ParticleType::Stone, 0.12)) },
+        ParticleType::Lava => StateChange{   melt: None,                                  freeze: Some((200, ParticleType::Stone, 0.10)) },
         _ => StateChange {                   melt: None,                                  freeze: None },
+    }
+}
+
+pub fn get_is_lonely_type(particle_type: ParticleType) -> bool {
+    match particle_type {
+        ParticleType::Stone => true,
+        _ => false
+    }
+}
+
+pub fn get_lonely_break_type(particle_type: ParticleType) -> ParticleType {
+    match particle_type {
+        ParticleType::Stone => ParticleType::Gravel,
+        _ => ParticleType::Sand
     }
 }
 
@@ -180,7 +203,7 @@ pub fn try_state_change(particle_type: ParticleType, local_temperature: i32, rng
     return None;
 }
 
-pub(crate) fn get_update_fn_for_type(particle_type: ParticleType) -> Option<fn(GridVec, Particle, [ParticleType; 8])->Vec<ChunkCommand>> {
+pub(crate) fn get_update_fn_for_type(particle_type: ParticleType) -> Option<fn(GridVec, Particle, &[ParticleType; 8])->Vec<ChunkCommand>> {
     match particle_type {
         ParticleType::Source => Some(CustomUpdateRules::water_source_update),
         ParticleType::LaserBeam => Some(CustomUpdateRules::laser_beam_update),
@@ -191,7 +214,7 @@ pub(crate) fn get_update_fn_for_type(particle_type: ParticleType) -> Option<fn(G
 
 
 impl CustomUpdateRules {
-    fn water_source_update(position: GridVec, particle: Particle, neighbors: [ParticleType; 8] ) -> Vec<ChunkCommand> {
+    fn water_source_update(position: GridVec, particle: Particle, neighbors: &[ParticleType; 8] ) -> Vec<ChunkCommand> {
         let data_val = particle.data & !(1<<7);
         if data_val == 0 {
             let mut new_val = 0;
@@ -229,7 +252,7 @@ impl CustomUpdateRules {
         }
     }
     
-    fn laser_beam_update(_position: GridVec, particle: Particle, _neighbors: [ParticleType; 8]) -> Vec<ChunkCommand> {
+    fn laser_beam_update(_position: GridVec, particle: Particle, _neighbors: &[ParticleType; 8]) -> Vec<ChunkCommand> {
         let dir_val = particle.data & !(1<<7);
         let movement = match dir_val {
             1 => GridVec::new(1, 0),
@@ -243,7 +266,7 @@ impl CustomUpdateRules {
         ]
     }
     
-    fn laser_emitter_update(position: GridVec, particle: Particle, _neighbors: [ParticleType; 8]) -> Vec<ChunkCommand> {
+    fn laser_emitter_update(position: GridVec, particle: Particle, _neighbors: &[ParticleType; 8]) -> Vec<ChunkCommand> {
         let dir_val = particle.data & !(1<<7);
         let movement = match dir_val {
             1 => GridVec::new(1, 0),

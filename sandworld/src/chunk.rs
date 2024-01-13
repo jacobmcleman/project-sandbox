@@ -571,8 +571,22 @@ impl Chunk {
             }
         }
     }
+
+    fn neighbors_direction_map(index: usize)-> GridVec {
+        match index {
+            0 => GridVec::new(0, 1),
+            1 => GridVec::new(1, 1),
+            2 => GridVec::new(1, 0),
+            3 => GridVec::new(1, -1),
+            4 => GridVec::new(0, -1),
+            5 => GridVec::new(-1, -1),
+            6 => GridVec::new(-1, 0),
+            7 => GridVec::new(-1, 1),
+            _ => GridVec::new(0,0)
+        }
+    }
     
-    fn particle_movement(&mut self, x: u8, y: u8, cur_part: &Particle, rng: &mut ThreadRng, move_override: Option<Vec<GridVec>>) -> GridVec {
+    fn particle_movement(&mut self, x: u8, y: u8, cur_part: &Particle, rng: &mut ThreadRng, move_override: Option<Vec<GridVec>>, neighbors: &[ParticleType; 8], local_temp: i32) -> GridVec {
         let available_moves = if let Some(movement) = move_override { 
             vec![movement]
         }
@@ -580,10 +594,22 @@ impl Chunk {
             Particle::get_possible_moves(cur_part.particle_type)
         };
         
+        let viscosity_val = get_viscosity_for_type(cur_part.particle_type, local_temp);
+        let mut viscosity_vec = GridVec::new(0, 0);
+        if viscosity_val != 0 {
+            for i in 0..8 {
+                if neighbors[i] == cur_part.particle_type {
+                    viscosity_vec = viscosity_vec + Self::neighbors_direction_map(i);
+                }
+            }
+        }
+        let viscosity_vec = viscosity_vec * viscosity_val / 4;
+
         if available_moves.len() > 0 {
             let mut possible_moves = Vec::<GridVec>::new();
             for move_set in available_moves {
-                for vec in move_set {
+                for mut vec in move_set {
+                    vec = vec + viscosity_vec;
                     if self.test_vec(x as i16, y as i16, vec.x as i8, vec.y as i8, cur_part.particle_type) {
                         possible_moves.push(vec.clone());
                     }
@@ -642,11 +668,12 @@ impl Chunk {
                 let cur_part = self.get_particle(x, y);
 
                 if !cur_part.updated_this_frame() {           
+                    let neighbors = self.get_neighbors(x as i16, y as i16);
                     // Custom Logic
                     let mut move_override = None;
                     let mut destroy_if_not_moved = false;
                     if let Some(update_fn) = get_update_fn_for_type(cur_part.particle_type) {
-                        let commands = update_fn(GridVec::new(x as i32, y as i32), cur_part, self.get_neighbors(x as i16, y as i16));
+                        let commands = update_fn(GridVec::new(x as i32, y as i32), cur_part, &neighbors);
                         for command in commands {
                             match command {
                                 ChunkCommand::Add((position, particle_type, particle_data)) => self.add_particle(position.x as i16, position.y as i16, Particle::new_with_data(particle_type, particle_data)), 
@@ -662,12 +689,19 @@ impl Chunk {
                     }
                     
                     // Temperature
-                    if let Some(new_state) = try_state_change(cur_part.particle_type, self.caclulate_local_temp(x as i16, y as i16), &mut rng) {
+                    let local_temp = self.caclulate_local_temp(x as i16, y as i16);
+                    if let Some(mut new_state) = try_state_change(cur_part.particle_type, local_temp, &mut rng) {
+                        // Check loneley
+                        if get_is_lonely_type(new_state) 
+                            && self.count_neighbors_of_type(x as i16, y as i16, new_state) == 0 {
+                            new_state = get_lonely_break_type(new_state);
+                        }
+
                         self.set_particle(x, y, Particle::new(new_state));
                     }
-                    
+
                     // Movement
-                    let move_amount = self.particle_movement(x, y, &cur_part, &mut rng, move_override);
+                    let move_amount = self.particle_movement(x, y, &cur_part, &mut rng, move_override, &neighbors, local_temp);
                     
                     // Erosion
                     if cur_part.particle_type == ParticleType::Water && move_amount.manhattan_length() > 1 {

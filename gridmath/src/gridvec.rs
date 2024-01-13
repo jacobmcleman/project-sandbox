@@ -30,6 +30,14 @@ impl GridVec {
         self.x.abs() + self.y.abs()
     }
 
+    pub fn dot(&self, other: GridVec) -> i32 {
+        (self.x * other.x) + (self.y * other.y)
+    }
+
+    pub fn clamp_values(&self, min: i32, max: i32) -> GridVec {
+        GridVec::new(self.x.clamp(min, max), self.y.clamp(min, max))
+    }
+
     pub fn is_adjacent(&self, other: GridVec) -> bool {
         match self.manhattan_distance(other) {
             1 => true,
