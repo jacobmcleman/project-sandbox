@@ -52,26 +52,6 @@ fn camera_movement(
     let max_zoom = 2.;
     let min_zoom = 0.1;
 
-    if keys.pressed(KeyCode::D) || keys.pressed(KeyCode::Right) {
-        camera_transform.translation =
-            (camera_transform.right() * move_speed * time.delta_seconds())
-                + camera_transform.translation;
-    }
-    if keys.pressed(KeyCode::A) || keys.pressed(KeyCode::Left) {
-        camera_transform.translation =
-            (camera_transform.left() * move_speed * time.delta_seconds())
-                + camera_transform.translation;
-    }
-    if keys.pressed(KeyCode::W) || keys.pressed(KeyCode::Up) {
-        camera_transform.translation = (camera_transform.up() * move_speed * time.delta_seconds())
-            + camera_transform.translation;
-    }
-    if keys.pressed(KeyCode::S) || keys.pressed(KeyCode::Down) {
-        camera_transform.translation =
-            (camera_transform.down() * move_speed * time.delta_seconds())
-                + camera_transform.translation;
-    }
-
     if keys.pressed(KeyCode::LShift) {
         if keys.just_pressed(KeyCode::D) {
             idle.x_move -= 10.;
@@ -86,6 +66,28 @@ fn camera_movement(
             idle.y_move += 10.;
         }
     }
+    else {
+        if keys.pressed(KeyCode::D) || keys.pressed(KeyCode::Right) {
+            camera_transform.translation =
+                (camera_transform.right() * move_speed * time.delta_seconds())
+                    + camera_transform.translation;
+        }
+        if keys.pressed(KeyCode::A) || keys.pressed(KeyCode::Left) {
+            camera_transform.translation =
+                (camera_transform.left() * move_speed * time.delta_seconds())
+                    + camera_transform.translation;
+        }
+        if keys.pressed(KeyCode::W) || keys.pressed(KeyCode::Up) {
+            camera_transform.translation = (camera_transform.up() * move_speed * time.delta_seconds())
+                + camera_transform.translation;
+        }
+        if keys.pressed(KeyCode::S) || keys.pressed(KeyCode::Down) {
+            camera_transform.translation =
+                (camera_transform.down() * move_speed * time.delta_seconds())
+                    + camera_transform.translation;
+        }
+    }
+    
 
     if idle.x_move != 0. {
         camera_transform.translation =

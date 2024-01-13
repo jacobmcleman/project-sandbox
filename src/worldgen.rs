@@ -174,7 +174,9 @@ impl WorldGenerator for WorldBuilder {
                     (from_terrain / -256.).clamp(0., 1.)
                 }
                 else {
-                    ((world_pos.y.abs() as f64 / 32.).clamp(0., 1.) + (terrain_height / 32.).clamp(0., 1.)).clamp(0., 1.)
+                    let surface_dist_modifier: f64 =  (from_terrain / -1024.).clamp(0., 1.) * 0.67 + 0.33;
+                    let boundary_smoother = ((world_pos.y.abs() as f64 / 32.).clamp(0., 1.) + (terrain_height / 32.).clamp(0., 1.)).clamp(0., 1.);
+                    surface_dist_modifier * boundary_smoother
                 };
 
                 if cave_value + 0.001 < 0.01 * surface_avoidance {
