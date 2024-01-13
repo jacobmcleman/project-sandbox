@@ -170,7 +170,7 @@ impl WorldGenerator for WorldBuilder {
                 let cave_detail_value = self.noise.get(cave_detail_pos).abs();
                 let cave_value = cave_base_value + 0.03 * (cave_detail_value / detail_scale_1);
 
-                let surface_avoidance = if world_pos.y <= 0 {
+                let surface_avoidance = if world_pos.y <= 0 && terrain_height < 0. {
                     (from_terrain / -256.).clamp(0., 1.)
                 }
                 else {
