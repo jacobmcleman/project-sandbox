@@ -497,10 +497,10 @@ impl Chunk {
         call(self.get_local_part(x - 1, y + 1));
     }
     
-    fn count_neighbors_of_type(&self, x: i16, y: i16, search: ParticleType) -> u8 {
+    fn count_neighbors_of_type(&self, x: i16, y: i16, search: &Vec<ParticleType>) -> u8 {
         let mut count = 0;
         self.iterate_neighbor_parts(x, y, &mut |part_type: ParticleType| {
-            if part_type == search {
+            if search.contains(&part_type){
                 count += 1;
             }
         });
@@ -520,8 +520,9 @@ impl Chunk {
     
     fn caclulate_local_temp(&self, x: i16, y: i16) -> i32 {
         let mut total = 0;
+        let own_temp = get_heat_for_type(self.get_local_part(x, y));
         self.iterate_neighbor_parts(x, y, &mut |part_type: ParticleType| {
-            total += get_heat_for_type(part_type)
+            total += if part_type == ParticleType::Air { own_temp / 2 } else { get_heat_for_type(part_type) };
         });
         return total;
     }
@@ -597,13 +598,18 @@ impl Chunk {
         let viscosity_val = get_viscosity_for_type(cur_part.particle_type, local_temp);
         let mut viscosity_vec = GridVec::new(0, 0);
         if viscosity_val != 0 {
+            let mut matching_neighbors = 0;
             for i in 0..8 {
                 if neighbors[i] == cur_part.particle_type {
                     viscosity_vec = viscosity_vec + Self::neighbors_direction_map(i);
+                    matching_neighbors += 1;
                 }
             }
+            if matching_neighbors > viscosity_val {
+                viscosity_vec = GridVec::new(0, 0);
+            }
         }
-        let viscosity_vec = viscosity_vec * viscosity_val / 4;
+        let viscosity_vec = viscosity_vec * viscosity_val;
 
         if available_moves.len() > 0 {
             let mut possible_moves = Vec::<GridVec>::new();
@@ -691,9 +697,9 @@ impl Chunk {
                     // Temperature
                     let local_temp = self.caclulate_local_temp(x as i16, y as i16);
                     if let Some(mut new_state) = try_state_change(cur_part.particle_type, local_temp, &mut rng) {
-                        // Check loneley
+                        // Check lonely
                         if get_is_lonely_type(new_state) 
-                            && self.count_neighbors_of_type(x as i16, y as i16, new_state) == 0 {
+                            && self.count_neighbors_of_type(x as i16, y as i16, &SOLID_MATS) == 0 {
                             new_state = get_lonely_break_type(new_state);
                         }
 
