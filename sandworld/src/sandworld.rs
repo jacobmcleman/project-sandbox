@@ -91,6 +91,7 @@ impl World {
                 }
         
                 self.regions.push(retrieved);
+                println!("Decompressed region: {}", regpos);
                 return true;
             }
         }
@@ -123,6 +124,7 @@ impl World {
             if region.staleness > staleness_threshold && !visible_bounds.contains(region.position) {
                 to_remove.push(region.position);
                 self.compressed_regions.push(region.compress_region());
+                println!("Compressed region: {}", region.position);
             }
         }
 
