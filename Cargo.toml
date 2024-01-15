@@ -8,6 +8,6 @@ edition = "2021"
 [dependencies]
 gridmath = { path = "gridmath" }
 sandworld = { path = "sandworld" }
-bevy = "0.10"
+bevy = "0.12.1"
 noise = "0.8"
 rand = "0.8.5"

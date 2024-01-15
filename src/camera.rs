@@ -12,8 +12,8 @@ struct IdleMover {
 
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(spawn_camera)
-            .add_system(camera_movement.in_set(crate::UpdateStages::Input));
+        app.add_systems(Startup, spawn_camera)
+            .add_systems(Update, camera_movement.in_set(crate::UpdateStages::Input));
     }
 }
 
@@ -52,7 +52,7 @@ fn camera_movement(
     let max_zoom = 2.;
     let min_zoom = 0.1;
 
-    if keys.pressed(KeyCode::LShift) {
+    if keys.pressed(KeyCode::ShiftLeft) {
         if keys.just_pressed(KeyCode::D) {
             idle.x_move -= 10.;
         }
@@ -100,10 +100,10 @@ fn camera_movement(
                 + camera_transform.translation;
     }
 
-    if keys.any_pressed([KeyCode::PageUp, KeyCode::RBracket]) {
+    if keys.any_pressed([KeyCode::PageUp, KeyCode::BracketRight]) {
         log_scale -= zoom_speed * time.delta_seconds();
     }
-    if keys.any_pressed([KeyCode::PageDown, KeyCode::LBracket]) {
+    if keys.any_pressed([KeyCode::PageDown, KeyCode::BracketRight]) {
         log_scale += zoom_speed * time.delta_seconds();
     }
 

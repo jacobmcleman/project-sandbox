@@ -15,17 +15,19 @@ const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
 
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(setup_buttons)
-            .add_startup_system(spawn_performance_info_text)
+        app.add_systems(Startup, setup_buttons)
+            .add_systems(Startup, spawn_performance_info_text)
             .insert_resource(PointerCaptureState {
                 click_consumed: false,
             })
-            .add_system(
+            .add_systems(
+                Update,
                 button_system
                     .in_set(crate::UpdateStages::UI)
                     .before(crate::UpdateStages::Input),
             )
-            .add_system(
+            .add_systems(
+                Update,
                 update_performance_text
                     .in_set(crate::UpdateStages::UI)
                     .after(crate::UpdateStages::WorldUpdate),
@@ -99,11 +101,8 @@ fn spawn_performance_info_text(mut commands: Commands, asset_server: Res<AssetSe
             ])
             .with_style(Style {
                 position_type: PositionType::Absolute,
-                position: UiRect {
-                    left: Val::Px(10.0),
-                    top: Val::Px(10.0),
-                    ..Default::default()
-                },
+                left: Val::Px(10.0),
+                top: Val::Px(10.0),
                 ..Default::default()
             }),
         )
@@ -211,7 +210,8 @@ fn spawn_tool_selector_button(
     commands
         .spawn(ButtonBundle {
             style: Style {
-                size: Size::new(Val::Px(100.0), Val::Px(40.0)),
+                width: Val::Px(100.0),
+                height: Val::Px(40.),
                 margin: UiRect {
                     left: Val::Px(16.0),
                     bottom: Val::Px(16.0),
@@ -339,7 +339,7 @@ fn button_system(
 
     for (interaction, mut color, selector) in &mut interaction_query {
         match *interaction {
-            Interaction::Clicked => {
+            Interaction::Pressed => {
                 *color = PRESSED_BUTTON.into();
                 brush_options.brush_mode = selector.brush_mode.clone();
                 brush_options.radius = selector.radius;
