@@ -22,6 +22,7 @@ pub trait WorldGenerator {
 
 pub struct World {
     regions: Vec<Region>,
+    compressed_regions: Vec<CompressedRegion>,
     loading_regions: VecDeque<LoadingRegion>,
     generator: Arc<dyn WorldGenerator + Sync + Send>,
 }
@@ -29,6 +30,7 @@ pub struct World {
 pub struct WorldUpdateStats {
     pub chunk_updates: u64,
     pub loaded_regions: usize,
+    pub compressed_regions: usize,
     pub region_updates: u64,
 }
 
@@ -43,6 +45,7 @@ impl World {
     pub fn new(generator: Arc<dyn WorldGenerator + Sync + Send>) -> Self {
         let created: World = World {
             regions: Vec::new(),
+            compressed_regions: Vec::new(),
             loading_regions: VecDeque::new(),
             generator,
         };
@@ -51,7 +54,9 @@ impl World {
     }
 
     fn _add_region_immediate(&mut self, regpos: GridVec) {
-        let start_time = Instant::now();
+        if self.retrieve_region_if_compressed(regpos) {
+            return;
+        }
 
         let mut added = Region::new(regpos, self.generator.clone());
 
@@ -60,14 +65,13 @@ impl World {
         }
 
         self.regions.push(added);
-
-        let end_time = Instant::now();
-        let region_gen_time = end_time - start_time;
-
-        println!("Added region {} - elapsed time {}s", regpos, region_gen_time.as_secs_f64());
     }
 
     fn add_region(&mut self, regpos: GridVec) {
+        if self.retrieve_region_if_compressed(regpos) {
+            return;
+        }
+
         for loader in self.loading_regions.iter() {
             if regpos == loader.position {
                 return; // This one has already been requested and we're working on it, cool it
@@ -76,6 +80,21 @@ impl World {
 
         self.loading_regions.push_back(LoadingRegion::new(regpos, self.generator.clone()));
         self.loading_regions.back_mut().unwrap().start_load();
+    }
+
+    fn retrieve_region_if_compressed(&mut self, regpos: GridVec) -> bool {
+        for compreg in self.compressed_regions.iter() {
+            if compreg.position == regpos {
+                let mut retrieved = Region::from_compressed(compreg);
+                for region in self.regions.iter_mut() {
+                    region.check_add_neighbor(&mut retrieved);
+                }
+        
+                self.regions.push(retrieved);
+                return true;
+            }
+        }
+        false
     }
 
     fn add_loaded_regions_to_sim(&mut self) {
@@ -95,6 +114,20 @@ impl World {
                     
                 }
             }
+        }
+    }
+
+    fn compress_idle_regions(&mut self, visible_bounds: GridBounds, staleness_threshold: u64) {
+        let mut to_remove = Vec::new();
+        for region in self.regions.iter() {
+            if region.staleness > staleness_threshold && !visible_bounds.contains(region.position) {
+                to_remove.push(region.position);
+                self.compressed_regions.push(region.compress_region());
+            }
+        }
+
+        for regpos in to_remove.iter() {
+            self.remove_region(*regpos);
         }
     }
 
@@ -340,6 +373,8 @@ impl World {
             self.add_region_if_needed(regpos);
         }
 
+        self.compress_idle_regions(visible_regions, 8);
+
         let max_update_regions = 16;
         let visible_region_count = visible_regions.area();
         let total_visible_priority_boost = 65536;
@@ -407,6 +442,7 @@ impl World {
         WorldUpdateStats {
             chunk_updates,
             loaded_regions: self.regions.len(),
+            compressed_regions: self.compressed_regions.len(),
             region_updates: updated_region_count.load(std::sync::atomic::Ordering::Relaxed),
         }
     }

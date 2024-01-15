@@ -59,6 +59,14 @@ fn spawn_performance_info_text(mut commands: Commands, asset_server: Res<AssetSe
                     },
                 },
                 TextSection {
+                    value: "\nSleeping Regions: 000".to_string(),
+                    style: TextStyle {
+                        font: asset_server.load("fonts/FiraMono-Medium.ttf"),
+                        font_size: 20.0,
+                        color: Color::rgb(0.9, 0.9, 0.9),
+                    },
+                },
+                TextSection {
                     value: "\nUpdated Regions: 000".to_string(),
                     style: TextStyle {
                         font: asset_server.load("fonts/FiraMono-Medium.ttf"),
@@ -127,8 +135,9 @@ fn update_performance_text(
 
         if let Some(world_stats) = &stats.update_stats {
             text.sections[1].value = format!("\nLoaded Regions: {}", world_stats.loaded_regions);
-            text.sections[2].value = format!("\nRegion Updates: {}", world_stats.region_updates);
-            text.sections[3].value = format!(
+            text.sections[2].value = format!("\nCompressed Regions: {}", world_stats.compressed_regions);
+            text.sections[3].value = format!("\nRegion Updates: {}", world_stats.region_updates);
+            text.sections[4].value = format!(
                 "\nChunk Updates [Target]: {} [{}]",
                 world_stats.chunk_updates, stats.target_chunk_updates
             );
@@ -145,7 +154,7 @@ fn update_performance_text(
                 texture_update_per_chunk_avg =
                     texture_update_per_chunk_avg / (stats.chunk_texture_update_time.len() as f64);
 
-                text.sections[5].value = format!(
+                text.sections[6].value = format!(
                     "\nTex Update time:  {:.2}ms - Avg time per chunk: {:.3}ms",
                     texture_update_time_avg * 1000.,
                     texture_update_per_chunk_avg * 1000.
@@ -164,7 +173,7 @@ fn update_performance_text(
                 culled_chunks_avg =
                     culled_chunks_avg / stats.chunk_cull_time.len() as u64;
     
-                text.sections[6].value = format!(
+                text.sections[7].value = format!(
                     "\nChunk cull time:  {:.2}ms - Avg chunks culled: {:.3}",
                     cull_time_avg * 1000.,
                     culled_chunks_avg
@@ -184,7 +193,7 @@ fn update_performance_text(
         total_sand_update_second_avg =
             total_sand_update_second_avg / (stats.sand_update_time.len() as f64);
 
-        text.sections[4].value = format!(
+        text.sections[5].value = format!(
             "\nSand update time: {:.2}ms - Avg time per chunk: {:.3}ms",
             total_sand_update_second_avg * 1000.,
             1000. / chunk_updates_per_second_avg

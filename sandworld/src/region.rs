@@ -19,6 +19,11 @@ pub struct Region {
     generator: Arc<dyn WorldGenerator + Send + Sync>,
 }
 
+pub struct CompressedRegion {
+    pub position: GridVec,
+    chunks: Vec<CompressedChunk>,
+    generator: Arc<dyn WorldGenerator + Send + Sync>,
+}
 
 impl Region {
     pub fn new(position: GridVec, generator: Arc<dyn WorldGenerator + Send + Sync>) -> Self {
@@ -42,10 +47,43 @@ impl Region {
         reg
     }
 
+    pub fn from_compressed(compressed_region: &CompressedRegion) -> Self {
+        let mut reg = Region {
+            position: compressed_region.position,
+            staleness: 0,
+            last_chunk_updates: 0,
+            chunks: vec![],
+            added_chunks: vec![],
+            updated_chunks: vec![],
+            update_priority: 0,
+            generator: compressed_region.generator.clone(),
+        };
+        
+        for comp_chunk in compressed_region.chunks.iter() {
+            reg.chunks.push(Box::new(comp_chunk.decompress()));
+        }
+
+        reg
+    }
+
     pub fn generate_terrain(&mut self) {
         self.chunks.par_iter_mut().for_each(|chunk| {
             chunk.regenerate(&self.generator);
         });
+    }
+
+    pub fn compress_region(&self) -> CompressedRegion {
+        let mut compressed_chunks = Vec::new();
+
+        for chunk in self.chunks.iter() {
+            compressed_chunks.push(chunk.compress());
+        }
+
+        CompressedRegion {
+            position: self.position,
+            chunks: compressed_chunks,
+            generator: self.generator.clone(),
+        }
     }
 
     fn add_chunk(&mut self, chunkpos: GridVec) {

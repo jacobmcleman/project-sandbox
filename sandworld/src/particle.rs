@@ -2,7 +2,7 @@ use gridmath::GridVec;
 use rand::Rng;
 use once_cell::sync::Lazy;
 
-#[derive(PartialEq, Eq, Debug, Copy, Clone)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone, Hash)]
 pub enum ParticleType {
     Air,
     Sand,
@@ -22,7 +22,7 @@ pub enum ParticleType {
     Dirty,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Hash)]
 pub struct Particle {
     pub particle_type: ParticleType,
     /*
@@ -122,6 +122,14 @@ impl Particle {
     }
 }
 
+impl PartialEq for Particle {
+    fn eq(&self, other: &Self) -> bool {
+        self.particle_type == other.particle_type && (self.data & 0b0111111) == (other.data & 0b01111111)
+    }
+}
+
+impl Eq for Particle {}
+
 impl Default for Particle {
     fn default() -> Self { Particle::new(ParticleType::Air) }
 }
@@ -179,7 +187,7 @@ pub fn get_state_change_for_type(particle_type: ParticleType) -> StateChange {
     match particle_type {
         ParticleType::Ice => StateChange{           melt: Some((-28, ParticleType::Water, 0.5)),        freeze: None },
         ParticleType::Water => StateChange{         melt: Some((100, ParticleType::Steam, 0.15)),       freeze: Some((-40, ParticleType::Ice, 0.15)) },
-        ParticleType::Steam => StateChange{         melt: None,                                         freeze: Some((150, ParticleType::Water, 0.25))},
+        ParticleType::Steam => StateChange{         melt: None,                                         freeze: Some((200, ParticleType::Water, 0.25))},
         ParticleType::Stone => StateChange{         melt: Some((700, ParticleType::Lava, 0.15)),        freeze: None },
         ParticleType::Gravel => StateChange{        melt: Some((680, ParticleType::Lava, 0.2)),         freeze: None },
         ParticleType::Sand => StateChange{          melt: Some((650, ParticleType::MoltenGlass, 0.2)),  freeze: None },
