@@ -1,11 +1,10 @@
 use bevy::{
     prelude::*,
-    render::{
-        render_resource::{Extent3d, TextureFormat}, view::visibility,
-    }, window::PrimaryWindow,
+    render::render_resource::{Extent3d, TextureFormat}, 
+    window::PrimaryWindow,
 };
 use gridmath::{GridBounds, GridVec};
-use rand::{Rng};
+use rand::Rng;
 use sandworld::{ParticleType, CHUNK_SIZE};
 use std::{collections::VecDeque, sync::{Arc, atomic::{AtomicU64, Ordering}}};
 
@@ -21,8 +20,8 @@ impl Plugin for SandSimulationPlugin {
         println!("Seed: {}", seed);
 
         app.insert_resource(Sandworld {
-            world: sandworld::World::new(Arc::new(crate::worldgen::LayeredPerlin::new(
-                seed, 0.003, 0.01, 1.,
+            world: sandworld::World::new(Arc::new(crate::worldgen::WorldBuilder::new(
+                seed, 5000., 1500., 500., 500., 400.,
             ))),
         })
         .insert_resource(DrawOptions {
