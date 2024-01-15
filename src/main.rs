@@ -36,10 +36,10 @@ fn main() {
                     ..default()
                 }),
         )
-        .add_plugin(crate::sandsim::SandSimulationPlugin)
-        .add_plugin(crate::camera::CameraPlugin)
-        .add_plugin(crate::ui::UiPlugin)
-        .add_plugin(crate::perf::PerfControlPlugin)
+        .add_plugins(crate::sandsim::SandSimulationPlugin)
+        .add_plugins(crate::camera::CameraPlugin)
+        .add_plugins(crate::ui::UiPlugin)
+        .add_plugins(crate::perf::PerfControlPlugin)
         .insert_resource(ClearColor(Color::rgb(0.04, 0.04, 0.04)))
         .run();
 }

@@ -24,7 +24,7 @@ impl Plugin for PerfControlPlugin {
         .insert_resource(PerfSettings {
             target_frame_rate: 60,
         })
-        .add_system(frame_timing);
+        .add_systems(PostUpdate, frame_timing);
     }
 }
 

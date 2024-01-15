@@ -41,12 +41,12 @@ impl Plugin for SandSimulationPlugin {
             chunk_cull_time: VecDeque::new(),
             target_chunk_updates: 0,
         })
-        .add_system(create_spawned_chunks.in_set(crate::UpdateStages::WorldUpdate))
-        .add_system(sand_update.in_set(crate::UpdateStages::WorldUpdate))
-        .add_system(update_chunk_textures.in_set(crate::UpdateStages::WorldDraw))
-        .add_system(world_interact.in_set(crate::UpdateStages::Input))
-        .add_system(cull_hidden_chunks.in_set(crate::UpdateStages::WorldUpdate))
-        .add_system(draw_mode_controls.in_set(crate::UpdateStages::Input));
+        .add_systems(Update, create_spawned_chunks.in_set(crate::UpdateStages::WorldUpdate))
+        .add_systems(Update, sand_update.in_set(crate::UpdateStages::WorldUpdate))
+        .add_systems(Update, update_chunk_textures.in_set(crate::UpdateStages::WorldDraw))
+        .add_systems(Update, world_interact.in_set(crate::UpdateStages::Input))
+        .add_systems(Update, cull_hidden_chunks.in_set(crate::UpdateStages::WorldUpdate))
+        .add_systems(Update, draw_mode_controls.in_set(crate::UpdateStages::Input));
     }
 }
 
@@ -109,7 +109,7 @@ fn draw_mode_controls(mut draw_options: ResMut<DrawOptions>, keys: Res<Input<Key
     }
 }
 
-fn render_chunk_texture(chunk: &sandworld::Chunk, draw_options: &DrawOptions) -> Image {
+fn create_chunk_image(chunk: &sandworld::Chunk, draw_options: &DrawOptions) -> Image {
     let side_size = sandworld::CHUNK_SIZE as u32;
     Image::new(
         Extent3d {
@@ -118,9 +118,14 @@ fn render_chunk_texture(chunk: &sandworld::Chunk, draw_options: &DrawOptions) ->
             ..default()
         },
         bevy::render::render_resource::TextureDimension::D2,
-        chunk.render_to_color_array(draw_options.update_bounds, draw_options.chunk_bounds),
+        render_chunk_data(&chunk, &draw_options),
         TextureFormat::Rgba8Unorm,
     )
+}
+
+fn render_chunk_data(chunk: &sandworld::Chunk, draw_options: &DrawOptions) -> Vec<u8> {
+    let side_size = sandworld::CHUNK_SIZE as u32;
+    chunk.render_to_color_array(draw_options.update_bounds, draw_options.chunk_bounds)
 }
 
 fn create_spawned_chunks(
@@ -132,7 +137,7 @@ fn create_spawned_chunks(
     let added_chunks = world.world.get_added_chunks();
     for chunkpos in added_chunks {
         if let Some(chunk) = world.world.get_chunk(&chunkpos) {
-            let image = render_chunk_texture(chunk.as_ref(), &draw_options);
+            let image = create_chunk_image(chunk.as_ref(), &draw_options);
             let image_handle = images.add(image);
 
             let chunk_size = sandworld::CHUNK_SIZE as f32;
@@ -168,7 +173,7 @@ fn cull_hidden_chunks(
     let (ortho, camera, cam_transform) = cam_query.single();
     let bounds = cam_bounds(ortho, camera, cam_transform); 
 
-    chunk_query.par_iter_mut().for_each_mut(|(chunk, mut vis)| {
+    chunk_query.par_iter_mut().for_each(|(chunk, mut vis)| {
         
         let chunk_bounds = GridBounds::new_from_corner(
             chunk.chunk_pos * (CHUNK_SIZE as i32),
@@ -210,7 +215,7 @@ fn update_chunk_textures(
     let update_start = std::time::Instant::now();
 
     if draw_options.force_redraw_all || !updated_chunks.is_empty() {
-        chunk_query.par_iter_mut().for_each_mut(|(mut chunk_comp, _visibility)| {
+        chunk_query.par_iter_mut().for_each(|(mut chunk_comp, _visibility)| {
             if draw_options.force_redraw_all || updated_chunks.contains(&chunk_comp.chunk_pos) {
                 chunk_comp.texture_dirty = true;
             }
@@ -220,10 +225,7 @@ fn update_chunk_textures(
     for (mut chunk_comp, visibility) in chunk_query.iter_mut() {
         if chunk_comp.texture_dirty && visibility == Visibility::Inherited {
             if let Some(chunk) = world.world.get_chunk(&chunk_comp.chunk_pos) {
-                images.set_untracked(
-                    chunk_comp.chunk_texture_handle.clone(),
-                    render_chunk_texture(chunk.as_ref(), &draw_options),
-                );
+                images.get_mut(chunk_comp.chunk_texture_handle.clone()).unwrap().data = render_chunk_data(chunk.as_ref(), &draw_options);
                 updated_textures_count += 1;
                 chunk_comp.texture_dirty = false;
             }
@@ -300,22 +302,7 @@ fn world_interact(
 
         // check if the cursor is inside the window and get its position
         if let Some(screen_pos) = wnd.cursor_position() {
-            // get the size of the window
-            let window_size = Vec2::new(wnd.width() as f32, wnd.height() as f32);
-
-            // convert screen position [0..resolution] to ndc [-1..1] (gpu coordinates)
-            let ndc = (screen_pos / window_size) * 2.0 - Vec2::ONE;
-
-            // matrix for undoing the projection and camera transform
-            let ndc_to_world =
-                camera_transform.compute_matrix() * camera.projection_matrix().inverse();
-
-            // use it to convert ndc to world-space coordinates
-            let world_pos = ndc_to_world.project_point3(ndc.extend(-1.0));
-
-            // reduce it to a 2D value
-            let world_pos: Vec2 = world_pos.truncate();
-
+            let world_pos = camera.viewport_to_world_2d(camera_transform, screen_pos).unwrap();
             let gridpos = GridVec::new(world_pos.x as i32, world_pos.y as i32);
 
             if buttons.pressed(MouseButton::Left) {

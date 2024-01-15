@@ -15,17 +15,19 @@ const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
 
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(setup_buttons)
-            .add_startup_system(spawn_performance_info_text)
+        app.add_systems(Startup, setup_buttons)
+            .add_systems(Startup, spawn_performance_info_text)
             .insert_resource(PointerCaptureState {
                 click_consumed: false,
             })
-            .add_system(
+            .add_systems(
+                Update,
                 button_system
                     .in_set(crate::UpdateStages::UI)
                     .before(crate::UpdateStages::Input),
             )
-            .add_system(
+            .add_systems(
+                Update,
                 update_performance_text
                     .in_set(crate::UpdateStages::UI)
                     .after(crate::UpdateStages::WorldUpdate),
@@ -99,11 +101,8 @@ fn spawn_performance_info_text(mut commands: Commands, asset_server: Res<AssetSe
             ])
             .with_style(Style {
                 position_type: PositionType::Absolute,
-                position: UiRect {
-                    left: Val::Px(10.0),
-                    top: Val::Px(10.0),
-                    ..Default::default()
-                },
+                left: Val::Px(10.0),
+                top: Val::Px(10.0),
                 ..Default::default()
             }),
         )
@@ -202,16 +201,17 @@ struct ToolSelector {
 }
 
 fn spawn_tool_selector_button(
-    commands: &mut Commands,
+    parent: &mut ChildBuilder,
     asset_server: &Res<AssetServer>,
     label: &str,
     brush_mode: BrushMode,
     radius: i32,
 ) {
-    commands
+    parent
         .spawn(ButtonBundle {
             style: Style {
-                size: Size::new(Val::Px(100.0), Val::Px(40.0)),
+                width: Val::Px(100.0),
+                height: Val::Px(40.),
                 margin: UiRect {
                     left: Val::Px(16.0),
                     bottom: Val::Px(16.0),
@@ -222,6 +222,7 @@ fn spawn_tool_selector_button(
                 // vertically center child text
                 align_items: AlignItems::Center,
                 align_self: AlignSelf::FlexEnd,
+                flex_direction: FlexDirection::Row,
                 ..default()
             },
             background_color: NORMAL_BUTTON.into(),
@@ -241,93 +242,105 @@ fn spawn_tool_selector_button(
 }
 
 fn setup_buttons(mut commands: Commands, asset_server: Res<AssetServer>) {
-    spawn_tool_selector_button(&mut commands, &asset_server, "MELT", BrushMode::Melt, 10);
-    spawn_tool_selector_button(&mut commands, &asset_server, "BREAK", BrushMode::Break, 10);
-    spawn_tool_selector_button(&mut commands, &asset_server, "CHILL", BrushMode::Chill, 20);
-    spawn_tool_selector_button(
-        &mut commands,
-        &asset_server,
-        "Stone",
-        BrushMode::Place(ParticleType::Stone, 0),
-        20,
-    );
-    spawn_tool_selector_button(
-        &mut commands,
-        &asset_server,
-        "Gravel",
-        BrushMode::Place(ParticleType::Gravel, 0),
-        10,
-    );
-    spawn_tool_selector_button(
-        &mut commands,
-        &asset_server,
-        "Sand",
-        BrushMode::Place(ParticleType::Sand, 0),
-        10,
-    );
-    spawn_tool_selector_button(
-        &mut commands,
-        &asset_server,
-        "Ice",
-        BrushMode::Place(ParticleType::Ice, 0),
-        10,
-    );
-    spawn_tool_selector_button(
-        &mut commands,
-        &asset_server,
-        "Water",
-        BrushMode::Place(ParticleType::Water, 0),
-        10,
-    );
-    spawn_tool_selector_button(
-        &mut commands,
-        &asset_server,
-        "Steam",
-        BrushMode::Place(ParticleType::Steam, 0),
-        10,
-    );
-    spawn_tool_selector_button(
-        &mut commands,
-        &asset_server,
-        "Lava",
-        BrushMode::Place(ParticleType::Lava, 0),
-        10,
-    );
-    spawn_tool_selector_button(
-        &mut commands,
-        &asset_server,
-        "Emit",
-        BrushMode::Place(ParticleType::Source, 0),
-        1,
-    );
-    spawn_tool_selector_button(
-        &mut commands,
-        &asset_server,
-        "LaserR",
-        BrushMode::Place(ParticleType::LaserEmitter, 1),
-        1,
-    );
-    spawn_tool_selector_button(
-        &mut commands,
-        &asset_server,
-        "LaserL",
-        BrushMode::Place(ParticleType::LaserEmitter, 3),
-        1,
-    );
-    spawn_tool_selector_button(
-        &mut commands,
-        &asset_server,
-        "LaserU",
-        BrushMode::Place(ParticleType::LaserEmitter, 0),
-        1,
-    );
-    spawn_tool_selector_button(
-        &mut commands,
-        &asset_server,
-        "LaserD",
-        BrushMode::Place(ParticleType::LaserEmitter, 2),
-        1,
-    );
+    commands.spawn(NodeBundle {
+        style: Style {
+            flex_direction: FlexDirection::Row,
+            align_items: AlignItems::Center,
+            margin: UiRect::horizontal(Val::Px(25.)),
+            align_self: AlignSelf::End,
+            ..Default::default()
+        },
+        ..Default::default()
+    }).with_children(|parent| {
+        spawn_tool_selector_button(parent, &asset_server, "MELT", BrushMode::Melt, 10);
+        spawn_tool_selector_button(parent, &asset_server, "BREAK", BrushMode::Break, 10);
+        spawn_tool_selector_button(parent, &asset_server, "CHILL", BrushMode::Chill, 20);
+        spawn_tool_selector_button(
+             parent,
+            &asset_server,
+            "Stone",
+            BrushMode::Place(ParticleType::Stone, 0),
+            20,
+        );
+        spawn_tool_selector_button(
+            parent,
+            &asset_server,
+            "Gravel",
+            BrushMode::Place(ParticleType::Gravel, 0),
+            10,
+        );
+        spawn_tool_selector_button(
+            parent,
+            &asset_server,
+            "Sand",
+            BrushMode::Place(ParticleType::Sand, 0),
+            10,
+        );
+        spawn_tool_selector_button(
+            parent,
+            &asset_server,
+            "Ice",
+            BrushMode::Place(ParticleType::Ice, 0),
+            10,
+        );
+        spawn_tool_selector_button(
+            parent,
+            &asset_server,
+            "Water",
+            BrushMode::Place(ParticleType::Water, 0),
+            10,
+        );
+        spawn_tool_selector_button(
+            parent,
+            &asset_server,
+            "Steam",
+            BrushMode::Place(ParticleType::Steam, 0),
+            10,
+        );
+        spawn_tool_selector_button(
+            parent,
+            &asset_server,
+            "Lava",
+            BrushMode::Place(ParticleType::Lava, 0),
+            10,
+        );
+        spawn_tool_selector_button(
+            parent,
+            &asset_server,
+            "Emit",
+            BrushMode::Place(ParticleType::Source, 0),
+            1,
+        );
+        spawn_tool_selector_button(
+            parent,
+            &asset_server,
+            "LaserR",
+            BrushMode::Place(ParticleType::LaserEmitter, 1),
+            1,
+        );
+        spawn_tool_selector_button(
+            parent,
+            &asset_server,
+            "LaserL",
+            BrushMode::Place(ParticleType::LaserEmitter, 3),
+            1,
+        );
+        spawn_tool_selector_button(
+            parent,
+            &asset_server,
+            "LaserU",
+            BrushMode::Place(ParticleType::LaserEmitter, 0),
+            1,
+        );
+        spawn_tool_selector_button(
+            parent,
+            &asset_server,
+            "LaserD",
+            BrushMode::Place(ParticleType::LaserEmitter, 2),
+            1,
+        );
+    });
+    
 }
 
 fn button_system(
@@ -339,7 +352,7 @@ fn button_system(
 
     for (interaction, mut color, selector) in &mut interaction_query {
         match *interaction {
-            Interaction::Clicked => {
+            Interaction::Pressed => {
                 *color = PRESSED_BUTTON.into();
                 brush_options.brush_mode = selector.brush_mode.clone();
                 brush_options.radius = selector.radius;
