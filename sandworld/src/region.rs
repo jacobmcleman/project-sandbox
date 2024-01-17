@@ -224,8 +224,9 @@ impl Region {
         for self_chunk_pos in self_chunks.iter() {
             for other_chunk_pos in other_chunks.iter() {
                 let self_chunk = &mut self.chunks[Region::local_chunkpos_to_region_index(self_chunk_pos)];
-                
-                self_chunk.check_remove_neighbor(*other_chunk_pos);
+                let other_chunk_pos_adj = (*other_regpos * REGION_SIZE as i32) + *other_chunk_pos;
+
+                self_chunk.check_remove_neighbor(other_chunk_pos_adj);
             }
         }
     }

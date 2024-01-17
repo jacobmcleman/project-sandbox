@@ -124,7 +124,6 @@ fn create_chunk_image(chunk: &sandworld::Chunk, draw_options: &DrawOptions) -> I
 }
 
 fn render_chunk_data(chunk: &sandworld::Chunk, draw_options: &DrawOptions) -> Vec<u8> {
-    let side_size = sandworld::CHUNK_SIZE as u32;
     chunk.render_to_color_array(draw_options.update_bounds, draw_options.chunk_bounds)
 }
 
