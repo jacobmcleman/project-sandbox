@@ -1,6 +1,5 @@
 pub const CHUNK_SIZE: u8 = 64;
 use std::collections::{HashMap, HashSet};
-use std::io::SeekFrom;
 use std::sync::{Arc, RwLock};
 
 use gridmath::*;
@@ -18,12 +17,14 @@ pub struct Chunk {
     pub(crate) updated_last_frame: Option<GridBounds>,
 }
 
+#[derive(Clone)]
 enum CompressedParticleData {
     Uncompressed(Vec<Particle>),
     Monotype(Particle),
     RunLength((HashMap<u8, Particle>, Vec<(u8, u8)>)),
 }
 
+#[derive(Clone)]
 pub struct CompressedChunk {
     pub position: GridVec,
     particle_data: CompressedParticleData,

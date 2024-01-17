@@ -25,6 +25,7 @@ pub struct World {
     compressed_regions: Vec<CompressedRegion>,
     loading_regions: VecDeque<LoadingRegion>,
     generator: Arc<dyn WorldGenerator + Sync + Send>,
+    removed_chunks: Vec<GridVec>,
 }
 
 pub struct WorldUpdateStats {
@@ -34,9 +35,14 @@ pub struct WorldUpdateStats {
     pub region_updates: u64,
 }
 
+enum LoadType {
+    Generate(Arc<dyn WorldGenerator + Send + Sync>),
+    Decompress(Arc<CompressedRegion>),
+}
+
 struct LoadingRegion {
     position: GridVec,
-    generator: Arc<dyn WorldGenerator + Send + Sync>,
+    source: LoadType,
     ready: Arc<AtomicBool>,
     region: Arc<Mutex<Option<Region>>>,
 }
@@ -48,6 +54,7 @@ impl World {
             compressed_regions: Vec::new(),
             loading_regions: VecDeque::new(),
             generator,
+            removed_chunks: Vec::new(),
         };
 
         return created;
@@ -68,30 +75,25 @@ impl World {
     }
 
     fn add_region(&mut self, regpos: GridVec) {
-        if self.retrieve_region_if_compressed(regpos) {
-            return;
-        }
-
         for loader in self.loading_regions.iter() {
             if regpos == loader.position {
                 return; // This one has already been requested and we're working on it, cool it
             }
         }
 
-        self.loading_regions.push_back(LoadingRegion::new(regpos, self.generator.clone()));
+        if self.retrieve_region_if_compressed(regpos) {
+            return;
+        }
+
+        self.loading_regions.push_back(LoadingRegion::new_generate(regpos, self.generator.clone()));
         self.loading_regions.back_mut().unwrap().start_load();
     }
 
     fn retrieve_region_if_compressed(&mut self, regpos: GridVec) -> bool {
         for compreg in self.compressed_regions.iter() {
             if compreg.position == regpos {
-                let mut retrieved = Region::from_compressed(compreg);
-                for region in self.regions.iter_mut() {
-                    region.check_add_neighbor(&mut retrieved);
-                }
-        
-                self.regions.push(retrieved);
-                println!("Decompressed region: {}", regpos);
+                self.loading_regions.push_back(LoadingRegion::new_decompress(regpos, compreg));
+                self.loading_regions.back_mut().unwrap().start_load();
                 return true;
             }
         }
@@ -124,6 +126,7 @@ impl World {
             if region.staleness > staleness_threshold && !visible_bounds.contains(region.position) {
                 to_remove.push(region.position);
                 self.compressed_regions.push(region.compress_region());
+                self.removed_chunks.append(&mut region.get_chunk_positions());
                 println!("Compressed region: {}", region.position);
             }
         }
@@ -217,6 +220,12 @@ impl World {
         for reg in self.regions.iter_mut() {
             set.append(&mut &mut reg.get_updated_chunks());
         }
+        return set;
+    }
+
+    pub fn get_removed_chunks(&mut self) -> Vec<GridVec> {
+        let set = self.removed_chunks.clone();
+        self.removed_chunks.clear();
         return set;
     }
 
@@ -478,10 +487,19 @@ impl Eq for RegUpdateInfoWrapper<'_> {
 }
 
 impl LoadingRegion {
-    fn new(position: GridVec, generator: Arc<dyn WorldGenerator + Send + Sync>) -> Self {
+    fn new_generate(position: GridVec, generator: Arc<dyn WorldGenerator + Send + Sync>) -> Self {
         LoadingRegion {
             position,
-            generator,
+            source: LoadType::Generate(generator),
+            ready: Arc::new(false.into()),
+            region: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    fn new_decompress(position: GridVec, compressed: &CompressedRegion) -> Self {
+        LoadingRegion {
+            position,
+            source: LoadType::Decompress(Arc::new(compressed.clone())),
             ready: Arc::new(false.into()),
             region: Arc::new(Mutex::new(None)),
         }
@@ -491,13 +509,26 @@ impl LoadingRegion {
         let ready = self.ready.clone();
         let region = self.region.clone();
         let position = self.position.clone();
-        let generator = self.generator.clone();
 
-        rayon::spawn(move || {
-            let mut reg = Region::new(position, generator);
-            reg.generate_terrain();
-            region.lock().unwrap().replace(reg);
-            ready.store(true, std::sync::atomic::Ordering::Relaxed);
-        });
+        match &self.source {
+            LoadType::Generate(gen) => {
+                let generator = gen.clone();
+
+                rayon::spawn(move || {
+                    let mut reg = Region::new(position, generator);
+                    reg.generate_terrain();
+                    region.lock().unwrap().replace(reg);
+                    ready.store(true, std::sync::atomic::Ordering::Relaxed);
+                });
+            }
+            LoadType::Decompress(comp) => {
+                let compressed = comp.clone();
+                rayon::spawn(move || {
+                    let reg = Region::from_compressed(&compressed);
+                    region.lock().unwrap().replace(reg);
+                    ready.store(true, std::sync::atomic::Ordering::Relaxed);
+                });
+            }
+        }
     }
 }

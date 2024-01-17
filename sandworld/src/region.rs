@@ -19,6 +19,7 @@ pub struct Region {
     generator: Arc<dyn WorldGenerator + Send + Sync>,
 }
 
+#[derive(Clone)]
 pub struct CompressedRegion {
     pub position: GridVec,
     chunks: Vec<CompressedChunk>,
@@ -70,6 +71,16 @@ impl Region {
         self.chunks.par_iter_mut().for_each(|chunk| {
             chunk.regenerate(&self.generator);
         });
+    }
+
+    pub fn get_chunk_positions(&self) -> Vec<GridVec> {
+        let mut poses = Vec::new();
+
+        for chunk in self.chunks.iter() {
+            poses.push(chunk.position);
+        }
+
+        return poses;
     }
 
     pub fn compress_region(&self) -> CompressedRegion {

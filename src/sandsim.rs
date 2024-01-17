@@ -41,7 +41,7 @@ impl Plugin for SandSimulationPlugin {
             chunk_cull_time: VecDeque::new(),
             target_chunk_updates: 0,
         })
-        .add_systems(Update, create_spawned_chunks.in_set(crate::UpdateStages::WorldUpdate))
+        .add_systems(Update, (create_spawned_chunks, clear_removed_chunks).in_set(crate::UpdateStages::WorldUpdate))
         .add_systems(Update, sand_update.in_set(crate::UpdateStages::WorldUpdate))
         .add_systems(Update, update_chunk_textures.in_set(crate::UpdateStages::WorldDraw))
         .add_systems(Update, world_interact.in_set(crate::UpdateStages::Input))
@@ -157,6 +157,20 @@ fn create_spawned_chunks(
                     chunk_texture_handle: image_handle.clone(),
                     texture_dirty: false,
                 });
+        }
+    }
+}
+
+fn clear_removed_chunks(
+    mut world: ResMut<Sandworld>,
+    chunk_query: Query<(&mut Chunk, Entity)>,
+    mut commands: Commands,
+) {
+    let removed_chunks = world.world.get_removed_chunks();
+    
+    for (chunk, entity) in chunk_query.iter() {
+        if removed_chunks.contains(&chunk.chunk_pos) {
+            commands.entity(entity).despawn();
         }
     }
 }
