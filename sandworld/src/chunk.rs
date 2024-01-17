@@ -134,6 +134,8 @@ impl CompressedChunk {
             CompressedParticleData::RunLength((_map, _data)) => {}
         }
 
+        // created.mark_self_dirty();
+
         created
     }
 }

@@ -51,7 +51,7 @@ impl Region {
         let mut reg = Region {
             position: compressed_region.position,
             staleness: 0,
-            last_chunk_updates: 0,
+            last_chunk_updates: compressed_region.chunks.len() as u64,
             chunks: vec![],
             added_chunks: vec![],
             updated_chunks: vec![],
@@ -60,7 +60,7 @@ impl Region {
         };
         
         for comp_chunk in compressed_region.chunks.iter() {
-            reg.chunks.push(Box::new(comp_chunk.decompress()));
+            reg.add_existing_chunk(Box::new(comp_chunk.decompress()));
         }
 
         reg
@@ -95,6 +95,15 @@ impl Region {
 
         self.chunks.push(added);
         self.added_chunks.push(chunkpos);
+    }
+
+    fn add_existing_chunk(&mut self, mut added: Box<Chunk>) {
+        for chunk in self.chunks.iter_mut() {
+            chunk.check_add_neighbor(&mut added);
+        }
+
+        self.added_chunks.push(added.position);
+        self.chunks.push(added);
     }
 
     pub(crate) fn check_add_neighbor(&mut self, other_reg: &mut Region) {
