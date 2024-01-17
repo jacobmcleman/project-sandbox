@@ -3,6 +3,7 @@ use rand::rngs::ThreadRng;
 use rand::{RngCore, Rng};
 use rayon::prelude::*;
 use std::collections::{BinaryHeap, VecDeque};
+use std::mem::swap;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use std::sync::atomic::{AtomicU64, AtomicBool};
@@ -24,6 +25,7 @@ pub struct World {
     regions: Vec<Region>,
     compressed_regions: Vec<CompressedRegion>,
     loading_regions: VecDeque<LoadingRegion>,
+    unloading_regions: VecDeque<UnloadingRegion>,
     generator: Arc<dyn WorldGenerator + Sync + Send>,
     removed_chunks: Vec<GridVec>,
 }
@@ -47,12 +49,20 @@ struct LoadingRegion {
     region: Arc<Mutex<Option<Region>>>,
 }
 
+struct UnloadingRegion {
+    position: GridVec,
+    region: Arc<Region>,
+    ready: Arc<AtomicBool>,
+    compressed_region: Arc<Mutex<Option<CompressedRegion>>>,
+}
+
 impl World {
     pub fn new(generator: Arc<dyn WorldGenerator + Sync + Send>) -> Self {
         let created: World = World {
             regions: Vec::new(),
             compressed_regions: Vec::new(),
             loading_regions: VecDeque::new(),
+            unloading_regions: VecDeque::new(),
             generator,
             removed_chunks: Vec::new(),
         };
@@ -78,6 +88,13 @@ impl World {
         for loader in self.loading_regions.iter() {
             if regpos == loader.position {
                 return; // This one has already been requested and we're working on it, cool it
+            }
+        }
+
+        for unloader in self.unloading_regions.iter() {
+            if regpos == unloader.position {
+                println!("Region {} requested, currently queued for compression - doing nothing until it is ready", regpos);
+                return; // This one is still being compressed, wait for it to be done so no data is lost
             }
         }
 
@@ -118,16 +135,46 @@ impl World {
                 }
             }
         }
+
+        loop {
+            if let Some(unloader) = self.unloading_regions.front() {
+                if unloader.ready.fetch_and(true, std::sync::atomic::Ordering::Relaxed) {
+                    let unloaded = self.unloading_regions.pop_front().unwrap();
+    
+                    if let Ok(mutex) = Arc::try_unwrap(unloaded.compressed_region) {
+                        let mut guard = mutex.lock().unwrap();
+    
+                        if let Some(reg) = guard.take() {
+                            self.compressed_regions.push(reg);
+                        }
+                    }
+                }
+                else {
+                    break;
+                }
+            }
+            else {
+                break;
+            }
+        }
+        
     }
 
     fn compress_idle_regions(&mut self, visible_bounds: GridBounds, staleness_threshold: u64) {
         let mut to_remove = Vec::new();
-        for region in self.regions.iter() {
+        for region in self.regions.iter_mut() {
             if region.staleness > staleness_threshold && !visible_bounds.contains(region.position) {
                 to_remove.push(region.position);
-                self.compressed_regions.push(region.compress_region());
+                
                 self.removed_chunks.append(&mut region.get_chunk_positions());
-                println!("Compressed region: {}", region.position);
+
+                println!("Compressing region: {}", region.position);
+                let mut reg = Region::new(region.position, self.generator.clone());
+                swap(region, &mut reg);
+                self.unloading_regions.push_back(UnloadingRegion::new(region.position, reg));
+                self.unloading_regions.back_mut().unwrap().start_unload();
+
+                break; // Only do one region per frame
             }
         }
 
@@ -384,7 +431,7 @@ impl World {
             self.add_region_if_needed(regpos);
         }
 
-        self.compress_idle_regions(visible_regions, 8);
+        self.compress_idle_regions(visible_regions, 12);
 
         let max_update_regions = 16;
         let visible_region_count = visible_regions.area();
@@ -484,6 +531,29 @@ impl PartialEq for RegUpdateInfoWrapper<'_> {
 
 impl Eq for RegUpdateInfoWrapper<'_> {
 
+}
+
+impl UnloadingRegion {
+    fn new(position: GridVec, region: Region) -> Self { 
+        UnloadingRegion {
+            position,
+            region: Arc::new(region),
+            ready: Arc::new(false.into()),
+            compressed_region: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    fn start_unload(&mut self) {
+        let ready = self.ready.clone();
+        let region = self.region.clone();
+        let compressed_region = self.compressed_region.clone();
+
+        rayon::spawn(move || {
+            let reg = region.compress_region();
+            compressed_region.lock().unwrap().replace(reg);
+            ready.store(true, std::sync::atomic::Ordering::Relaxed);
+        });
+    }
 }
 
 impl LoadingRegion {
