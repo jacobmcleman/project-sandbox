@@ -1,4 +1,5 @@
 pub const CHUNK_SIZE: u8 = 64;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 
 use gridmath::*;
@@ -16,6 +17,18 @@ pub struct Chunk {
     pub(crate) updated_last_frame: Option<GridBounds>,
 }
 
+#[derive(Clone)]
+enum CompressedParticleData {
+    Uncompressed(Vec<Particle>),
+    Monotype(Particle),
+    RunLength((HashMap<u8, Particle>, Vec<(u8, u8)>)),
+}
+
+#[derive(Clone)]
+pub struct CompressedChunk {
+    pub position: GridVec,
+    particle_data: CompressedParticleData,
+}  
 #[derive(Debug)]
 struct Neighbors {
     top_left: Option<*mut Chunk>,
@@ -91,6 +104,50 @@ impl Drop for Neighbors {
     }
 }
 
+impl CompressedChunk {
+    pub fn decompress(&self) -> Chunk {
+        let mut created = Chunk {
+            position: self.position,
+            neighbors: Neighbors::new(),
+            particles: [Particle::default(); CHUNK_SIZE as usize *  CHUNK_SIZE as usize],
+            dirty: RwLock::new(None),
+            update_this_frame: None,
+            updated_last_frame: None,
+        };
+
+        match &self.particle_data {
+            CompressedParticleData::Monotype(part) => {
+                for y in 0..CHUNK_SIZE {
+                    for x in 0..CHUNK_SIZE {
+                        created.set_particle_sloppy(x, y, *part)
+                    }
+                }
+            }
+            CompressedParticleData::Uncompressed(data) => {
+                for y in 0..CHUNK_SIZE {
+                    for x in 0..CHUNK_SIZE {
+                        let index = y as usize * CHUNK_SIZE as usize + x as usize;
+                        created.set_particle_sloppy(x, y, data[index])
+                    }
+                }
+            }
+            CompressedParticleData::RunLength((map, data)) => {
+                let mut index = 0;
+                for (id, length) in data {
+                    let part = map[id];
+                    for _ in 0..*length {
+                        created.particles[index] = part;
+                        index += 1;
+                    }
+                }
+            }
+        }
+
+        // created.mark_self_dirty();
+
+        created
+    }
+}
 
 impl Chunk {
     pub fn new(position: GridVec) -> Self {
@@ -123,6 +180,86 @@ impl Chunk {
                 self.mark_self_dirty();
             }
         }
+    }
+
+    pub fn compress(&self) -> CompressedChunk {
+        let mut different_types = 0;
+        let mut seen_types = HashSet::<Particle>::new();
+
+        for y in 0..CHUNK_SIZE {
+            for x in 0..CHUNK_SIZE {
+                let part = self.get_particle(x, y);
+                if !seen_types.contains(&part) {
+                    seen_types.insert(part);
+                    different_types += 1;
+                }
+            }
+        }
+
+        CompressedChunk {
+            position: self.position,
+            particle_data: if different_types == 1 { 
+                // All the same type, so just take the first particle as archetype
+                CompressedParticleData::Monotype(self.particles[0])
+            }
+            else if different_types < 16 {
+                let mut next_id = 1;
+                let mut map: HashMap<Particle, u8> = HashMap::new();
+                let mut data: Vec<(u8, u8)> = Vec::new();
+
+                let mut run_part = Particle::new(ParticleType::Air);
+                let mut cur_run_length = 0;
+
+                for y in 0..CHUNK_SIZE {
+                    for x in 0..CHUNK_SIZE {
+                        let cur_part = self.get_particle(x, y);
+                        
+                        if cur_part == run_part && cur_run_length < u8::MAX {
+                            cur_run_length += 1;
+                        }
+                        else {
+                            if cur_run_length > 0 {
+                                if !map.contains_key(&run_part) {
+                                    map.insert(run_part, next_id);
+                                    next_id += 1;
+                                }
+                                data.push((map[&run_part], cur_run_length));
+                            }
+
+                            run_part = cur_part;
+                            cur_run_length = 1;
+                        }
+                    }
+                }
+
+                // Save the final run
+                if !map.contains_key(&run_part) {
+                    map.insert(run_part, next_id);
+                }
+                data.push((map[&run_part], cur_run_length));
+
+                let mut flipmap: HashMap<u8, Particle> = HashMap::new();
+
+                for (part, id) in map {
+                    flipmap.insert(id, part);
+                }
+
+                CompressedParticleData::RunLength((flipmap, data))
+            }
+            else {
+                CompressedParticleData::Uncompressed(self.part_data_vec())
+            }
+        }
+    }
+
+    fn part_data_vec(&self) -> Vec<Particle> {
+        let mut data = Vec::new();
+        for y in 0..CHUNK_SIZE {
+            for x in 0..CHUNK_SIZE {
+                data.push(self.get_particle(x, y))
+            }
+        }
+        data
     }
     
     fn get_index_in_chunk(x: u8, y: u8) -> usize {

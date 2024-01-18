@@ -19,6 +19,12 @@ pub struct Region {
     generator: Arc<dyn WorldGenerator + Send + Sync>,
 }
 
+#[derive(Clone)]
+pub struct CompressedRegion {
+    pub position: GridVec,
+    chunks: Vec<CompressedChunk>,
+    generator: Arc<dyn WorldGenerator + Send + Sync>,
+}
 
 impl Region {
     pub fn new(position: GridVec, generator: Arc<dyn WorldGenerator + Send + Sync>) -> Self {
@@ -42,10 +48,53 @@ impl Region {
         reg
     }
 
+    pub fn from_compressed(compressed_region: &CompressedRegion) -> Self {
+        let mut reg = Region {
+            position: compressed_region.position,
+            staleness: 0,
+            last_chunk_updates: compressed_region.chunks.len() as u64,
+            chunks: vec![],
+            added_chunks: vec![],
+            updated_chunks: vec![],
+            update_priority: 0,
+            generator: compressed_region.generator.clone(),
+        };
+        
+        for comp_chunk in compressed_region.chunks.iter() {
+            reg.add_existing_chunk(Box::new(comp_chunk.decompress()));
+        }
+
+        reg
+    }
+
     pub fn generate_terrain(&mut self) {
         self.chunks.par_iter_mut().for_each(|chunk| {
             chunk.regenerate(&self.generator);
         });
+    }
+
+    pub fn get_chunk_positions(&self) -> Vec<GridVec> {
+        let mut poses = Vec::new();
+
+        for chunk in self.chunks.iter() {
+            poses.push(chunk.position);
+        }
+
+        return poses;
+    }
+
+    pub fn compress_region(&self) -> CompressedRegion {
+        let mut compressed_chunks = Vec::new();
+
+        for chunk in self.chunks.iter() {
+            compressed_chunks.push(chunk.compress());
+        }
+
+        CompressedRegion {
+            position: self.position,
+            chunks: compressed_chunks,
+            generator: self.generator.clone(),
+        }
     }
 
     fn add_chunk(&mut self, chunkpos: GridVec) {
@@ -57,6 +106,15 @@ impl Region {
 
         self.chunks.push(added);
         self.added_chunks.push(chunkpos);
+    }
+
+    fn add_existing_chunk(&mut self, mut added: Box<Chunk>) {
+        for chunk in self.chunks.iter_mut() {
+            chunk.check_add_neighbor(&mut added);
+        }
+
+        self.added_chunks.push(added.position);
+        self.chunks.push(added);
     }
 
     pub(crate) fn check_add_neighbor(&mut self, other_reg: &mut Region) {
@@ -186,8 +244,9 @@ impl Region {
         for self_chunk_pos in self_chunks.iter() {
             for other_chunk_pos in other_chunks.iter() {
                 let self_chunk = &mut self.chunks[Region::local_chunkpos_to_region_index(self_chunk_pos)];
-                
-                self_chunk.check_remove_neighbor(*other_chunk_pos);
+                let other_chunk_pos_adj = (*other_regpos * REGION_SIZE as i32) + *other_chunk_pos;
+
+                self_chunk.check_remove_neighbor(other_chunk_pos_adj);
             }
         }
     }
