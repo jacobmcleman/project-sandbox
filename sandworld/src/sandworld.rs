@@ -167,8 +167,7 @@ impl World {
                 to_remove.push(region.position);
                 
                 self.removed_chunks.append(&mut region.get_chunk_positions());
-
-                println!("Compressing region: {}", region.position);
+                
                 let mut reg = Region::new(region.position, self.generator.clone());
                 swap(region, &mut reg);
                 self.unloading_regions.push_back(UnloadingRegion::new(region.position, reg));
