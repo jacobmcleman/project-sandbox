@@ -4,7 +4,8 @@ name: Build Release
 on: 
   workflow_dispatch:
   push:
-    branches: [main]
+    tags:
+      - '*'
 
 env:
   CARGO_TERM_COLOR: always
@@ -58,6 +59,6 @@ jobs:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: project-sandbox_${{ matrix.platform_name }}.zip
         asset_name: project-sandbox_${{ matrix.platform_name }}.zip
-        overwrite: true
-        release_name: dev-build_${{ steps.time.outputs.time }}
+        overwrite: false
+        tag: ${{ github.ref }}
         
