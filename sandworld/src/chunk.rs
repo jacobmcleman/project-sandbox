@@ -28,8 +28,7 @@ enum CompressedParticleData {
 pub struct CompressedChunk {
     pub position: GridVec,
     particle_data: CompressedParticleData,
-}
-
+}  
 #[derive(Debug)]
 struct Neighbors {
     top_left: Option<*mut Chunk>,
@@ -132,7 +131,16 @@ impl CompressedChunk {
                     }
                 }
             }
-            CompressedParticleData::RunLength((_map, _data)) => {}
+            CompressedParticleData::RunLength((map, data)) => {
+                let mut index = 0;
+                for (id, length) in data {
+                    let part = map[id];
+                    for _ in 0..*length {
+                        created.particles[index] = part;
+                        index += 1;
+                    }
+                }
+            }
         }
 
         // created.mark_self_dirty();
@@ -194,8 +202,51 @@ impl Chunk {
                 // All the same type, so just take the first particle as archetype
                 CompressedParticleData::Monotype(self.particles[0])
             }
+            else if different_types < 16 {
+                let mut next_id = 1;
+                let mut map: HashMap<Particle, u8> = HashMap::new();
+                let mut data: Vec<(u8, u8)> = Vec::new();
+
+                let mut run_part = Particle::new(ParticleType::Air);
+                let mut cur_run_length = 0;
+
+                for y in 0..CHUNK_SIZE {
+                    for x in 0..CHUNK_SIZE {
+                        let cur_part = self.get_particle(x, y);
+                        
+                        if cur_part == run_part && cur_run_length < u8::MAX {
+                            cur_run_length += 1;
+                        }
+                        else {
+                            if cur_run_length > 0 {
+                                if !map.contains_key(&run_part) {
+                                    map.insert(run_part, next_id);
+                                    next_id += 1;
+                                }
+                                data.push((map[&run_part], cur_run_length));
+                            }
+
+                            run_part = cur_part;
+                            cur_run_length = 1;
+                        }
+                    }
+                }
+
+                // Save the final run
+                if !map.contains_key(&run_part) {
+                    map.insert(run_part, next_id);
+                }
+                data.push((map[&run_part], cur_run_length));
+
+                let mut flipmap: HashMap<u8, Particle> = HashMap::new();
+
+                for (part, id) in map {
+                    flipmap.insert(id, part);
+                }
+
+                CompressedParticleData::RunLength((flipmap, data))
+            }
             else {
-                // TODO: implement actual compression
                 CompressedParticleData::Uncompressed(self.part_data_vec())
             }
         }
