@@ -170,6 +170,7 @@ impl Chunk {
     }
 
     pub fn regenerate(&mut self, generator: &Arc<dyn WorldGenerator + Send + Sync>) {
+        // println!("generating chunk {}", self.position);
         for y in 0..CHUNK_SIZE {
             for x in 0..CHUNK_SIZE {
                 let worldpos = GridVec::new(

@@ -1,7 +1,7 @@
 use bevy::{
     prelude::*,
     render::render_resource::{Extent3d, TextureFormat}, 
-    window::PrimaryWindow,
+    window::PrimaryWindow, input::keyboard::KeyboardInput,
 };
 use gridmath::{GridBounds, GridVec};
 use rand::Rng;
@@ -40,6 +40,9 @@ impl Plugin for SandSimulationPlugin {
             chunk_texture_update_time: VecDeque::new(),
             chunk_cull_time: VecDeque::new(),
             target_chunk_updates: 0,
+            mouse_grid_pos: GridVec::new(0, 0),
+            mouse_chunk_pos: GridVec::new(0, 0),
+            mouse_region: GridVec::new(0, 0),
         })
         .add_systems(Update, (create_spawned_chunks, clear_removed_chunks).in_set(crate::UpdateStages::WorldUpdate))
         .add_systems(Update, sand_update.in_set(crate::UpdateStages::WorldUpdate))
@@ -91,6 +94,9 @@ pub struct WorldStats {
     pub chunk_texture_update_time: VecDeque<(f64, u64)>, // Pairs of update time and updated chunk counts
     pub chunk_cull_time: VecDeque<(f64, u64)>, // Pairs of culling time and culled chunk counts
     pub target_chunk_updates: u64,
+    pub mouse_grid_pos: GridVec,
+    pub mouse_chunk_pos: GridVec,
+    pub mouse_region: GridVec,
 }
 
 fn draw_mode_controls(mut draw_options: ResMut<DrawOptions>, keys: Res<Input<KeyCode>>) {
@@ -261,6 +267,7 @@ fn sand_update(
     mut world_stats: ResMut<WorldStats>,
     perf_settings: Res<crate::perf::PerfSettings>,
     cam_query: Query<(&OrthographicProjection, &Camera, &GlobalTransform)>,
+    debug_buttons: Res<Input<KeyCode>>,
 ) {
     let mut target_chunk_updates = 128;
 
@@ -280,8 +287,12 @@ fn sand_update(
     let (ortho, camera, cam_transform) = cam_query.single();
     let bounds = cam_bounds(ortho, camera, cam_transform);
 
+    let update_options = sandworld::WorldUpdateOptions {
+        force_compress_decompress_all: debug_buttons.just_pressed(KeyCode::F10),
+    };
+
     let update_start = std::time::Instant::now();
-    let stats = world.world.update(bounds, target_chunk_updates);
+    let stats = world.world.update(bounds, target_chunk_updates, update_options);
     let update_end = std::time::Instant::now();
     let update_time = update_end - update_start;
     world_stats
@@ -300,24 +311,29 @@ fn world_interact(
     mut sand: ResMut<Sandworld>,
     buttons: Res<Input<MouseButton>>,
     brush_options: Res<BrushOptions>,
+    mut world_stats: ResMut<WorldStats>,
 ) {
-    if !capture_state.click_consumed && buttons.any_pressed([MouseButton::Left, MouseButton::Right])
-    {
-        // get the camera info and transform
-        // assuming there is exactly one main camera entity, so query::single() is OK
-        let (camera, camera_transform) = q_cam.single();
+    // get the camera info and transform
+    // assuming there is exactly one main camera entity, so query::single() is OK
+    let (camera, camera_transform) = q_cam.single();
 
-        // get the window that the camera is displaying to (or the primary window)
-        let Ok(wnd) = wnds.get_single() else {
-            eprintln!("no window!!!");
-            return;
-        };
+    // get the window that the camera is displaying to (or the primary window)
+    let Ok(wnd) = wnds.get_single() else {
+        eprintln!("no window!!!");
+        return;
+    };
 
-        // check if the cursor is inside the window and get its position
-        if let Some(screen_pos) = wnd.cursor_position() {
-            let world_pos = camera.viewport_to_world_2d(camera_transform, screen_pos).unwrap();
-            let gridpos = GridVec::new(world_pos.x as i32, world_pos.y as i32);
+    // check if the cursor is inside the window and get its position
+    if let Some(screen_pos) = wnd.cursor_position() {
+        let world_pos = camera.viewport_to_world_2d(camera_transform, screen_pos).unwrap();
+        let gridpos = GridVec::new(world_pos.x as i32, world_pos.y as i32);
 
+        world_stats.mouse_grid_pos = gridpos;
+        world_stats.mouse_chunk_pos = gridpos / CHUNK_SIZE as i32;
+        world_stats.mouse_region = sandworld::World::get_regionpos_for_chunkpos(&(world_stats.mouse_chunk_pos));
+
+        if !capture_state.click_consumed && buttons.any_pressed([MouseButton::Left, MouseButton::Right])
+        {
             if buttons.pressed(MouseButton::Left) {
                 match brush_options.brush_mode {
                     BrushMode::Place(part_type, data) => sand.world.place_circle(
