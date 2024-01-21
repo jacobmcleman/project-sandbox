@@ -33,8 +33,14 @@ pub struct World {
 pub struct WorldUpdateStats {
     pub chunk_updates: u64,
     pub loaded_regions: usize,
+    pub loading_regions: usize,
     pub compressed_regions: usize,
+    pub compressing_regions: usize,
     pub region_updates: u64,
+}
+
+pub struct WorldUpdateOptions {
+    pub force_compress_decompress_all: bool,
 }
 
 enum LoadType {
@@ -99,22 +105,36 @@ impl World {
         }
 
         if self.retrieve_region_if_compressed(regpos) {
+            println!("Region {} requested, currently compressed, queued for decompression", regpos);
             return;
         }
 
+        println!("Region {} requested, generating...", regpos);
         self.loading_regions.push_back(LoadingRegion::new_generate(regpos, self.generator.clone()));
         self.loading_regions.back_mut().unwrap().start_load();
     }
 
     fn retrieve_region_if_compressed(&mut self, regpos: GridVec) -> bool {
+        let mut to_remove = None;
+        let mut index = 0;
         for compreg in self.compressed_regions.iter() {
             if compreg.position == regpos {
                 self.loading_regions.push_back(LoadingRegion::new_decompress(regpos, compreg));
                 self.loading_regions.back_mut().unwrap().start_load();
-                return true;
+
+                to_remove = Some(index);
+                break;
             }
+            index += 1;
         }
-        false
+
+        if let Some(i) = to_remove {
+            self.compressed_regions.remove(i);
+            true
+        }
+        else {
+            false
+        }
     }
 
     fn add_loaded_regions_to_sim(&mut self) {
@@ -135,7 +155,9 @@ impl World {
                 }
             }
         }
+    }
 
+    fn add_unloaded_region_to_list(&mut self) {
         loop {
             if let Some(unloader) = self.unloading_regions.front() {
                 if unloader.ready.fetch_and(true, std::sync::atomic::Ordering::Relaxed) {
@@ -160,10 +182,10 @@ impl World {
         
     }
 
-    fn compress_idle_regions(&mut self, visible_bounds: GridBounds, staleness_threshold: u64) {
+    fn compress_idle_regions(&mut self, visible_bounds: GridBounds, staleness_threshold: u64, force_compress_all: bool) {
         let mut to_remove = Vec::new();
         for region in self.regions.iter_mut() {
-            if region.staleness > staleness_threshold && !visible_bounds.contains(region.position) {
+            if force_compress_all || (region.staleness > staleness_threshold && !visible_bounds.contains(region.position)) {
                 to_remove.push(region.position);
                 
                 self.removed_chunks.append(&mut region.get_chunk_positions());
@@ -173,7 +195,7 @@ impl World {
                 self.unloading_regions.push_back(UnloadingRegion::new(region.position, reg));
                 self.unloading_regions.back_mut().unwrap().start_unload();
 
-                break; // Only do one region per frame
+                // break; // Only do one region per frame
             }
         }
 
@@ -207,7 +229,7 @@ impl World {
         return None;
     }
 
-    fn get_regionpos_for_chunkpos(chunkpos: &GridVec) -> GridVec {
+    pub fn get_regionpos_for_chunkpos(chunkpos: &GridVec) -> GridVec {
         let mut modpos = chunkpos.clone();
         if modpos.x < 0 {
             modpos.x -= REGION_SIZE as i32 - 1;
@@ -418,8 +440,9 @@ impl World {
         }
     }
 
-    pub fn update(&mut self, visible: GridBounds, target_chunk_updates: u64) -> WorldUpdateStats {
+    pub fn update(&mut self, visible: GridBounds, target_chunk_updates: u64, update_options: WorldUpdateOptions) -> WorldUpdateStats {
         self.add_loaded_regions_to_sim();
+        self.add_unloaded_region_to_list();
 
         let visible_regions = GridBounds::new_from_extents(
             Self::get_regionpos_for_pos(&visible.bottom_left()),
@@ -430,7 +453,7 @@ impl World {
             self.add_region_if_needed(regpos);
         }
 
-        self.compress_idle_regions(visible_regions, 12);
+        self.compress_idle_regions(visible_regions, 12, update_options.force_compress_decompress_all);
 
         let max_update_regions = 16;
         let visible_region_count = visible_regions.area();
@@ -499,7 +522,9 @@ impl World {
         WorldUpdateStats {
             chunk_updates,
             loaded_regions: self.regions.len(),
+            loading_regions: self.loading_regions.len(),
             compressed_regions: self.compressed_regions.len(),
+            compressing_regions: self.unloading_regions.len(),
             region_updates: updated_region_count.load(std::sync::atomic::Ordering::Relaxed),
         }
     }
@@ -582,6 +607,7 @@ impl LoadingRegion {
         match &self.source {
             LoadType::Generate(gen) => {
                 let generator = gen.clone();
+                // println!("Generating region {}", position);
 
                 rayon::spawn(move || {
                     let mut reg = Region::new(position, generator);
@@ -592,6 +618,8 @@ impl LoadingRegion {
             }
             LoadType::Decompress(comp) => {
                 let compressed = comp.clone();
+                // println!("Decompressing region {}", position);
+
                 rayon::spawn(move || {
                     let reg = Region::from_compressed(&compressed);
                     region.lock().unwrap().replace(reg);

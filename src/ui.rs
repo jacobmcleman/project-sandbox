@@ -134,8 +134,10 @@ fn update_performance_text(
         );
 
         if let Some(world_stats) = &stats.update_stats {
-            text.sections[1].value = format!("\nLoaded Regions: {}", world_stats.loaded_regions);
-            text.sections[2].value = format!("\nCompressed Regions: {}", world_stats.compressed_regions);
+            text.sections[1].value = format!("\nLoaded Regions: {0} ({1}) [Compressed {2} ({3})]", 
+                world_stats.loaded_regions, world_stats.loading_regions, 
+                world_stats.compressed_regions, world_stats.compressing_regions);
+            text.sections[2].value = format!("\nMouse position: {0} (Chunk: {1} Region: {2})", stats.mouse_grid_pos, stats.mouse_chunk_pos, stats.mouse_region);
             text.sections[3].value = format!("\nRegion Updates: {}", world_stats.region_updates);
             text.sections[4].value = format!(
                 "\nChunk Updates [Target]: {} [{}]",
