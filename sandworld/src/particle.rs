@@ -1,6 +1,5 @@
 use gridmath::GridVec;
 use rand::Rng;
-use once_cell::sync::Lazy;
 
 #[derive(PartialEq, Eq, Debug, Copy, Clone, Hash)]
 pub enum ParticleType {
@@ -23,19 +22,17 @@ pub enum ParticleType {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct ParticleSet {
-    data: u8
-}
+pub struct ParticleSet (u16);
 
 macro_rules! part_set {
     () => {
         ParticleSet::none()
     };
     ($e:expr) => {
-        ParticleSet::none().include($e)
+        ParticleSet::with($e)
     };
     ($x:expr, $($y:expr),+) => {
-        ParticleSet::none().include($x).union(part_set![$($y),+])
+        ParticleSet::with($x).union(part_set![$($y),+])
     };
 }
 
@@ -64,7 +61,10 @@ pub(crate) enum ChunkCommand {
     Mutate(ParticleType, u8),
 }
 
-pub static SOLID_MATS: ParticleSet = part_set![ParticleType::Stone, ParticleType::Glass];
+pub static SOLID_MATS: ParticleSet = part_set![ParticleType::Stone, ParticleType::Glass, ParticleType::Ice];
+
+pub static POWDER_MATS: ParticleSet = part_set![ParticleType::Sand, ParticleType::Gravel];
+pub static LIQUID_MATS: ParticleSet = part_set![ParticleType::Water, ParticleType::MoltenGlass, ParticleType::Lava];
 
 
 impl Particle {
@@ -326,22 +326,20 @@ impl CustomUpdateRules {
 } 
 
 impl ParticleSet {
-    pub fn none() -> Self {
-        Self {
-            data: 0
-        }
+    pub const fn none() -> Self {
+        ParticleSet(0)
     }
 
-    pub fn all() -> Self {
-        Self {
-            data: !0
-        }
+    pub const fn with(part_type: ParticleType) -> Self {
+        ParticleSet(1 << (part_type as u8))
+    }
+
+    pub const fn all() -> Self {
+        ParticleSet(!0)
     }
 
     pub fn from(vec: &Vec<ParticleType>) -> Self {
-        let mut made = Self {
-            data: 0
-        };
+        let mut made = ParticleSet(0);
 
         for part in vec.iter() {
             made.include(*part);
@@ -351,22 +349,20 @@ impl ParticleSet {
     }
 
     pub fn include(&mut self, part_type: ParticleType) -> &Self {
-        self.data |= 1 << (part_type as u8);
+        self.0 |= 1 << (part_type as u8);
         self
     }
 
     pub fn exclude(&mut self, part_type: ParticleType) -> &Self {
-        self.data |= !(1 << (part_type as u8));
+        self.0 |= !(1 << (part_type as u8));
         self
     }
 
-    pub fn union(&self, other: &ParticleSet) -> ParticleSet {
-        ParticleSet {
-            data: self.data | other.data
-        }
+    pub const fn union(&self, other: ParticleSet) -> ParticleSet {
+        ParticleSet(self.0 | other.0)
     }
 
-    pub fn test(&self, part_type: ParticleType) -> bool {
-        (self.data & 1 << (part_type as u8)) != 0
+    pub const fn test(&self, part_type: ParticleType) -> bool {
+        (self.0 & 1 << (part_type as u8)) != 0
     }
 }

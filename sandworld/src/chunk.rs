@@ -681,10 +681,10 @@ impl Chunk {
         call(self.get_local_part(x - 1, y + 1));
     }
     
-    fn count_neighbors_of_type(&self, x: i16, y: i16, search: &Vec<ParticleType>) -> u8 {
+    fn count_neighbors_of_type(&self, x: i16, y: i16, search: &ParticleSet) -> u8 {
         let mut count = 0;
         self.iterate_neighbor_parts(x, y, &mut |part_type: ParticleType| {
-            if search.contains(&part_type){
+            if search.test(part_type){
                 count += 1;
             }
         });
