@@ -5,7 +5,7 @@ use std::sync::{Arc, RwLock};
 use gridmath::*;
 use rand::{Rng, rngs::ThreadRng};
 use crate::region::REGION_SIZE;
-use crate::{particle::*, WorldGenerator};
+use crate::{particle::*, WorldGenerator, collisions};
 
 #[derive(Debug)]
 pub struct Chunk {
@@ -419,6 +419,47 @@ impl Chunk {
         }
         return false;
     }
+
+    pub fn cast_ray(&self, hitmask: &ParticleSet, start: GridVec, end: GridVec) -> Option<collisions::HitInfo> {
+        // Verify line crosses this chunk
+        // Pull out relevant section of the line
+        // Convert intersection segment coords to local coords
+        // Run local version raycast
+        // Build HitInfo if there was an intersection
+
+        None
+    }
+
+    fn cast_ray_local(&self, hitmask: &ParticleSet, start_x: i16, start_y: i16, end_x: i16, end_y: i16) -> Option<(u8, u8)> {
+        let move_vec_x = end_x - start_x;
+        let move_vec_y = end_y - start_y;
+
+        if move_vec_x.abs() > 1 || move_vec_y.abs() > 1 {
+            // need to step
+            let test_pos_x = start_x + move_vec_x.signum();
+            let test_pos_y = start_y + move_vec_y.signum();
+
+            let test_part = self.get_particle(test_pos_x as u8, test_pos_y as u8);
+            
+            if !hitmask.test(test_part.particle_type) {
+                // Recurse to call next step if this step was clear
+                self.cast_ray_local(hitmask, test_pos_x, test_pos_y, end_x, end_y)
+            }
+            else { 
+                Some((test_pos_x as u8, test_pos_y as u8))
+            }
+        }
+        else {
+            let test_part = self.get_particle(end_x as u8, end_y as u8);
+            if !hitmask.test(test_part.particle_type) {
+                None
+            }
+            else { 
+                Some((end_x as u8, end_y as u8))
+            }
+        }
+    }
+
 
     fn test_vec(&self, base_x: i16, base_y: i16, test_vec_x: i8, test_vec_y: i8, test_type: ParticleType) -> bool {
         if test_vec_x.abs() > 1 || test_vec_y.abs() > 1 {

@@ -37,7 +37,7 @@ impl GridBounds {
         self.bottom_left.x
     }
 
-    pub fn _top(&self) -> i32 {
+    pub fn top(&self) -> i32 {
         self.top_right.y
     }
 
@@ -105,6 +105,31 @@ impl GridBounds {
             || point.y == self.bottom_left().y
             || point.y == self.top_right().y - 1
         )
+    }
+
+    // Based on Cohen-Sutherland algorithm
+    // each out of bounds direction for a point has a corresponding bit
+    // if two points bitwise-and to a non-zero value then the line between them cannot be in this bounds
+    fn get_boundbits(&self, point: &GridVec) -> u8 {
+        let mut val = 0;
+
+        if point.y > self.top() { val |= 1 << 0; }
+        if point.y > self.bottom() { val |= 1 << 1; }
+        if point.x > self.right() { val |= 1 << 2; }
+        if point.x > self.left() { val |= 1 << 3; }
+
+        val
+    }
+
+    pub fn clip_line(&self, a: GridVec, b: GridVec) -> Option<(GridVec, GridVec)> {
+        if self.get_boundbits(&a) | self.get_boundbits(&b) == 0 {
+            // Some intersection might be happening, check more
+            None
+        } 
+        else {
+            // Impossible for intersection to occur
+            None
+        }
     }
 
     pub fn area(&self) -> u32 {

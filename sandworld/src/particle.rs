@@ -22,6 +22,23 @@ pub enum ParticleType {
     Dirty,
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct ParticleSet {
+    data: u8
+}
+
+macro_rules! part_set {
+    () => {
+        ParticleSet::none()
+    };
+    ($e:expr) => {
+        ParticleSet::none().include($e)
+    };
+    ($x:expr, $($y:expr),+) => {
+        ParticleSet::none().include($x).union(part_set![$($y),+])
+    };
+}
+
 #[derive(Debug, Copy, Clone, Hash)]
 pub struct Particle {
     pub particle_type: ParticleType,
@@ -47,7 +64,7 @@ pub(crate) enum ChunkCommand {
     Mutate(ParticleType, u8),
 }
 
-pub static SOLID_MATS: Lazy<Vec<ParticleType>> = Lazy::new(|| {vec![ParticleType::Stone, ParticleType::Glass] });
+pub static SOLID_MATS: ParticleSet = part_set![ParticleType::Stone, ParticleType::Glass];
 
 
 impl Particle {
@@ -307,3 +324,49 @@ impl CustomUpdateRules {
         ]
     }
 } 
+
+impl ParticleSet {
+    pub fn none() -> Self {
+        Self {
+            data: 0
+        }
+    }
+
+    pub fn all() -> Self {
+        Self {
+            data: !0
+        }
+    }
+
+    pub fn from(vec: &Vec<ParticleType>) -> Self {
+        let mut made = Self {
+            data: 0
+        };
+
+        for part in vec.iter() {
+            made.include(*part);
+        }
+
+        made
+    }
+
+    pub fn include(&mut self, part_type: ParticleType) -> &Self {
+        self.data |= 1 << (part_type as u8);
+        self
+    }
+
+    pub fn exclude(&mut self, part_type: ParticleType) -> &Self {
+        self.data |= !(1 << (part_type as u8));
+        self
+    }
+
+    pub fn union(&self, other: &ParticleSet) -> ParticleSet {
+        ParticleSet {
+            data: self.data | other.data
+        }
+    }
+
+    pub fn test(&self, part_type: ParticleType) -> bool {
+        (self.data & 1 << (part_type as u8)) != 0
+    }
+}

@@ -99,17 +99,14 @@ impl World {
 
         for unloader in self.unloading_regions.iter() {
             if regpos == unloader.position {
-                println!("Region {} requested, currently queued for compression - doing nothing until it is ready", regpos);
                 return; // This one is still being compressed, wait for it to be done so no data is lost
             }
         }
 
         if self.retrieve_region_if_compressed(regpos) {
-            println!("Region {} requested, currently compressed, queued for decompression", regpos);
             return;
         }
 
-        println!("Region {} requested, generating...", regpos);
         self.loading_regions.push_back(LoadingRegion::new_generate(regpos, self.generator.clone()));
         self.loading_regions.back_mut().unwrap().start_load();
     }

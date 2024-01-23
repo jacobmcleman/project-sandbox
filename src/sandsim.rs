@@ -344,7 +344,7 @@ fn world_interact(
                     ),
                     BrushMode::Melt => {
                         sand.world
-                            .temp_change_circle(gridpos, brush_options.radius, 0.01, 800)
+                            .temp_change_circle(gridpos, brush_options.radius, 0.01, 1800)
                     }
                     BrushMode::Break => sand.world.break_circle(gridpos, brush_options.radius, 0.1),
                     BrushMode::Chill => {
