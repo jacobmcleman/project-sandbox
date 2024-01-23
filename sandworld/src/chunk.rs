@@ -3,7 +3,9 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 
 use gridmath::*;
+use gridmath::gridline::GridLine;
 use rand::{Rng, rngs::ThreadRng};
+use crate::collisions::HitInfo;
 use crate::region::REGION_SIZE;
 use crate::{particle::*, WorldGenerator, collisions};
 
@@ -420,44 +422,47 @@ impl Chunk {
         return false;
     }
 
-    pub fn cast_ray(&self, hitmask: &ParticleSet, start: GridVec, end: GridVec) -> Option<collisions::HitInfo> {
+    pub fn cast_ray(&self, hitmask: &ParticleSet, line: GridLine) -> Option<HitInfo> {
+        let chunk_world_root = self.position * CHUNK_SIZE as i32;
         // Verify line crosses this chunk
         // Pull out relevant section of the line
-        // Convert intersection segment coords to local coords
-        // Run local version raycast
-        // Build HitInfo if there was an intersection
+        let bounds = GridBounds::new_from_corner(
+            chunk_world_root, 
+            GridVec::new(CHUNK_SIZE as i32, CHUNK_SIZE as i32));
 
-        None
-    }
+        if let Some(clipped_line) = bounds.clip_line(line) {
+            // Convert intersection segment coords to local coords
+            let local_line = GridLine::new(
+                clipped_line.a - chunk_world_root,
+                clipped_line.b - chunk_world_root
+            );
 
-    fn cast_ray_local(&self, hitmask: &ParticleSet, start_x: i16, start_y: i16, end_x: i16, end_y: i16) -> Option<(u8, u8)> {
-        let move_vec_x = end_x - start_x;
-        let move_vec_y = end_y - start_y;
-
-        if move_vec_x.abs() > 1 || move_vec_y.abs() > 1 {
-            // need to step
-            let test_pos_x = start_x + move_vec_x.signum();
-            let test_pos_y = start_y + move_vec_y.signum();
-
-            let test_part = self.get_particle(test_pos_x as u8, test_pos_y as u8);
-            
-            if !hitmask.test(test_part.particle_type) {
-                // Recurse to call next step if this step was clear
-                self.cast_ray_local(hitmask, test_pos_x, test_pos_y, end_x, end_y)
+            // Run local version raycast
+            if let Some((hit_x, hit_y)) = self.cast_ray_local(hitmask, local_line) {
+                Some(HitInfo {
+                    point: chunk_world_root + GridVec::new(hit_x as i32, hit_y as i32),
+                    part: self.get_particle(hit_x, hit_y),
+                })
             }
-            else { 
-                Some((test_pos_x as u8, test_pos_y as u8))
+            else {
+                None
             }
         }
         else {
-            let test_part = self.get_particle(end_x as u8, end_y as u8);
-            if !hitmask.test(test_part.particle_type) {
-                None
-            }
-            else { 
-                Some((end_x as u8, end_y as u8))
+            None
+        }
+    }
+
+    fn cast_ray_local(&self, hitmask: &ParticleSet, local_line: GridLine) -> Option<(u8, u8)> {
+        for point in local_line.along() {
+            let test_part = self.get_particle(point.x as u8, point.y as u8);
+
+            if hitmask.test(test_part.particle_type) {
+                return Some((point.x as u8, point.y as u8));
             }
         }
+
+        return None;
     }
 
 

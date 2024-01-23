@@ -2,6 +2,7 @@ use std::cmp;
 use rand::Rng;
 use rand::rngs::ThreadRng;
 
+use crate::gridline::GridLine;
 use crate::gridvec::*;
 
 #[derive(PartialEq, Debug, Copy, Clone)]
@@ -45,11 +46,27 @@ impl GridBounds {
         self.top_right.x
     }
 
+    pub fn bottom_line(&self) -> GridLine {
+        GridLine::new(self.bottom_left(), self.bottom_right())
+    }
+
+    pub fn left_line(&self) -> GridLine {
+        GridLine::new(self.bottom_left(), self.top_left())
+    }
+
+    pub fn top_line(&self) -> GridLine {
+        GridLine::new(self.top_left(), self.top_right())
+    }
+
+    pub fn right_line(&self) -> GridLine {
+        GridLine::new(self.top_right(), self.bottom_right())
+    }
+
     pub fn bottom_left(&self) -> GridVec {
         self.bottom_left   
     }
 
-    pub fn _bottom_right(&self) -> GridVec {
+    pub fn bottom_right(&self) -> GridVec {
         GridVec { x: self.top_right.x, y: self.bottom_left.y }   
     }
 
@@ -109,7 +126,7 @@ impl GridBounds {
 
     // Based on Cohen-Sutherland algorithm
     // each out of bounds direction for a point has a corresponding bit
-    // if two points bitwise-and to a non-zero value then the line between them cannot be in this bounds
+    // if two points bitwise-and to a non-zero value then the line between them cannot be within this bounds
     fn get_boundbits(&self, point: &GridVec) -> u8 {
         let mut val = 0;
 
@@ -121,9 +138,43 @@ impl GridBounds {
         val
     }
 
-    pub fn clip_line(&self, a: GridVec, b: GridVec) -> Option<(GridVec, GridVec)> {
-        if self.get_boundbits(&a) | self.get_boundbits(&b) == 0 {
-            // Some intersection might be happening, check more
+    pub fn clip_line(&self, line: GridLine) -> Option<GridLine> {
+        if self.get_boundbits(&line.a) | self.get_boundbits(&line.b) == 0 {
+            // Some intersection might be happening
+
+            // Check for intersections with the edges of the bounds
+            let mut intersections = vec![];
+            intersections.push(self.left_line().intersect(&line));
+            intersections.push(self.right_line().intersect(&line));
+            intersections.push(self.top_line().intersect(&line));
+            intersections.push(self.bottom_line().intersect(&line));
+
+            let intersections: Vec<GridVec> = intersections.iter().filter_map(|intersect| { *intersect }).collect();
+
+            if intersections.len() == 0 {
+                if self.contains(line.a) {
+                    return Some(line);
+                }
+            }
+            else if intersections.len() == 1 {
+                // One of the points is within the bounds, determine which and replace the other
+                if self.contains(line.a) {
+                    return Some(GridLine::new(line.a, intersections[0]));
+                }
+                else {
+                    return Some(GridLine::new(intersections[0], line.a));
+                }
+            }
+            else if intersections.len() == 2 {
+                // We're making a new line with new points, try to preserve directionality
+                if line.a.sq_distance(intersections[0]) <= line.a.sq_distance(intersections[1]) {
+                    return Some(GridLine::new(intersections[0], intersections[1]));
+                }
+                else {
+                    return Some(GridLine::new(intersections[1], intersections[0]));
+                }
+            }
+
             None
         } 
         else {
