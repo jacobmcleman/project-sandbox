@@ -131,15 +131,17 @@ impl GridBounds {
         let mut val = 0;
 
         if point.y > self.top() { val |= 1 << 0; }
-        if point.y > self.bottom() { val |= 1 << 1; }
+        if point.y < self.bottom() { val |= 1 << 1; }
         if point.x > self.right() { val |= 1 << 2; }
-        if point.x > self.left() { val |= 1 << 3; }
+        if point.x < self.left() { val |= 1 << 3; }
 
         val
     }
 
     pub fn clip_line(&self, line: GridLine) -> Option<GridLine> {
-        if self.get_boundbits(&line.a) | self.get_boundbits(&line.b) == 0 {
+        let a_bits = self.get_boundbits(&line.a);
+        let b_bits = self.get_boundbits(&line.b);
+        if (a_bits | b_bits) == 0 {
             // Some intersection might be happening
 
             // Check for intersections with the edges of the bounds

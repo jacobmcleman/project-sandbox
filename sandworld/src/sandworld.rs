@@ -1,3 +1,4 @@
+use gridmath::gridline::GridLine;
 use gridmath::*;
 use rand::rngs::ThreadRng;
 use rand::{RngCore, Rng};
@@ -8,7 +9,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use std::sync::atomic::{AtomicU64, AtomicBool};
 
-use crate::chunk::*;
+use crate::{chunk::*, region};
+use crate::collisions::HitInfo;
 use crate::particle::*;
 use crate::region::*;
 
@@ -524,6 +526,27 @@ impl World {
             compressing_regions: self.unloading_regions.len(),
             region_updates: updated_region_count.load(std::sync::atomic::Ordering::Relaxed),
         }
+    }
+
+    pub fn cast_ray(&self, hitmask: &ParticleSet, line: GridLine) -> Option<HitInfo> {
+        let region_line = GridLine::new(
+            World::get_regionpos_for_pos(&line.a),
+            World::get_regionpos_for_pos(&line.b)
+        );
+
+        println!("casting line {0} (in region coords {1})", line, region_line);
+
+        for regpos in region_line.along() {
+            if let Some(index) = self.get_region_index(regpos) {
+                let result = self.regions[index].cast_ray(hitmask, line);
+
+                if result.is_some() {
+                    println!("hit in region {}", regpos);
+                    return result;
+                }
+            }
+        }
+        None
     }
 }
 

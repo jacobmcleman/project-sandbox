@@ -3,9 +3,9 @@ use bevy::{
     render::render_resource::{Extent3d, TextureFormat}, 
     window::PrimaryWindow, input::keyboard::KeyboardInput,
 };
-use gridmath::{GridBounds, GridVec};
+use gridmath::{gridline::GridLine, GridBounds, GridVec};
 use rand::Rng;
-use sandworld::{ParticleType, CHUNK_SIZE};
+use sandworld::{ParticleType, ParticleSet, particle_set, CHUNK_SIZE};
 use std::{collections::VecDeque, sync::{Arc, atomic::{AtomicU64, Ordering}}};
 
 use crate::camera::cam_bounds;
@@ -343,8 +343,16 @@ fn world_interact(
                         false,
                     ),
                     BrushMode::Melt => {
-                        sand.world
-                            .temp_change_circle(gridpos, brush_options.radius, 0.01, 1800)
+                        let ray = GridVec::new(256, 0);
+                        let hitmask = particle_set![ParticleType::Stone, ParticleType::Sand, ParticleType::Gravel];
+                        if let Some(hit) = sand.world.cast_ray(
+                            &hitmask, GridLine::new(gridpos, gridpos + ray)
+                        ) {
+                            println!("melting {}", hit.point);
+                            sand.world.temp_change_circle(hit.point, brush_options.radius, 0.01, 1800);
+                        }
+                        //sand.world
+                        //    .temp_change_circle(gridpos, brush_options.radius, 0.01, 1800)
                     }
                     BrushMode::Break => sand.world.break_circle(gridpos, brush_options.radius, 0.1),
                     BrushMode::Chill => {

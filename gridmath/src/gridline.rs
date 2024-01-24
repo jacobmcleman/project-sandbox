@@ -1,3 +1,5 @@
+use std::fmt;
+
 use crate::gridvec::*;
 
 #[derive(PartialEq, Debug, Copy, Clone)]
@@ -9,6 +11,7 @@ pub struct GridLine {
 pub struct GridLineIterator {
     end: GridVec,
     current: GridVec,
+    done: bool,
 }
 
 impl GridLine {
@@ -28,6 +31,7 @@ impl GridLine {
         GridLineIterator {
             current: self.a,
             end: self.b,
+            done: false,
         }
     }
 
@@ -54,7 +58,7 @@ impl GridLine {
 
         // If t and u are both in [0, 1], there is an intersection
         // Check for < 0 by making sure the signs match
-        if t_num.signum() != t_den.signum() || u_num.signum() != u_den.signum() {
+        if t_den == 0 || u_den == 0 || t_num.signum() != t_den.signum() || u_num.signum() != u_den.signum() {
             return None
         }
         // Check for > 1 by making sure the numerator is not > denominator
@@ -70,14 +74,25 @@ impl GridLine {
     }
 }
 
+impl fmt::Display for GridLine {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "|{0} to {1}|", self.a, self.b)
+    }
+}
+
 impl Iterator for GridLineIterator {
     type Item = GridVec;
 
     fn next(&mut self) -> Option<GridVec> {
-        if self.current == self.end {
+        if self.done {
             None
         }
+        else if self.current == self.end {
+            self.done = true;
+            Some(self.end)
+        }
         else {
+            let last = self.current;
             let move_vec = self.end - self.current;
             if move_vec.x == 0 || move_vec.y == 0 {
                 // Alligned on one axis, move along it
@@ -98,7 +113,7 @@ impl Iterator for GridLineIterator {
             }
 
 
-            Some(self.current)
+            Some(last)
         }
         
     }

@@ -430,6 +430,8 @@ impl Chunk {
             chunk_world_root, 
             GridVec::new(CHUNK_SIZE as i32, CHUNK_SIZE as i32));
 
+        
+        println!("casting {0} in chunk {1}", line, self.position);
         if let Some(clipped_line) = bounds.clip_line(line) {
             // Convert intersection segment coords to local coords
             let local_line = GridLine::new(
@@ -437,10 +439,14 @@ impl Chunk {
                 clipped_line.b - chunk_world_root
             );
 
+            println!("ray enters chunk, clipped to {0} - local is {1}", clipped_line, local_line);
+
             // Run local version raycast
             if let Some((hit_x, hit_y)) = self.cast_ray_local(hitmask, local_line) {
+                let world_hit_pos = chunk_world_root + GridVec::new(hit_x as i32, hit_y as i32);
+                println!("hit at ({0}, {1}) in chunk coords {2} in world", hit_x, hit_y, world_hit_pos);
                 Some(HitInfo {
-                    point: chunk_world_root + GridVec::new(hit_x as i32, hit_y as i32),
+                    point: world_hit_pos,
                     part: self.get_particle(hit_x, hit_y),
                 })
             }

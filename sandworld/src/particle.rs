@@ -24,7 +24,8 @@ pub enum ParticleType {
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct ParticleSet (u16);
 
-macro_rules! part_set {
+#[macro_export]
+macro_rules! particle_set {
     () => {
         ParticleSet::none()
     };
@@ -32,7 +33,7 @@ macro_rules! part_set {
         ParticleSet::with($e)
     };
     ($x:expr, $($y:expr),+) => {
-        ParticleSet::with($x).union(part_set![$($y),+])
+        ParticleSet::with($x).union(particle_set![$($y),+])
     };
 }
 
@@ -61,10 +62,10 @@ pub(crate) enum ChunkCommand {
     Mutate(ParticleType, u8),
 }
 
-pub static SOLID_MATS: ParticleSet = part_set![ParticleType::Stone, ParticleType::Glass, ParticleType::Ice];
+pub static SOLID_MATS: ParticleSet = particle_set![ParticleType::Stone, ParticleType::Glass, ParticleType::Ice];
 
-pub static POWDER_MATS: ParticleSet = part_set![ParticleType::Sand, ParticleType::Gravel];
-pub static LIQUID_MATS: ParticleSet = part_set![ParticleType::Water, ParticleType::MoltenGlass, ParticleType::Lava];
+pub static POWDER_MATS: ParticleSet = particle_set![ParticleType::Sand, ParticleType::Gravel];
+pub static LIQUID_MATS: ParticleSet = particle_set![ParticleType::Water, ParticleType::MoltenGlass, ParticleType::Lava];
 
 
 impl Particle {

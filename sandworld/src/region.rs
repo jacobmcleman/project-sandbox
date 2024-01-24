@@ -2,9 +2,9 @@ pub const REGION_SIZE: usize = 16;
 
 use std::sync::{atomic::AtomicU64, Arc};
 
-use gridmath::*;
+use gridmath::{gridline::GridLine, *};
 use rayon::prelude::*;
-use crate::{chunk::*, World, Particle, ParticleType, WorldGenerator};
+use crate::{chunk::*, collisions::HitInfo, Particle, ParticleSet, ParticleType, World, WorldGenerator};
 
 pub struct Region {
     pub position: GridVec,
@@ -255,6 +255,36 @@ impl Region {
         let x = (index % REGION_SIZE) as i32 + (region_pos.x * REGION_SIZE as i32);
         let y = (index / REGION_SIZE) as i32 + (region_pos.y * REGION_SIZE as i32);
         GridVec { x, y }
+    }
+
+    pub fn cast_ray(&self, hitmask: &ParticleSet, line: GridLine) -> Option<HitInfo> {
+        println!("Casting line {0} in region {1} (bounds {2})", line, self.position, self.get_bounds());
+        if let Some(clipped_line) = self.get_bounds().clip_line(line) {
+            let chunk_line = GridLine::new(
+                World::get_chunkpos(&clipped_line.a), World::get_chunkpos(&clipped_line.b));
+                
+            println!("Region contains some of line, clipped to {0} (in chunk coords {1})", clipped_line, chunk_line);
+
+            for chunkpos in chunk_line.along() {
+                #[cfg(debug_assertions)] {
+                    if !self.contains_chunk(&chunkpos){
+                        println!("somehow clipped line includes chunk {0} which is outside chunk {1}",
+                            chunkpos, self.position);
+                    }
+                }
+
+                if let Some(chunk) = self.get_chunk(&chunkpos) {
+                    let chunk_result = chunk.cast_ray(hitmask, line);
+
+                    if chunk_result.is_some() {
+                        println!("hit in chunk {}", chunkpos);
+                        return chunk_result;
+                    }
+                }
+            }
+        }
+
+        None
     }
 
     fn chunkpos_to_region_index(&self, chunkpos: &GridVec) -> usize {
