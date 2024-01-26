@@ -53,22 +53,25 @@ impl GridLine {
         let t_num = ((x1 - x3) * (y3 - y4)) - ((y1 - y3) * (x3 - x4));
         let t_den = ((x1 - x2) * (y3 - y4)) - ((y1 - y2) * (x3 - x4));
 
-        let u_num = ((x1 - x2) * (y1 - y3)) - ((y1 - y2) * (x1 - x3));
+        let u_num = -1 * ((x1 - x2) * (y1 - y3)) - ((y1 - y2) * (x1 - x3));
         let u_den = ((x1 - x2) * (y3 - y4)) - ((y1 - y2) * (x3 - x4));
 
         // If t and u are both in [0, 1], there is an intersection
         // Check for < 0 by making sure the signs match
-        if t_den == 0 || u_den == 0 || t_num.signum() != t_den.signum() || u_num.signum() != u_den.signum() {
+        if t_den == 0 || u_den == 0 {
+            return None
+        }
+        if t_num.signum() != t_den.signum() || u_num.signum() != u_den.signum() {
             return None
         }
         // Check for > 1 by making sure the numerator is not > denominator
-        if t_num > t_den || u_num > u_den {
+        if t_num.abs() > t_den.abs() || u_num.abs() > u_den.abs() {
             return None
         }
 
         // There is an intersection
-        let i_x = x1 + ((t_num * (x1 - x2)) / t_den);
-        let i_y = y1 + ((t_num * (y1 - y2)) / t_den);
+        let i_x = x1 + ((t_num * (x2 - x1)) / t_den);
+        let i_y = y1 + ((t_num * (y2 - y1)) / t_den);
 
         Some(GridVec::new(i_x, i_y))
     }
@@ -111,10 +114,36 @@ impl Iterator for GridLineIterator {
                     self.current = y_move;
                 }
             }
-
-
             Some(last)
         }
-        
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::gridline::*;
+
+    #[test]
+    fn axis_intersect() {
+        let x = GridLine::new(GridVec::new(-10, 0), GridVec::new(10, 0));
+        let y = GridLine::new(GridVec::new(0, -10), GridVec::new(0, 10));
+        let origin = GridVec::new(0, 0);
+        assert_eq!(x.intersect(&y), Some(origin));
+    }
+
+    #[test]
+    fn diagonal_intersect() {
+        let a = GridLine::new(GridVec::new(-10, -10), GridVec::new(10, 10));
+        let b = GridLine::new(GridVec::new(-10, 10), GridVec::new(10, -10));
+        let origin = GridVec::new(0, 0);
+        assert_eq!(a.intersect(&b), Some(origin));
+    }
+
+    #[test]
+    fn diagonal_intersect_offset() {
+        let a = GridLine::new(GridVec::new(0, -10), GridVec::new(10, 10));
+        let b = GridLine::new(GridVec::new(0, 10), GridVec::new(10, -10));
+        let origin = GridVec::new(5, 0);
+        assert_eq!(a.intersect(&b), Some(origin));
     }
 }

@@ -534,7 +534,7 @@ impl World {
             World::get_regionpos_for_pos(&line.b)
         );
 
-        println!("casting line {0} (in region coords {1})", line, region_line);
+        println!("World: Casting line {0} (in region coords {1})", line, region_line);
 
         for regpos in region_line.along() {
             if let Some(index) = self.get_region_index(regpos) {

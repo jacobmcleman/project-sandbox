@@ -258,12 +258,12 @@ impl Region {
     }
 
     pub fn cast_ray(&self, hitmask: &ParticleSet, line: GridLine) -> Option<HitInfo> {
-        println!("Casting line {0} in region {1} (bounds {2})", line, self.position, self.get_bounds());
+        println!("Region: Casting line {0} in region {1} (bounds {2})", line, self.position, self.get_bounds());
         if let Some(clipped_line) = self.get_bounds().clip_line(line) {
             let chunk_line = GridLine::new(
                 World::get_chunkpos(&clipped_line.a), World::get_chunkpos(&clipped_line.b));
                 
-            println!("Region contains some of line, clipped to {0} (in chunk coords {1})", clipped_line, chunk_line);
+            println!("This region contains some of line, clipped to {0} (in chunk coords {1})", clipped_line, chunk_line);
 
             for chunkpos in chunk_line.along() {
                 #[cfg(debug_assertions)] {
@@ -280,6 +280,9 @@ impl Region {
                         println!("hit in chunk {}", chunkpos);
                         return chunk_result;
                     }
+                }
+                else {
+                    println!("we do not have that chunk");
                 }
             }
         }
