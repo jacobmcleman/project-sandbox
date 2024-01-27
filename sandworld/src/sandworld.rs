@@ -529,20 +529,26 @@ impl World {
     }
 
     pub fn cast_ray(&self, hitmask: &ParticleSet, line: GridLine) -> Option<HitInfo> {
-        let region_line = GridLine::new(
-            World::get_regionpos_for_pos(&line.a),
-            World::get_regionpos_for_pos(&line.b)
-        );
 
         // println!("World: Casting line {0} (in region coords {1})", line, region_line);
 
-        for regpos in region_line.along() {
-            if let Some(index) = self.get_region_index(regpos) {
-                let result = self.regions[index].cast_ray(hitmask, line);
+        let mut last_region = None;
 
-                if result.is_some() {
-                    // println!("hit in region {}", regpos);
-                    return result;
+        for worldpos in line.along() {
+            let regpos = World::get_regionpos_for_pos(&worldpos);
+
+            if last_region == Some(regpos) {
+                continue;
+            }
+            else {
+                last_region = Some(regpos);
+                if let Some(index) = self.get_region_index(regpos) {
+                    let result = self.regions[index].cast_ray(hitmask, line);
+    
+                    if result.is_some() {
+                        // println!("hit in region {}", regpos);
+                        return result;
+                    }
                 }
             }
         }

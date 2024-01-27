@@ -4,7 +4,7 @@ use std::sync::{atomic::AtomicU64, Arc};
 
 use gridmath::{gridline::GridLine, *};
 use rayon::prelude::*;
-use crate::{chunk::*, collisions::HitInfo, Particle, ParticleSet, ParticleType, World, WorldGenerator};
+use crate::{chunk::{self, *}, collisions::HitInfo, Particle, ParticleSet, ParticleType, World, WorldGenerator};
 
 pub struct Region {
     pub position: GridVec,
@@ -258,34 +258,28 @@ impl Region {
     }
 
     pub fn cast_ray(&self, hitmask: &ParticleSet, line: GridLine) -> Option<HitInfo> {
-        //println!("Region: Casting line {0} in region {1} (bounds {2})", line, self.position, self.get_bounds());
+        if let Some(clipped_line) = self.get_bounds().clip_line(line) {
+            // println!("This region contains some of line, line clipped to {0}", clipped_line);
 
-        let chunk_line = GridLine::new(
-            World::get_chunkpos(&line.a), World::get_chunkpos(&line.b));
+            let mut last_chunk = None;
 
-        //println!("        chunk line {0} in chunk bounds {1}", chunk_line, self.get_chunk_bounds());
+            for worldpos in clipped_line.along() {
+                let chunkpos = World::get_chunkpos(&worldpos);
 
-        if let Some(clipped_chunk_line) = self.get_chunk_bounds().clip_line(chunk_line) {
-            //println!("This region contains some of line, chunk line clipped to {0}", clipped_chunk_line);
-
-            for chunkpos in clipped_chunk_line.along() {
-                #[cfg(debug_assertions)] {
-                    if !self.contains_chunk(&chunkpos){
-                        println!("somehow clipped line includes chunk {0} which is outside chunk {1}",
-                            chunkpos, self.position);
-                    }
-                }
-
-                if let Some(chunk) = self.get_chunk(&chunkpos) {
-                    let chunk_result = chunk.cast_ray(hitmask, line);
-
-                    if chunk_result.is_some() {
-                        //println!("hit in chunk {}", chunkpos);
-                        return chunk_result;
-                    }
+                if last_chunk == Some(chunkpos) {
+                    continue;
                 }
                 else {
-                    //println!("we do not have that chunk");
+                    last_chunk = Some(chunkpos);
+                    // println!("testing chunk {}", chunkpos);
+                    if let Some(chunk) = self.get_chunk(&chunkpos) {
+                        let chunk_result = chunk.cast_ray(hitmask, line);
+    
+                        if chunk_result.is_some() {
+                            // println!("hit in chunk {}", chunkpos);
+                            return chunk_result;
+                        }
+                    }
                 }
             }
         }

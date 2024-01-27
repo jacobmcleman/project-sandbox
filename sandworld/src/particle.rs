@@ -127,16 +127,20 @@ impl Particle {
         }
     }
 
-    pub fn get_can_replace(particle_type: ParticleType, replace_type: ParticleType) -> bool {
+    pub fn get_replace_set(particle_type: ParticleType) -> ParticleSet {
         match particle_type {
-            ParticleType::Sand => [ParticleType::Water, ParticleType::Lava].contains(&replace_type),
-            ParticleType::Gravel => [ParticleType::Water, ParticleType::Steam, ParticleType::Lava].contains(&replace_type),
-            ParticleType::Steam => [ParticleType::Water, ParticleType::Lava].contains(&replace_type),
-            ParticleType::Lava => [ParticleType::Water, ParticleType::Steam].contains(&replace_type),
-            ParticleType::MoltenGlass => [ParticleType::Water, ParticleType::Steam, ParticleType::Lava].contains(&replace_type),
-            ParticleType::LaserBeam => [ParticleType::Water, ParticleType::Steam].contains(&replace_type),
-            _ => false
+            ParticleType::Sand => particle_set![ParticleType::Water, ParticleType::Lava],
+            ParticleType::Gravel => particle_set![ParticleType::Water, ParticleType::Steam, ParticleType::Lava],
+            ParticleType::Steam => particle_set![ParticleType::Water, ParticleType::Lava],
+            ParticleType::Lava => particle_set![ParticleType::Water, ParticleType::Steam],
+            ParticleType::MoltenGlass => particle_set![ParticleType::Water, ParticleType::Steam, ParticleType::Lava],
+            ParticleType::LaserBeam => particle_set![ParticleType::Water, ParticleType::Steam],
+            _ => ParticleSet::none()
         }
+    }
+
+    pub fn get_can_replace(particle_type: ParticleType, replace_type: ParticleType) -> bool {
+        Particle::get_replace_set(particle_type).test(replace_type)
     }
 }
 

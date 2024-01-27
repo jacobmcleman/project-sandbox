@@ -7,7 +7,7 @@ use gridmath::gridline::GridLine;
 use rand::{Rng, rngs::ThreadRng};
 use crate::collisions::HitInfo;
 use crate::region::REGION_SIZE;
-use crate::{particle::*, WorldGenerator, collisions};
+use crate::{collisions, particle::*, World, WorldGenerator};
 
 #[derive(Debug)]
 pub struct Chunk {
@@ -435,11 +435,9 @@ impl Chunk {
         if let Some(clipped_line) = bounds.clip_line(line) {
             // Convert intersection segment coords to local coords
             let local_line = GridLine::new(
-                clipped_line.a - chunk_world_root,
-                clipped_line.b - chunk_world_root
+                World::get_chunklocal(clipped_line.a),
+                World::get_chunklocal(clipped_line.b)
             );
-
-            //println!("ray enters chunk, clipped to {0} - local is {1}", clipped_line, local_line);
 
             // Run local version raycast
             if let Some((hit_x, hit_y)) = self.cast_ray_local(hitmask, local_line) {
@@ -460,6 +458,15 @@ impl Chunk {
     }
 
     fn cast_ray_local(&self, hitmask: &ParticleSet, local_line: GridLine) -> Option<(u8, u8)> {
+        #[cfg(debug_assertions)] {
+            if !self.contains(local_line.a.x as i16, local_line.a.y as i16) {
+                println!("Start of line {} is outside chunk!", local_line);
+            }
+            if !self.contains(local_line.b.x as i16, local_line.b.y as i16) {
+                println!("End of line {} is outside chunk!", local_line);
+            }
+        }
+
         for point in local_line.along() {
             let test_part = self.get_particle(point.x as u8, point.y as u8);
 
