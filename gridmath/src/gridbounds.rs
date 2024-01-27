@@ -146,7 +146,7 @@ impl GridBounds {
             return Some(line);
         }
         else if (a_bits & b_bits) == 0 {
-            //println!("didn't fail bitcheck, both points are in different regions on {}", line);
+            //println!("didn't fail bitcheck, endpoints are in different regions on {}", line);
             // Some intersection might be happening
 
             // Check for intersections with the edges of the bounds
@@ -158,7 +158,7 @@ impl GridBounds {
 
             let intersections: Vec<GridVec> = intersections.iter().filter_map(|intersect| { *intersect }).collect();
 
-            // println!("found {} intersections", intersections.len());
+            //println!("found {} intersections", intersections.len());
 
             if intersections.len() == 0 {
                 if self.contains(line.a) {
@@ -168,10 +168,12 @@ impl GridBounds {
             else if intersections.len() == 1 {
                 // One of the points is within the bounds, determine which and replace the other
                 if self.contains(line.a) {
+                    //println!("a is within bounds, replacing b with clippped point {}", intersections[0]);
                     return Some(GridLine::new(line.a, intersections[0]));
                 }
                 else {
-                    return Some(GridLine::new(intersections[0], line.a));
+                    //println!("a is not within bounds, replacing a with clippped point {}", intersections[0]);
+                    return Some(GridLine::new(intersections[0], line.b));
                 }
             }
             else if intersections.len() == 2 {
@@ -188,7 +190,7 @@ impl GridBounds {
         } 
         else {
             // Impossible for intersection to occur
-            // println!("failed bitcheck, points are on same outside side");
+            //println!("failed bitcheck, points are on same outside side");
             None
         }
     }
@@ -458,20 +460,65 @@ mod tests {
     #[test]
     fn line_clip_one_edge() {
         let bounds = GridBounds::new_from_extents(GridVec::new(0, 0), GridVec::new(10, 10));
-        let line = GridLine::new(GridVec::new(5, 5), GridVec::new(15, 5));
-        let expected_line = GridLine::new(GridVec::new(5, 5), GridVec::new(10, 5));
 
-        let result = bounds.clip_line(line);
-        assert_eq!(result, Some(expected_line));
+        let line_right = GridLine::new(GridVec::new(5, 5), GridVec::new(15, 5));
+        let expected_line_right = GridLine::new(GridVec::new(5, 5), GridVec::new(10, 5));
+        assert_eq!(bounds.clip_line(line_right), Some(expected_line_right));
+        assert_eq!(bounds.clip_line(line_right.reversed()), Some(expected_line_right.reversed()));
+
+        let line_left = GridLine::new(GridVec::new(-5, 5), GridVec::new(5, 5));
+        let expected_line_left = GridLine::new(GridVec::new(0, 5), GridVec::new(5, 5));
+        assert_eq!(bounds.clip_line(line_left), Some(expected_line_left));
+        assert_eq!(bounds.clip_line(line_left.reversed()), Some(expected_line_left.reversed()));
+
+        let line_up = GridLine::new(GridVec::new(5, 5), GridVec::new(5, 15));
+        let expected_line_up = GridLine::new(GridVec::new(5, 5), GridVec::new(5, 10));
+        assert_eq!(bounds.clip_line(line_up), Some(expected_line_up));
+        assert_eq!(bounds.clip_line(line_up.reversed()), Some(expected_line_up.reversed()));
+
+        let line_down = GridLine::new(GridVec::new(5, -5), GridVec::new(5, 5));
+        let expected_line_down = GridLine::new(GridVec::new(5, 0), GridVec::new(5, 5));
+        assert_eq!(bounds.clip_line(line_down), Some(expected_line_down));
+        assert_eq!(bounds.clip_line(line_down.reversed()), Some(expected_line_down.reversed()));
     }
 
     #[test]
-    fn line_clip_two_edge() {
+    fn line_clip_two_opposite_edges() {
         let bounds = GridBounds::new_from_extents(GridVec::new(0, 0), GridVec::new(10, 10));
-        let line = GridLine::new(GridVec::new(-5, 5), GridVec::new(15, 5));
-        let expected_line = GridLine::new(GridVec::new(0, 5), GridVec::new(10, 5));
 
-        let result = bounds.clip_line(line);
-        assert_eq!(result, Some(expected_line));
+        let horizontal_line = GridLine::new(GridVec::new(-5, 5), GridVec::new(15, 5));
+        let expected_h_line = GridLine::new(GridVec::new(0, 5), GridVec::new(10, 5));
+        assert_eq!(bounds.clip_line(horizontal_line), Some(expected_h_line));
+        assert_eq!(bounds.clip_line(horizontal_line.reversed()), Some(expected_h_line.reversed()));
+
+        let vertical_line = GridLine::new(GridVec::new(5, -5), GridVec::new(5, 15));
+        let expected_v_line = GridLine::new(GridVec::new(5, 0), GridVec::new(5, 10));
+        assert_eq!(bounds.clip_line(vertical_line), Some(expected_v_line));
+        assert_eq!(bounds.clip_line(vertical_line.reversed()), Some(expected_v_line.reversed()));
+    }
+
+    #[test]
+    fn line_clip_two_diagonal_edges() {
+        let bounds = GridBounds::new_from_extents(GridVec::new(0, 0), GridVec::new(10, 10));
+
+        let line_pos_a = GridLine::new(GridVec::new(-3, 5), GridVec::new(5, 13));
+        let expected_pos_a = GridLine::new(GridVec::new(0, 8), GridVec::new(2, 10));
+        assert_eq!(bounds.clip_line(line_pos_a), Some(expected_pos_a));
+        assert_eq!(bounds.clip_line(line_pos_a.reversed()), Some(expected_pos_a.reversed()));
+
+        let line_pos_b = GridLine::new(GridVec::new(5, -3), GridVec::new(13, 5));
+        let expected_pos_b = GridLine::new(GridVec::new(8, 0), GridVec::new(10, 2));
+        assert_eq!(bounds.clip_line(line_pos_b), Some(expected_pos_b));
+        assert_eq!(bounds.clip_line(line_pos_b.reversed()), Some(expected_pos_b.reversed()));
+
+        let line_neg_a = GridLine::new(GridVec::new(-3, 5), GridVec::new(5, -3));
+        let expected_neg_a = GridLine::new(GridVec::new(0, 2), GridVec::new(2, 0));
+        assert_eq!(bounds.clip_line(line_neg_a), Some(expected_neg_a));
+        assert_eq!(bounds.clip_line(line_neg_a.reversed()), Some(expected_neg_a.reversed()));
+
+        let line_neg_b = GridLine::new(GridVec::new(5, 13), GridVec::new(13, 5));
+        let expected_neg_b = GridLine::new(GridVec::new(8, 10), GridVec::new(10, 8));
+        assert_eq!(bounds.clip_line(line_neg_b), Some(expected_neg_b));
+        assert_eq!(bounds.clip_line(line_neg_b.reversed()), Some(expected_neg_b.reversed()));
     }
 }

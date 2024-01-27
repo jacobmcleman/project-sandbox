@@ -258,14 +258,17 @@ impl Region {
     }
 
     pub fn cast_ray(&self, hitmask: &ParticleSet, line: GridLine) -> Option<HitInfo> {
-        println!("Region: Casting line {0} in region {1} (bounds {2})", line, self.position, self.get_bounds());
-        if let Some(clipped_line) = self.get_bounds().clip_line(line) {
-            let chunk_line = GridLine::new(
-                World::get_chunkpos(&clipped_line.a), World::get_chunkpos(&clipped_line.b));
-                
-            println!("This region contains some of line, clipped to {0} (in chunk coords {1})", clipped_line, chunk_line);
+        //println!("Region: Casting line {0} in region {1} (bounds {2})", line, self.position, self.get_bounds());
 
-            for chunkpos in chunk_line.along() {
+        let chunk_line = GridLine::new(
+            World::get_chunkpos(&line.a), World::get_chunkpos(&line.b));
+
+        //println!("        chunk line {0} in chunk bounds {1}", chunk_line, self.get_chunk_bounds());
+
+        if let Some(clipped_chunk_line) = self.get_chunk_bounds().clip_line(chunk_line) {
+            //println!("This region contains some of line, chunk line clipped to {0}", clipped_chunk_line);
+
+            for chunkpos in clipped_chunk_line.along() {
                 #[cfg(debug_assertions)] {
                     if !self.contains_chunk(&chunkpos){
                         println!("somehow clipped line includes chunk {0} which is outside chunk {1}",
@@ -277,12 +280,12 @@ impl Region {
                     let chunk_result = chunk.cast_ray(hitmask, line);
 
                     if chunk_result.is_some() {
-                        println!("hit in chunk {}", chunkpos);
+                        //println!("hit in chunk {}", chunkpos);
                         return chunk_result;
                     }
                 }
                 else {
-                    println!("we do not have that chunk");
+                    //println!("we do not have that chunk");
                 }
             }
         }
@@ -374,6 +377,13 @@ impl Region {
         )
     }
 
+    pub fn get_chunk_bounds(&self) -> GridBounds {
+        GridBounds::new_from_corner(
+            self.position * REGION_SIZE as i32, 
+            GridVec { x: REGION_SIZE as i32, y: REGION_SIZE as i32 }
+        )
+    }
+
     fn calc_update_priority(&mut self) {
         self.update_priority = (self.staleness + 1) * (self.staleness + 1) * (self.last_chunk_updates + 1);
     }
@@ -383,8 +393,6 @@ impl Region {
 
         self.calc_update_priority();
     }
-
-
 
     pub fn commit_updates(&mut self) {
         self.staleness = 0;

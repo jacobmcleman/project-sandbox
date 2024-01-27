@@ -35,6 +35,10 @@ impl GridLine {
         }
     }
 
+    pub fn reversed(&self) -> GridLine {
+        GridLine::new(self.b, self.a)
+    }
+
     pub fn intersect(&self, other: &GridLine) -> Option<GridVec> {
         //print!("intersecting {0} with {1}... ", self, other);
         let x1 = self.a.x;

@@ -541,7 +541,7 @@ impl World {
                 let result = self.regions[index].cast_ray(hitmask, line);
 
                 if result.is_some() {
-                    println!("hit in region {}", regpos);
+                    // println!("hit in region {}", regpos);
                     return result;
                 }
             }
