@@ -259,8 +259,6 @@ impl Region {
 
     pub fn cast_ray(&self, hitmask: &ParticleSet, line: GridLine) -> Option<HitInfo> {
         if let Some(clipped_line) = self.get_bounds().clip_line(line) {
-            // println!("This region contains some of line, line clipped to {0}", clipped_line);
-
             let mut last_chunk = None;
 
             for worldpos in clipped_line.along() {
@@ -271,12 +269,10 @@ impl Region {
                 }
                 else {
                     last_chunk = Some(chunkpos);
-                    // println!("testing chunk {}", chunkpos);
                     if let Some(chunk) = self.get_chunk(&chunkpos) {
                         let chunk_result = chunk.cast_ray(hitmask, line);
     
                         if chunk_result.is_some() {
-                            // println!("hit in chunk {}", chunkpos);
                             return chunk_result;
                         }
                     }
