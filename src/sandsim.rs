@@ -343,12 +343,12 @@ fn world_interact(
                         false,
                     ),
                     BrushMode::Melt => {
-                        let ray = GridVec::new(256, 0);
+                        let ray = GridVec::new(512, 512);
                         let hitmask = particle_set![ParticleType::Stone, ParticleType::Sand, ParticleType::Gravel];
                         if let Some(hit) = sand.world.cast_ray(
                             &hitmask, GridLine::new(gridpos, gridpos + ray)
                         ) {
-                            println!("melting {}", hit.point);
+                            // println!("melting {}", hit.point);
                             sand.world.temp_change_circle(hit.point, brush_options.radius, 0.01, 1800);
                         }
                         //sand.world

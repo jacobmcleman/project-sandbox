@@ -428,7 +428,7 @@ impl Chunk {
         // Pull out relevant section of the line
         let bounds = GridBounds::new_from_corner(
             chunk_world_root, 
-            GridVec::new(CHUNK_SIZE as i32, CHUNK_SIZE as i32));
+            GridVec::new(CHUNK_SIZE as i32 - 1, CHUNK_SIZE as i32 - 1));
 
         
         println!("casting {0} in chunk {1}", line, self.position);

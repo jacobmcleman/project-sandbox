@@ -142,6 +142,11 @@ impl GridBounds {
         let a_bits = self.get_boundbits(&line.a);
         let b_bits = self.get_boundbits(&line.b);
         if (a_bits | b_bits) == 0 {
+            //println!("passed bitcheck, both within bounds");
+            return Some(line);
+        }
+        else if (a_bits & b_bits) == 0 {
+            //println!("didn't fail bitcheck, both points are in different regions on {}", line);
             // Some intersection might be happening
 
             // Check for intersections with the edges of the bounds
@@ -152,6 +157,8 @@ impl GridBounds {
             intersections.push(self.bottom_line().intersect(&line));
 
             let intersections: Vec<GridVec> = intersections.iter().filter_map(|intersect| { *intersect }).collect();
+
+            // println!("found {} intersections", intersections.len());
 
             if intersections.len() == 0 {
                 if self.contains(line.a) {
@@ -181,6 +188,7 @@ impl GridBounds {
         } 
         else {
             // Impossible for intersection to occur
+            // println!("failed bitcheck, points are on same outside side");
             None
         }
     }
@@ -436,5 +444,34 @@ mod tests {
         let result = a.union(b);
         let expected = GridBounds::new(GridVec::new(1, 1), GridVec::new(5, 5));
         assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn line_clip_contained() {
+        let bounds = GridBounds::new(GridVec::new(0, 0), GridVec::new(10, 10));
+        let line = GridLine::new(GridVec::new(1, 1), GridVec::new(9, 9));
+
+        let result = bounds.clip_line(line);
+        assert_eq!(result, Some(line));
+    }
+
+    #[test]
+    fn line_clip_one_edge() {
+        let bounds = GridBounds::new_from_extents(GridVec::new(0, 0), GridVec::new(10, 10));
+        let line = GridLine::new(GridVec::new(5, 5), GridVec::new(15, 5));
+        let expected_line = GridLine::new(GridVec::new(5, 5), GridVec::new(10, 5));
+
+        let result = bounds.clip_line(line);
+        assert_eq!(result, Some(expected_line));
+    }
+
+    #[test]
+    fn line_clip_two_edge() {
+        let bounds = GridBounds::new_from_extents(GridVec::new(0, 0), GridVec::new(10, 10));
+        let line = GridLine::new(GridVec::new(-5, 5), GridVec::new(15, 5));
+        let expected_line = GridLine::new(GridVec::new(0, 5), GridVec::new(10, 5));
+
+        let result = bounds.clip_line(line);
+        assert_eq!(result, Some(expected_line));
     }
 }
