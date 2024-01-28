@@ -343,6 +343,10 @@ impl ParticleSet {
         ParticleSet(!0)
     }
 
+    pub const fn count(&self) -> u32 {
+        self.0.count_ones()
+    }
+
     pub fn from(vec: &Vec<ParticleType>) -> Self {
         let mut made = ParticleSet(0);
 

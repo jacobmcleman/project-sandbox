@@ -283,6 +283,36 @@ impl Region {
         None
     }
 
+    pub fn query_types_in_bounds(&self, bounds: GridBounds) -> Option<ParticleSet> {
+        if let Some(overlap) = self.get_bounds().intersect(bounds) {
+            let mut set = ParticleSet::none();
+            for c in self.chunks.iter() {
+                if let Some(chunk_set) = c.get_particle_types_in_bounds(overlap) {
+                    set = set.union(chunk_set);
+                }
+            }
+            Some(set)
+        }
+        else {
+            None
+        }
+    }
+
+    pub fn count_matches_in_bounds(&self, bounds: GridBounds, mask: ParticleSet) -> Option<u32> {
+        if let Some(overlap) = self.get_bounds().intersect(bounds) {
+            let mut count = 0;
+            for c in self.chunks.iter() {
+                if let Some(chunk_count) = c.count_matching_in_bounds(overlap, mask) {
+                    count += chunk_count;
+                }
+            }
+            Some(count)
+        }
+        else {
+            None
+        }
+    }
+
     fn chunkpos_to_region_index(&self, chunkpos: &GridVec) -> usize {
         let x = chunkpos.x - (self.position.x * REGION_SIZE as i32);
         let y = chunkpos.y - (self.position.y * REGION_SIZE as i32);
@@ -367,15 +397,8 @@ impl Region {
         )
     }
 
-    pub fn get_chunk_bounds(&self) -> GridBounds {
-        GridBounds::new_from_corner(
-            self.position * REGION_SIZE as i32, 
-            GridVec { x: REGION_SIZE as i32, y: REGION_SIZE as i32 }
-        )
-    }
-
     fn calc_update_priority(&mut self) {
-        self.update_priority = (self.staleness + 1) * (self.staleness + 1) * (self.last_chunk_updates + 1);
+        self.update_priority = (self.staleness + 1).pow(2) * (self.last_chunk_updates + 1);
     }
 
     pub fn skip_update(&mut self) {

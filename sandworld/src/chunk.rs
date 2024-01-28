@@ -422,13 +422,20 @@ impl Chunk {
         return false;
     }
 
+    fn get_world_root(&self) -> GridVec {
+        self.position * CHUNK_SIZE as i32
+    }
+
+    fn get_bounds(&self) -> GridBounds {
+        GridBounds::new_from_corner(
+            self.get_world_root(), 
+            GridVec::new(CHUNK_SIZE as i32 - 1, CHUNK_SIZE as i32 - 1))
+    }
+
     pub fn cast_ray(&self, hitmask: &ParticleSet, line: GridLine) -> Option<HitInfo> {
-        let chunk_world_root = self.position * CHUNK_SIZE as i32;
         // Verify line crosses this chunk
         // Pull out relevant section of the line
-        let bounds = GridBounds::new_from_corner(
-            chunk_world_root, 
-            GridVec::new(CHUNK_SIZE as i32 - 1, CHUNK_SIZE as i32 - 1));
+        let bounds = self.get_bounds();
 
         if let Some(clipped_line) = bounds.clip_line(line) {
             // Convert intersection segment coords to local coords
@@ -439,7 +446,7 @@ impl Chunk {
 
             // Run local version raycast
             if let Some((hit_x, hit_y)) = self.cast_ray_local(hitmask, local_line) {
-                let world_hit_pos = chunk_world_root + GridVec::new(hit_x as i32, hit_y as i32);
+                let world_hit_pos = self.get_world_root() + GridVec::new(hit_x as i32, hit_y as i32);
                 Some(HitInfo {
                     point: world_hit_pos,
                     part: self.get_particle(hit_x, hit_y),
@@ -473,6 +480,46 @@ impl Chunk {
         }
 
         return None;
+    }
+
+    pub fn get_particle_types_in_bounds(&self, bounds: GridBounds) -> Option<ParticleSet> {
+        if let Some(overlap) = self.get_bounds().intersect(bounds) {
+            let local_overlap = GridBounds::new_from_extents(
+                World::get_chunklocal(overlap.bottom_left()), 
+                World::get_chunklocal(overlap.top_right())
+            );
+
+            let mut set = ParticleSet::none();
+            for point in local_overlap.iter() {
+                set.include(self.get_particle(point.x as u8, point.y as u8).particle_type);
+            }
+
+            Some(set)
+        }
+        else {
+            None
+        }
+    }
+
+    pub fn count_matching_in_bounds(&self, bounds: GridBounds, mask: ParticleSet) -> Option<u32> {
+        if let Some(overlap) = self.get_bounds().intersect(bounds) {
+            let local_overlap = GridBounds::new_from_extents(
+                World::get_chunklocal(overlap.bottom_left()), 
+                World::get_chunklocal(overlap.top_right())
+            );
+
+            let mut count = 0;
+            for point in local_overlap.iter() {
+                if mask.test(self.get_particle(point.x as u8, point.y as u8).particle_type) {
+                    count += 1;
+                }
+            }
+
+            Some(count)
+        }
+        else {
+            None
+        }
     }
 
 

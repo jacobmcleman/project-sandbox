@@ -550,6 +550,30 @@ impl World {
         }
         None
     }
+
+    pub fn query_types_in_bounds(&self, bounds: GridBounds) -> ParticleSet {
+        let mut types = ParticleSet::none();
+
+        for region in self.regions.iter() {
+            if let Some(matches) = region.query_types_in_bounds(bounds) {
+                types = types.union(matches);
+            }
+        }
+
+        types
+    }
+
+    pub fn count_matches_in_bounds(&self, bounds: GridBounds, mask: ParticleSet) -> u32 {
+        let mut matches = 0;
+
+        for region in self.regions.iter() {
+            if let Some(reg_matches) = region.count_matches_in_bounds(bounds, mask) {
+                matches += reg_matches;
+            }
+        }
+
+        matches
+    }
 }
 
 struct RegUpdateInfoWrapper<'r> {
