@@ -6,13 +6,8 @@ use rayon::prelude::*;
 use std::collections::{BinaryHeap, VecDeque};
 use std::mem::swap;
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
 use std::sync::atomic::{AtomicU64, AtomicBool};
-
-use crate::{chunk::*, region};
-use crate::collisions::HitInfo;
-use crate::particle::*;
-use crate::region::*;
+use crate::{chunk::*, region::*, collisions::HitInfo, particle::*};
 
 pub const WORLD_WIDTH: i32 = 1440;
 pub const WORLD_HEIGHT: i32 = 960;
