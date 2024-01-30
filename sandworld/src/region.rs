@@ -258,25 +258,25 @@ impl Region {
     }
 
     pub fn cast_ray(&self, hitmask: &ParticleSet, line: GridLine) -> Option<HitInfo> {
-        if let Some(clipped_line) = self.get_bounds().clip_line(line) {
-            let mut last_chunk = None;
-
-            for worldpos in clipped_line.along() {
-                let chunkpos = World::get_chunkpos(&worldpos);
-
-                if last_chunk == Some(chunkpos) {
-                    continue;
-                }
-                else {
-                    last_chunk = Some(chunkpos);
-                    if let Some(chunk) = self.get_chunk(&chunkpos) {
-                        let chunk_result = chunk.cast_ray(hitmask, line);
-    
-                        if chunk_result.is_some() {
-                            return chunk_result;
-                        }
+        if let Some(_clipped_line) = self.get_bounds().clip_line(line) {
+            let cast_results: Vec<HitInfo> = self.chunks.par_iter().filter_map(|chunk| { chunk.cast_ray(hitmask, line) }).collect();
+            let mut closest: Option<(HitInfo, i32)> = None;
+            
+            for hit in cast_results {
+                if let Some(close) = &closest {
+                    let dist = line.a.sq_distance(hit.point);
+                    if dist < close.1 {
+                        closest = Some((hit, dist));
                     }
                 }
+                else {
+                    let dist = line.a.sq_distance(hit.point);
+                    closest = Some((hit, dist));
+                }
+            }
+
+            if let Some(closest_hit) = closest {
+                return Some(closest_hit.0)
             }
         }
 

@@ -339,6 +339,8 @@ fn world_interact(
         {
             if buttons.just_pressed(MouseButton::Left) {
                 brush_options.click_start = Some(gridpos);
+
+                println!("click start at {}", gridpos);
             }
 
             if buttons.pressed(MouseButton::Left) {

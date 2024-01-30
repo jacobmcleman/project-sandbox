@@ -185,6 +185,9 @@ impl GridBounds {
                     return Some(GridLine::new(intersections[1], intersections[0]));
                 }
             }
+            else {
+                println!("weird shit, {} intersections found on clip", intersections.len())
+            }
 
             None
         } 
@@ -493,6 +496,21 @@ mod tests {
 
         let vertical_line = GridLine::new(GridVec::new(5, -5), GridVec::new(5, 15));
         let expected_v_line = GridLine::new(GridVec::new(5, 0), GridVec::new(5, 10));
+        assert_eq!(bounds.clip_line(vertical_line), Some(expected_v_line));
+        assert_eq!(bounds.clip_line(vertical_line.reversed()), Some(expected_v_line.reversed()));
+    }
+
+    #[test]
+    fn line_clip_line_along_edge() {
+        let bounds = GridBounds::new_from_extents(GridVec::new(0, 0), GridVec::new(5, 5));
+
+        let horizontal_line = GridLine::new(GridVec::new(-5, 5), GridVec::new(15, 5));
+        let expected_h_line = GridLine::new(GridVec::new(0, 5), GridVec::new(5, 5));
+        assert_eq!(bounds.clip_line(horizontal_line), Some(expected_h_line));
+        assert_eq!(bounds.clip_line(horizontal_line.reversed()), Some(expected_h_line.reversed()));
+
+        let vertical_line = GridLine::new(GridVec::new(5, -5), GridVec::new(5, 15));
+        let expected_v_line = GridLine::new(GridVec::new(5, 0), GridVec::new(5, 5));
         assert_eq!(bounds.clip_line(vertical_line), Some(expected_v_line));
         assert_eq!(bounds.clip_line(vertical_line.reversed()), Some(expected_v_line.reversed()));
     }

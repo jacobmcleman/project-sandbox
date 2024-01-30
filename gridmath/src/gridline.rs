@@ -69,7 +69,7 @@ impl GridLine {
             //println!("Big 0 - no intersection");
             return None
         }
-        if t_num.signum() != t_den.signum() || u_num.signum() == u_den.signum() {
+        if (t_num != 0 && (t_num.signum() != t_den.signum())) || (u_num != 0 && (u_num.signum() == u_den.signum())) {
             //println!("Negative value - no intersection");
             return None
         }
@@ -180,6 +180,18 @@ mod tests {
         let intersect = GridVec::new(5, 0);
         assert_eq!(a.intersect(&b), Some(intersect));
         assert_eq!(b.intersect(&a), Some(intersect));
+    }
+
+    #[test]
+    fn intersect_at_endpoint() {
+        let x = GridLine::new(GridVec::new(-10, 0), GridVec::new(10, 0));
+        let y1 = GridLine::new(GridVec::new(0, 0), GridVec::new(0, 10));
+        let y2 = GridLine::new(GridVec::new(0, 10), GridVec::new(0, 0));
+        let origin = GridVec::new(0, 0);
+        assert_eq!(x.intersect(&y1), Some(origin));
+        assert_eq!(y1.intersect(&x), Some(origin));
+        assert_eq!(x.intersect(&y2), Some(origin));
+        assert_eq!(y2.intersect(&x), Some(origin));
     }
 
     #[test]
