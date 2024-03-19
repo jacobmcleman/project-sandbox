@@ -1,6 +1,7 @@
 use bevy::{
     input::keyboard::KeyboardInput, prelude::*, render::{render_asset::RenderAssetUsages, render_resource::{Extent3d, TextureFormat}}, window::PrimaryWindow
 };
+use bevy_rapier2d::{geometry::Collider, math::Vect, na::base};
 use gridmath::{gridline::GridLine, GridBounds, GridVec};
 use rand::Rng;
 use sandworld::{ParticleType, ParticleSet, particle_set, CHUNK_SIZE};
@@ -131,6 +132,54 @@ fn create_chunk_image(chunk: &sandworld::Chunk, draw_options: &DrawOptions) -> I
     )
 }
 
+fn marching_squares_polylines_from_chunk(chunk: &sandworld::Chunk) -> crate::polyline::PolylineSet {
+    let mut polyline = crate::polyline::PolylineSet::new();
+    
+    let vals = chunk.get_marching_square_vals(particle_set!(ParticleType::Stone, ParticleType::Sand, ParticleType::Gravel));
+
+    let chunk_bounds = GridBounds::new_from_corner(GridVec::new(0, 0), GridVec::new(CHUNK_SIZE as i32, CHUNK_SIZE as i32));
+
+    for point in chunk_bounds.iter() {
+        let x = point.x;
+        let y = point.y;
+        let index = y as usize * CHUNK_SIZE as usize + x as usize;
+
+        let offset = Vect::new(CHUNK_SIZE as f32, CHUNK_SIZE as f32) * -0.5;
+
+        let bottom = offset + Vect::new(x as f32 + 0.5, y as f32);
+        let top = offset + Vect::new(x as f32 + 0.5, y as f32 + 1.0);
+        let left = offset + Vect::new(x as f32, y as f32 + 0.5);
+        let right = offset + Vect::new(x as f32 + 1.0, y as f32 + 0.5);
+
+        match vals[index] {
+            1 => { polyline.add(bottom, left); },
+            2 => { polyline.add(right, bottom); },
+            3 => { polyline.add(right, left); },
+            4 => { polyline.add(top, right); },
+            5 => { polyline.add(top, left); polyline.add(bottom,right);},
+            6 => { polyline.add(top, bottom) ;},
+            7 => { polyline.add(top, left); },
+            8 => { polyline.add(left, top) ;},
+            9 => { polyline.add(bottom, top); },
+            10 => { polyline.add(left, bottom); polyline.add(right, top);},
+            11 => { polyline.add(right, top); },
+            12 => { polyline.add(left, right); },
+            13 => { polyline.add(bottom, right); },
+            14 => { polyline.add(left, bottom); },
+            _ => ()
+        }
+    }
+
+    polyline
+}
+
+fn collider_for_chunk(chunk: &sandworld::Chunk) -> Collider {
+    let polyline = marching_squares_polylines_from_chunk(chunk);
+    // TODO: simplify the polyline while it is in this full form
+    let (vertices, indices) = polyline.to_verts_and_inds();
+    Collider::polyline(vertices, Some(indices))
+}
+
 fn render_chunk_data(chunk: &sandworld::Chunk, draw_options: &DrawOptions) -> Vec<u8> {
     chunk.render_to_color_array(draw_options.update_bounds, draw_options.chunk_bounds)
 }
@@ -164,7 +213,8 @@ fn create_spawned_chunks(
                     chunk_pos: chunkpos,
                     chunk_texture_handle: image_handle.clone(),
                     texture_dirty: false,
-                });
+                })
+                .insert(collider_for_chunk(chunk.as_ref()));
         }
     }
 }

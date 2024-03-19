@@ -11,4 +11,4 @@ sandworld = { path = "sandworld" }
 bevy = { version = "0.13.1" }
 noise = "0.8"
 rand = "0.8.5"
-bevy_rapier2d = "0.25"
+bevy_rapier2d = { version = "0.25" }
