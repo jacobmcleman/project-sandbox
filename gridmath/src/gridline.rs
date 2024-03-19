@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::gridvec::*;
+use crate::{gridvec::*, GridBounds};
 
 #[derive(PartialEq, Debug, Copy, Clone)]
 pub struct GridLine {
@@ -37,6 +37,10 @@ impl GridLine {
 
     pub fn reversed(&self) -> GridLine {
         GridLine::new(self.b, self.a)
+    }
+
+    pub fn get_bounds(&self) -> GridBounds {
+        GridBounds::containing(&vec![self.a, self.b])
     }
 
     pub fn intersect(&self, other: &GridLine) -> Option<GridVec> {

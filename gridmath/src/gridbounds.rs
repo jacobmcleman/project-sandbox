@@ -30,6 +30,16 @@ impl GridBounds {
         GridBounds { bottom_left, top_right }
     }
 
+    pub fn containing(points: &Vec<GridVec>) -> Self {
+        let mut bound = GridBounds::new(points[0], GridVec::new(0,0));
+
+        for point in points.iter() {
+            bound = bound.union(GridBounds::new(*point, GridVec::new(0,0)));
+        }
+
+        bound
+    }
+
     pub fn bottom(&self) -> i32 {
         self.bottom_left.y
     }
@@ -107,6 +117,11 @@ impl GridBounds {
         let difference = new_size - self.extent();
         self.top_right = self.top_right + (difference / 2) + GridVec::new(difference.x % 2, difference.y % 2);
         self.bottom_left = self.bottom_left - (difference / 2);
+    }
+
+    pub fn inflated_by(&self, radial_increase: i32) -> GridBounds {
+        let change_vec = GridVec::new(radial_increase, radial_increase);
+        GridBounds::new_from_extents(self.bottom_left - change_vec, self.top_right + change_vec)
     }
 
     pub fn contains(&self, point: GridVec) -> bool {

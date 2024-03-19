@@ -434,6 +434,10 @@ impl World {
         }
     }
 
+    pub fn temp_change_line(&mut self, line: GridLine, radius: i32, strength: f64, temperature: i32) {
+        let bounds = line.get_bounds().inflated_by(radius);
+    }
+
     pub fn update(&mut self, visible: GridBounds, target_chunk_updates: u64, update_options: WorldUpdateOptions) -> WorldUpdateStats {
         self.add_loaded_regions_to_sim();
         self.add_unloaded_region_to_list();
