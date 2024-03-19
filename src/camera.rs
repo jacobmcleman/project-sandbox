@@ -41,7 +41,7 @@ pub fn cam_bounds(ortho: &OrthographicProjection, camera: &Camera, camera_transf
 fn camera_movement(
     mut query: Query<(&Camera, &mut OrthographicProjection, &mut Transform, &mut IdleMover)>,
     time: Res<Time>,
-    keys: Res<Input<KeyCode>>,
+    keys: Res<ButtonInput<KeyCode>>,
 ) {
     let (_camera, mut ortho, mut camera_transform, mut idle) = query.single_mut();
 
@@ -53,35 +53,35 @@ fn camera_movement(
     let min_zoom = 0.1;
 
     if keys.pressed(KeyCode::ShiftLeft) {
-        if keys.just_pressed(KeyCode::D) {
+        if keys.just_pressed(KeyCode::KeyD) {
             idle.x_move -= 10.;
         }
-        if keys.just_pressed(KeyCode::A) {
+        if keys.just_pressed(KeyCode::KeyA) {
             idle.x_move += 10.;
         }
-        if keys.just_pressed(KeyCode::S) {
+        if keys.just_pressed(KeyCode::KeyS) {
             idle.y_move -= 10.;
         }
-        if keys.just_pressed(KeyCode::W) {
+        if keys.just_pressed(KeyCode::KeyW) {
             idle.y_move += 10.;
         }
     }
     else {
-        if keys.pressed(KeyCode::D) || keys.pressed(KeyCode::Right) {
+        if keys.pressed(KeyCode::KeyD) || keys.pressed(KeyCode::ArrowRight) {
             camera_transform.translation =
                 (camera_transform.right() * move_speed * time.delta_seconds())
                     + camera_transform.translation;
         }
-        if keys.pressed(KeyCode::A) || keys.pressed(KeyCode::Left) {
+        if keys.pressed(KeyCode::KeyA) || keys.pressed(KeyCode::ArrowLeft) {
             camera_transform.translation =
                 (camera_transform.left() * move_speed * time.delta_seconds())
                     + camera_transform.translation;
         }
-        if keys.pressed(KeyCode::W) || keys.pressed(KeyCode::Up) {
+        if keys.pressed(KeyCode::KeyW) || keys.pressed(KeyCode::ArrowUp) {
             camera_transform.translation = (camera_transform.up() * move_speed * time.delta_seconds())
                 + camera_transform.translation;
         }
-        if keys.pressed(KeyCode::S) || keys.pressed(KeyCode::Down) {
+        if keys.pressed(KeyCode::KeyS) || keys.pressed(KeyCode::ArrowDown) {
             camera_transform.translation =
                 (camera_transform.down() * move_speed * time.delta_seconds())
                     + camera_transform.translation;
@@ -91,12 +91,12 @@ fn camera_movement(
 
     if idle.x_move != 0. {
         camera_transform.translation =
-            (idle.x_move * camera_transform.left() * time.delta_seconds())
+            (idle.x_move * *camera_transform.left() * time.delta_seconds())
                 + camera_transform.translation;
     }
     if idle.y_move != 0. {
         camera_transform.translation =
-            (idle.y_move * camera_transform.up() * time.delta_seconds())
+            (idle.y_move * *camera_transform.up() * time.delta_seconds())
                 + camera_transform.translation;
     }
 

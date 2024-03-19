@@ -523,7 +523,6 @@ impl Chunk {
         }
     }
 
-
     fn test_vec(&self, base_x: i16, base_y: i16, test_vec_x: i8, test_vec_y: i8, test_type: ParticleType) -> bool {
         if test_vec_x.abs() > 1 || test_vec_y.abs() > 1 {
             // need to step
@@ -693,6 +692,28 @@ impl Chunk {
                 self.get_particle_mut(x, y).set_updated_this_frame(false);
             }
         }
+    }
+
+    fn get_marching_square_bits(&self, hitmask: ParticleSet, x: i16, y: i16) -> u8 {
+        let mut ret_bits = 0;
+
+        ret_bits |= (hitmask.test(self.get_local_part(x - 1, y - 0)) as u8) << 3;
+        ret_bits |= (hitmask.test(self.get_local_part(x - 0, y - 0)) as u8) << 2;
+        ret_bits |= (hitmask.test(self.get_local_part(x - 0, y - 1)) as u8) << 1;
+        ret_bits |= (hitmask.test(self.get_local_part(x - 1, y - 1)) as u8) << 0;
+        
+        ret_bits
+    }
+
+    pub fn get_marching_square_vals(&self, hitmask: ParticleSet) -> Vec<u8> {
+        let mut values = Vec::new();
+
+        for y in 0..CHUNK_SIZE {
+            for x in 0..CHUNK_SIZE {
+                values.push(self.get_marching_square_bits(hitmask, x as i16, y as i16));
+            }
+        }
+        values
     }
     
     pub fn set_local_part(&mut self, x: i16, y: i16, val: Particle) {

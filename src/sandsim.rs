@@ -1,7 +1,5 @@
 use bevy::{
-    prelude::*,
-    render::render_resource::{Extent3d, TextureFormat}, 
-    window::PrimaryWindow, input::keyboard::KeyboardInput,
+    input::keyboard::KeyboardInput, prelude::*, render::{render_asset::RenderAssetUsages, render_resource::{Extent3d, TextureFormat}}, window::PrimaryWindow
 };
 use gridmath::{gridline::GridLine, GridBounds, GridVec};
 use rand::Rng;
@@ -102,7 +100,7 @@ pub struct WorldStats {
     pub mouse_region: GridVec,
 }
 
-fn draw_mode_controls(mut draw_options: ResMut<DrawOptions>, keys: Res<Input<KeyCode>>) {
+fn draw_mode_controls(mut draw_options: ResMut<DrawOptions>, keys: Res<ButtonInput<KeyCode>>) {
     draw_options.force_redraw_all = false;
 
     if keys.just_pressed(KeyCode::F2) {
@@ -129,6 +127,7 @@ fn create_chunk_image(chunk: &sandworld::Chunk, draw_options: &DrawOptions) -> I
         bevy::render::render_resource::TextureDimension::D2,
         render_chunk_data(&chunk, &draw_options),
         TextureFormat::Rgba8Unorm,
+        RenderAssetUsages::default()
     )
 }
 
@@ -270,7 +269,7 @@ fn sand_update(
     mut world_stats: ResMut<WorldStats>,
     perf_settings: Res<crate::perf::PerfSettings>,
     cam_query: Query<(&OrthographicProjection, &Camera, &GlobalTransform)>,
-    debug_buttons: Res<Input<KeyCode>>,
+    debug_buttons: Res<ButtonInput<KeyCode>>,
 ) {
     let mut target_chunk_updates = 128;
 
@@ -312,7 +311,7 @@ fn world_interact(
     capture_state: Res<crate::ui::PointerCaptureState>,
     q_cam: Query<(&Camera, &GlobalTransform)>,
     mut sand: ResMut<Sandworld>,
-    buttons: Res<Input<MouseButton>>,
+    buttons: Res<ButtonInput<MouseButton>>,
     mut brush_options: ResMut<BrushOptions>,
     mut world_stats: ResMut<WorldStats>,
 ) {
