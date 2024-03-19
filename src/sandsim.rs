@@ -3,9 +3,9 @@ use bevy::{
     render::render_resource::{Extent3d, TextureFormat}, 
     window::PrimaryWindow, input::keyboard::KeyboardInput,
 };
-use gridmath::{GridBounds, GridVec};
+use gridmath::{gridline::GridLine, GridBounds, GridVec};
 use rand::Rng;
-use sandworld::{ParticleType, CHUNK_SIZE};
+use sandworld::{ParticleType, ParticleSet, particle_set, CHUNK_SIZE};
 use std::{collections::VecDeque, sync::{Arc, atomic::{AtomicU64, Ordering}}};
 
 use crate::camera::cam_bounds;
@@ -33,6 +33,7 @@ impl Plugin for SandSimulationPlugin {
         .insert_resource(BrushOptions {
             brush_mode: BrushMode::Place(ParticleType::Sand, 0),
             radius: 10,
+            click_start: None,
         })
         .insert_resource(WorldStats {
             update_stats: None,
@@ -74,12 +75,14 @@ pub enum BrushMode {
     Melt,
     Break,
     Chill,
+    Beam,
 }
 
 #[derive(Resource)]
 pub struct BrushOptions {
     pub brush_mode: BrushMode,
     pub radius: i32,
+    pub click_start: Option<GridVec>,
 }
 
 #[derive(Resource)]
@@ -310,7 +313,7 @@ fn world_interact(
     q_cam: Query<(&Camera, &GlobalTransform)>,
     mut sand: ResMut<Sandworld>,
     buttons: Res<Input<MouseButton>>,
-    brush_options: Res<BrushOptions>,
+    mut brush_options: ResMut<BrushOptions>,
     mut world_stats: ResMut<WorldStats>,
 ) {
     // get the camera info and transform
@@ -334,6 +337,12 @@ fn world_interact(
 
         if !capture_state.click_consumed && buttons.any_pressed([MouseButton::Left, MouseButton::Right])
         {
+            if buttons.just_pressed(MouseButton::Left) {
+                brush_options.click_start = Some(gridpos);
+
+                println!("click start at {}", gridpos);
+            }
+
             if buttons.pressed(MouseButton::Left) {
                 match brush_options.brush_mode {
                     BrushMode::Place(part_type, data) => sand.world.place_circle(
@@ -344,12 +353,20 @@ fn world_interact(
                     ),
                     BrushMode::Melt => {
                         sand.world
-                            .temp_change_circle(gridpos, brush_options.radius, 0.01, 800)
+                            .temp_change_circle(gridpos, brush_options.radius, 0.01, 1800)
                     }
                     BrushMode::Break => sand.world.break_circle(gridpos, brush_options.radius, 0.1),
                     BrushMode::Chill => {
                         sand.world
                             .temp_change_circle(gridpos, brush_options.radius, 0.01, -100)
+                    },
+                    BrushMode::Beam => {
+                        if let Some(click_pos) = brush_options.click_start {
+                            let hitmask = particle_set![ParticleType::Stone, ParticleType::Sand, ParticleType::Gravel];
+                            if let Some(hit) = sand.world.cast_ray(&hitmask, GridLine::new(click_pos, gridpos)) {
+                                sand.world.temp_change_circle(hit.point, brush_options.radius, 0.01, 1800);
+                            }
+                        }     
                     }
                 }
             } else if buttons.pressed(MouseButton::Right) {

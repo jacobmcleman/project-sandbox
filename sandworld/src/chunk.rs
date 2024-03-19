@@ -1,11 +1,14 @@
 pub const CHUNK_SIZE: u8 = 64;
+use std::arch::x86_64;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 
 use gridmath::*;
+use gridmath::gridline::GridLine;
 use rand::{Rng, rngs::ThreadRng};
+use crate::collisions::HitInfo;
 use crate::region::REGION_SIZE;
-use crate::{particle::*, WorldGenerator};
+use crate::{collisions, particle::*, World, WorldGenerator};
 
 #[derive(Debug)]
 pub struct Chunk {
@@ -420,6 +423,107 @@ impl Chunk {
         return false;
     }
 
+    fn get_world_root(&self) -> GridVec {
+        self.position * CHUNK_SIZE as i32
+    }
+
+    fn get_bounds(&self) -> GridBounds {
+        GridBounds::new_from_corner(
+            self.get_world_root(), 
+            GridVec::new(CHUNK_SIZE as i32 - 1, CHUNK_SIZE as i32 - 1))
+    }
+
+    pub fn cast_ray(&self, hitmask: &ParticleSet, line: GridLine) -> Option<HitInfo> {
+        // Verify line crosses this chunk
+        // Pull out relevant section of the line
+        let bounds = self.get_bounds();
+
+        if let Some(clipped_line) = bounds.clip_line(line) {
+            // Convert intersection segment coords to local coords
+            let local_line = GridLine::new(
+                World::get_chunklocal(clipped_line.a),
+                World::get_chunklocal(clipped_line.b)
+            );
+
+            // Run local version raycast
+            if let Some((hit_x, hit_y)) = self.cast_ray_local(hitmask, local_line) {
+                let world_hit_pos = self.get_world_root() + GridVec::new(hit_x as i32, hit_y as i32);
+                Some(HitInfo {
+                    point: world_hit_pos,
+                    part: self.get_particle(hit_x, hit_y),
+                })
+            }
+            else {
+                None
+            }
+        }
+        else {
+            None
+        }
+    }
+
+    fn cast_ray_local(&self, hitmask: &ParticleSet, local_line: GridLine) -> Option<(u8, u8)> {
+        #[cfg(debug_assertions)] {
+            if !self.contains(local_line.a.x as i16, local_line.a.y as i16) {
+                println!("Start of line {} is outside chunk!", local_line);
+            }
+            if !self.contains(local_line.b.x as i16, local_line.b.y as i16) {
+                println!("End of line {} is outside chunk!", local_line);
+            }
+        }
+
+        for point in local_line.along() {
+            let test_part = self.get_particle(point.x as u8, point.y as u8);
+
+            if hitmask.test(test_part.particle_type) {
+                return Some((point.x as u8, point.y as u8));
+            }
+        }
+
+        return None;
+    }
+
+    pub fn get_particle_types_in_bounds(&self, bounds: GridBounds) -> Option<ParticleSet> {
+        if let Some(overlap) = self.get_bounds().intersect(bounds) {
+            let local_overlap = GridBounds::new_from_extents(
+                World::get_chunklocal(overlap.bottom_left()), 
+                World::get_chunklocal(overlap.top_right())
+            );
+
+            let mut set = ParticleSet::none();
+            for point in local_overlap.iter() {
+                set.include(self.get_particle(point.x as u8, point.y as u8).particle_type);
+            }
+
+            Some(set)
+        }
+        else {
+            None
+        }
+    }
+
+    pub fn count_matching_in_bounds(&self, bounds: GridBounds, mask: ParticleSet) -> Option<u32> {
+        if let Some(overlap) = self.get_bounds().intersect(bounds) {
+            let local_overlap = GridBounds::new_from_extents(
+                World::get_chunklocal(overlap.bottom_left()), 
+                World::get_chunklocal(overlap.top_right())
+            );
+
+            let mut count = 0;
+            for point in local_overlap.iter() {
+                if mask.test(self.get_particle(point.x as u8, point.y as u8).particle_type) {
+                    count += 1;
+                }
+            }
+
+            Some(count)
+        }
+        else {
+            None
+        }
+    }
+
+
     fn test_vec(&self, base_x: i16, base_y: i16, test_vec_x: i8, test_vec_y: i8, test_type: ParticleType) -> bool {
         if test_vec_x.abs() > 1 || test_vec_y.abs() > 1 {
             // need to step
@@ -635,10 +739,10 @@ impl Chunk {
         call(self.get_local_part(x - 1, y + 1));
     }
     
-    fn count_neighbors_of_type(&self, x: i16, y: i16, search: &Vec<ParticleType>) -> u8 {
+    fn count_neighbors_of_type(&self, x: i16, y: i16, search: &ParticleSet) -> u8 {
         let mut count = 0;
         self.iterate_neighbor_parts(x, y, &mut |part_type: ParticleType| {
-            if search.contains(&part_type){
+            if search.test(part_type){
                 count += 1;
             }
         });

@@ -1,6 +1,5 @@
 use gridmath::GridVec;
 use rand::Rng;
-use once_cell::sync::Lazy;
 
 #[derive(PartialEq, Eq, Debug, Copy, Clone, Hash)]
 pub enum ParticleType {
@@ -20,6 +19,22 @@ pub enum ParticleType {
     Boundary,
     RegionBoundary,
     Dirty,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct ParticleSet (u16);
+
+#[macro_export]
+macro_rules! particle_set {
+    () => {
+        ParticleSet::none()
+    };
+    ($e:expr) => {
+        ParticleSet::with($e)
+    };
+    ($x:expr, $($y:expr),+) => {
+        ParticleSet::with($x).union(particle_set![$($y),+])
+    };
 }
 
 #[derive(Debug, Copy, Clone, Hash)]
@@ -47,7 +62,10 @@ pub(crate) enum ChunkCommand {
     Mutate(ParticleType, u8),
 }
 
-pub static SOLID_MATS: Lazy<Vec<ParticleType>> = Lazy::new(|| {vec![ParticleType::Stone, ParticleType::Glass] });
+pub static SOLID_MATS: ParticleSet = particle_set![ParticleType::Stone, ParticleType::Glass, ParticleType::Ice];
+
+pub static POWDER_MATS: ParticleSet = particle_set![ParticleType::Sand, ParticleType::Gravel];
+pub static LIQUID_MATS: ParticleSet = particle_set![ParticleType::Water, ParticleType::MoltenGlass, ParticleType::Lava];
 
 
 impl Particle {
@@ -109,16 +127,20 @@ impl Particle {
         }
     }
 
-    pub fn get_can_replace(particle_type: ParticleType, replace_type: ParticleType) -> bool {
+    pub fn get_replace_set(particle_type: ParticleType) -> ParticleSet {
         match particle_type {
-            ParticleType::Sand => [ParticleType::Water, ParticleType::Lava].contains(&replace_type),
-            ParticleType::Gravel => [ParticleType::Water, ParticleType::Steam, ParticleType::Lava].contains(&replace_type),
-            ParticleType::Steam => [ParticleType::Water, ParticleType::Lava].contains(&replace_type),
-            ParticleType::Lava => [ParticleType::Water, ParticleType::Steam].contains(&replace_type),
-            ParticleType::MoltenGlass => [ParticleType::Water, ParticleType::Steam, ParticleType::Lava].contains(&replace_type),
-            ParticleType::LaserBeam => [ParticleType::Water, ParticleType::Steam].contains(&replace_type),
-            _ => false
+            ParticleType::Sand => particle_set![ParticleType::Water, ParticleType::Lava],
+            ParticleType::Gravel => particle_set![ParticleType::Water, ParticleType::Steam, ParticleType::Lava],
+            ParticleType::Steam => particle_set![ParticleType::Water, ParticleType::Lava],
+            ParticleType::Lava => particle_set![ParticleType::Water, ParticleType::Steam],
+            ParticleType::MoltenGlass => particle_set![ParticleType::Water, ParticleType::Steam, ParticleType::Lava],
+            ParticleType::LaserBeam => particle_set![ParticleType::Water, ParticleType::Steam],
+            _ => ParticleSet::none()
         }
+    }
+
+    pub fn get_can_replace(particle_type: ParticleType, replace_type: ParticleType) -> bool {
+        Particle::get_replace_set(particle_type).test(replace_type)
     }
 }
 
@@ -307,3 +329,49 @@ impl CustomUpdateRules {
         ]
     }
 } 
+
+impl ParticleSet {
+    pub const fn none() -> Self {
+        ParticleSet(0)
+    }
+
+    pub const fn with(part_type: ParticleType) -> Self {
+        ParticleSet(1 << (part_type as u8))
+    }
+
+    pub const fn all() -> Self {
+        ParticleSet(!0)
+    }
+
+    pub const fn count(&self) -> u32 {
+        self.0.count_ones()
+    }
+
+    pub fn from(vec: &Vec<ParticleType>) -> Self {
+        let mut made = ParticleSet(0);
+
+        for part in vec.iter() {
+            made.include(*part);
+        }
+
+        made
+    }
+
+    pub fn include(&mut self, part_type: ParticleType) -> &Self {
+        self.0 |= 1 << (part_type as u8);
+        self
+    }
+
+    pub fn exclude(&mut self, part_type: ParticleType) -> &Self {
+        self.0 |= !(1 << (part_type as u8));
+        self
+    }
+
+    pub const fn union(&self, other: ParticleSet) -> ParticleSet {
+        ParticleSet(self.0 | other.0)
+    }
+
+    pub const fn test(&self, part_type: ParticleType) -> bool {
+        (self.0 & 1 << (part_type as u8)) != 0
+    }
+}

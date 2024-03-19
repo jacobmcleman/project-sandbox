@@ -2,9 +2,9 @@ pub const REGION_SIZE: usize = 16;
 
 use std::sync::{atomic::AtomicU64, Arc};
 
-use gridmath::*;
+use gridmath::{gridline::GridLine, *};
 use rayon::prelude::*;
-use crate::{chunk::*, World, Particle, ParticleType, WorldGenerator};
+use crate::{chunk::{self, *}, collisions::HitInfo, Particle, ParticleSet, ParticleType, World, WorldGenerator};
 
 pub struct Region {
     pub position: GridVec,
@@ -257,6 +257,62 @@ impl Region {
         GridVec { x, y }
     }
 
+    pub fn cast_ray(&self, hitmask: &ParticleSet, line: GridLine) -> Option<HitInfo> {
+        if let Some(_clipped_line) = self.get_bounds().clip_line(line) {
+            let cast_results: Vec<HitInfo> = self.chunks.par_iter().filter_map(|chunk| { chunk.cast_ray(hitmask, line) }).collect();
+            let mut closest: Option<(HitInfo, i32)> = None;
+            
+            for hit in cast_results {
+                if let Some(close) = &closest {
+                    let dist = line.a.sq_distance(hit.point);
+                    if dist < close.1 {
+                        closest = Some((hit, dist));
+                    }
+                }
+                else {
+                    let dist = line.a.sq_distance(hit.point);
+                    closest = Some((hit, dist));
+                }
+            }
+
+            if let Some(closest_hit) = closest {
+                return Some(closest_hit.0)
+            }
+        }
+
+        None
+    }
+
+    pub fn query_types_in_bounds(&self, bounds: GridBounds) -> Option<ParticleSet> {
+        if let Some(overlap) = self.get_bounds().intersect(bounds) {
+            let mut set = ParticleSet::none();
+            for c in self.chunks.iter() {
+                if let Some(chunk_set) = c.get_particle_types_in_bounds(overlap) {
+                    set = set.union(chunk_set);
+                }
+            }
+            Some(set)
+        }
+        else {
+            None
+        }
+    }
+
+    pub fn count_matches_in_bounds(&self, bounds: GridBounds, mask: ParticleSet) -> Option<u32> {
+        if let Some(overlap) = self.get_bounds().intersect(bounds) {
+            let mut count = 0;
+            for c in self.chunks.iter() {
+                if let Some(chunk_count) = c.count_matching_in_bounds(overlap, mask) {
+                    count += chunk_count;
+                }
+            }
+            Some(count)
+        }
+        else {
+            None
+        }
+    }
+
     fn chunkpos_to_region_index(&self, chunkpos: &GridVec) -> usize {
         let x = chunkpos.x - (self.position.x * REGION_SIZE as i32);
         let y = chunkpos.y - (self.position.y * REGION_SIZE as i32);
@@ -342,7 +398,7 @@ impl Region {
     }
 
     fn calc_update_priority(&mut self) {
-        self.update_priority = (self.staleness + 1) * (self.staleness + 1) * (self.last_chunk_updates + 1);
+        self.update_priority = (self.staleness + 1).pow(2) * (self.last_chunk_updates + 1);
     }
 
     pub fn skip_update(&mut self) {
@@ -350,8 +406,6 @@ impl Region {
 
         self.calc_update_priority();
     }
-
-
 
     pub fn commit_updates(&mut self) {
         self.staleness = 0;

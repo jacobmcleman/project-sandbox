@@ -1,3 +1,4 @@
+use gridmath::gridline::GridLine;
 use gridmath::*;
 use rand::rngs::ThreadRng;
 use rand::{RngCore, Rng};
@@ -5,12 +6,8 @@ use rayon::prelude::*;
 use std::collections::{BinaryHeap, VecDeque};
 use std::mem::swap;
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
 use std::sync::atomic::{AtomicU64, AtomicBool};
-
-use crate::chunk::*;
-use crate::particle::*;
-use crate::region::*;
+use crate::{chunk::*, region::*, collisions::HitInfo, particle::*};
 
 pub const WORLD_WIDTH: i32 = 1440;
 pub const WORLD_HEIGHT: i32 = 960;
@@ -99,17 +96,14 @@ impl World {
 
         for unloader in self.unloading_regions.iter() {
             if regpos == unloader.position {
-                println!("Region {} requested, currently queued for compression - doing nothing until it is ready", regpos);
                 return; // This one is still being compressed, wait for it to be done so no data is lost
             }
         }
 
         if self.retrieve_region_if_compressed(regpos) {
-            println!("Region {} requested, currently compressed, queued for decompression", regpos);
             return;
         }
 
-        println!("Region {} requested, generating...", regpos);
         self.loading_regions.push_back(LoadingRegion::new_generate(regpos, self.generator.clone()));
         self.loading_regions.back_mut().unwrap().start_load();
     }
@@ -440,6 +434,10 @@ impl World {
         }
     }
 
+    pub fn temp_change_line(&mut self, line: GridLine, radius: i32, strength: f64, temperature: i32) {
+        let bounds = line.get_bounds().inflated_by(radius);
+    }
+
     pub fn update(&mut self, visible: GridBounds, target_chunk_updates: u64, update_options: WorldUpdateOptions) -> WorldUpdateStats {
         self.add_loaded_regions_to_sim();
         self.add_unloaded_region_to_list();
@@ -527,6 +525,53 @@ impl World {
             compressing_regions: self.unloading_regions.len(),
             region_updates: updated_region_count.load(std::sync::atomic::Ordering::Relaxed),
         }
+    }
+
+    pub fn cast_ray(&self, hitmask: &ParticleSet, line: GridLine) -> Option<HitInfo> {
+        let mut last_region = None;
+
+        for worldpos in line.along() {
+            let regpos = World::get_regionpos_for_pos(&worldpos);
+
+            if last_region == Some(regpos) {
+                continue;
+            }
+            else {
+                last_region = Some(regpos);
+                if let Some(index) = self.get_region_index(regpos) {
+                    let result = self.regions[index].cast_ray(hitmask, line);
+    
+                    if result.is_some() {
+                        return result;
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    pub fn query_types_in_bounds(&self, bounds: GridBounds) -> ParticleSet {
+        let mut types = ParticleSet::none();
+
+        for region in self.regions.iter() {
+            if let Some(matches) = region.query_types_in_bounds(bounds) {
+                types = types.union(matches);
+            }
+        }
+
+        types
+    }
+
+    pub fn count_matches_in_bounds(&self, bounds: GridBounds, mask: ParticleSet) -> u32 {
+        let mut matches = 0;
+
+        for region in self.regions.iter() {
+            if let Some(reg_matches) = region.count_matches_in_bounds(bounds, mask) {
+                matches += reg_matches;
+            }
+        }
+
+        matches
     }
 }
 
