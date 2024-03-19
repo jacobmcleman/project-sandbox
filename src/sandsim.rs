@@ -174,8 +174,8 @@ fn marching_squares_polylines_from_chunk(chunk: &sandworld::Chunk) -> crate::pol
 }
 
 fn collider_for_chunk(chunk: &sandworld::Chunk) -> Collider {
-    let polyline = marching_squares_polylines_from_chunk(chunk);
-    // TODO: simplify the polyline while it is in this full form
+    let mut polyline = marching_squares_polylines_from_chunk(chunk);
+    polyline.simplify(4.);
     let (vertices, indices) = polyline.to_verts_and_inds();
     Collider::polyline(vertices, Some(indices))
 }
