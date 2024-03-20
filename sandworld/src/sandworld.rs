@@ -277,9 +277,15 @@ impl World {
         return set;
     }
 
-    pub fn get_updated_chunks(&mut self) -> Vec<GridVec> {
-        let mut set = Vec::new();
+    pub fn reset_updated_chunks(&mut self) {
         for reg in self.regions.iter_mut() {
+            reg.clear_updated_chunks();
+        }
+    }
+
+    pub fn get_updated_chunks(&self) -> Vec<GridVec> {
+        let mut set = Vec::new();
+        for reg in self.regions.iter() {
             set.append(&mut &mut reg.get_updated_chunks());
         }
         return set;

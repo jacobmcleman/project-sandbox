@@ -12,3 +12,8 @@ bevy = { version = "0.13.1" }
 noise = "0.8"
 rand = "0.8.5"
 bevy_rapier2d = { version = "0.25" }
+rayon = "1.5"
+
+# Use compiler optimizations for physics even in debug
+[profile.dev.package.bevy_rapier2d]
+opt-level = 3

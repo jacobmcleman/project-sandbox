@@ -3245,6 +3245,7 @@ dependencies = [
  "gridmath",
  "noise",
  "rand 0.8.5",
+ "rayon",
  "sandworld",
 ]
 

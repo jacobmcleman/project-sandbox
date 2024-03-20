@@ -365,9 +365,12 @@ impl Region {
         return set;
     }
 
-    pub fn get_updated_chunks(&mut self) -> Vec<GridVec> {
-        let set = self.updated_chunks.clone();
+    pub fn clear_updated_chunks(&mut self) {
         self.updated_chunks.clear();
+    }
+
+    pub fn get_updated_chunks(&self) -> Vec<GridVec> {
+        let set = self.updated_chunks.clone();
         return set;
     }
 

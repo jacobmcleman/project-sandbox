@@ -1,15 +1,77 @@
 use bevy::{
-    input::keyboard::KeyboardInput, prelude::*, render::{render_asset::RenderAssetUsages, render_resource::{Extent3d, TextureFormat}}, window::PrimaryWindow
+    input::keyboard::KeyboardInput, pbr::MAX_CASCADES_PER_LIGHT, prelude::*, render::{render_asset::RenderAssetUsages, render_resource::{Extent3d, TextureFormat}}, window::PrimaryWindow
 };
-use bevy_rapier2d::{geometry::Collider, math::Vect, na::base};
+use bevy_rapier2d::prelude::*;
 use gridmath::{gridline::GridLine, GridBounds, GridVec};
 use rand::Rng;
 use sandworld::{ParticleType, ParticleSet, particle_set, CHUNK_SIZE};
-use std::{collections::VecDeque, sync::{Arc, atomic::{AtomicU64, Ordering}}};
+use std::{collections::VecDeque, ptr::read, sync::{atomic::{AtomicBool, AtomicU64, Ordering}, Arc, Mutex}};
 
-use crate::camera::cam_bounds;
+use crate::{camera::cam_bounds, polyline::PolylineSet};
 
 pub struct SandSimulationPlugin;
+
+const COLLIDES: ParticleSet = particle_set!(ParticleType::Stone, ParticleType::Sand, ParticleType::Gravel);
+
+#[derive(Resource, Default)]
+struct AsyncColliderManager {
+    in_progress: Vec<ChunkColliderGenerator>,
+}
+
+impl AsyncColliderManager {
+    fn queue_collider_gen(&mut self, chunk_position: GridVec, chunk: &sandworld::Chunk, time: f32) {
+        self.in_progress.push(ChunkColliderGenerator::new(
+            chunk_position,
+            time,
+            chunk.get_marching_square_vals(COLLIDES),
+        ));
+
+        self.in_progress.last_mut().unwrap().start_build();
+    }
+}
+
+struct ChunkColliderGenerator {
+    position: GridVec,
+    request_time: f32,
+    chunk_data: Vec<u8>,
+    ready: Arc<AtomicBool>,
+    result: Arc<Mutex<Option<(Vec<Vect>, Vec<[u32; 2]>)>>>,
+}
+
+impl ChunkColliderGenerator {
+    fn new(position: GridVec, request_time: f32, chunk_data: Vec<u8>) -> Self {
+        ChunkColliderGenerator {
+            position,
+            request_time,
+            chunk_data,
+            ready: Arc::new(false.into()),
+            result: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    fn start_build(&mut self) {
+        let ready = self.ready.clone();
+        let result = self.result.clone();
+        let chunk_data = self.chunk_data.clone();
+        
+        rayon::spawn(move || {
+            let mut polyline = marching_squares_polylines_from_chunkdata(&chunk_data);
+            polyline.simplify(16.);
+            let (vertices, indices) = polyline.to_verts_and_inds();
+
+            result.lock().unwrap().replace((vertices, indices));
+            ready.store(true, std::sync::atomic::Ordering::Relaxed);
+        });
+    }
+}
+
+#[derive(Component)]
+struct GeneratedCollider {
+    world_data_source_time: f32,
+    last_requested_time: f32,
+    last_lines: Option<(Vec<Vect>, Vec<[u32; 2]>)>,
+    visible_last: bool,
+}
 
 impl Plugin for SandSimulationPlugin {
     fn build(&self, app: &mut App) {
@@ -44,11 +106,13 @@ impl Plugin for SandSimulationPlugin {
             mouse_chunk_pos: GridVec::new(0, 0),
             mouse_region: GridVec::new(0, 0),
         })
+        .insert_resource(AsyncColliderManager::default())
         .add_systems(Update, (create_spawned_chunks, clear_removed_chunks).in_set(crate::UpdateStages::WorldUpdate))
+         .add_systems(Update, (apply_generated_chunk_colliders, update_chunk_colliders).in_set(crate::UpdateStages::WorldUpdate))
         .add_systems(Update, sand_update.in_set(crate::UpdateStages::WorldUpdate))
         .add_systems(Update, update_chunk_textures.in_set(crate::UpdateStages::WorldDraw))
         .add_systems(Update, world_interact.in_set(crate::UpdateStages::Input))
-        .add_systems(Update, cull_hidden_chunks.in_set(crate::UpdateStages::WorldUpdate))
+        .add_systems(Update, (cull_hidden_chunks, remove_offscreen_colliders).in_set(crate::UpdateStages::WorldUpdate))
         .add_systems(Update, draw_mode_controls.in_set(crate::UpdateStages::Input));
     }
 }
@@ -132,10 +196,8 @@ fn create_chunk_image(chunk: &sandworld::Chunk, draw_options: &DrawOptions) -> I
     )
 }
 
-fn marching_squares_polylines_from_chunk(chunk: &sandworld::Chunk) -> crate::polyline::PolylineSet {
+fn marching_squares_polylines_from_chunkdata(chunk_data: &Vec<u8>) -> crate::polyline::PolylineSet {
     let mut polyline = crate::polyline::PolylineSet::new();
-    
-    let vals = chunk.get_marching_square_vals(particle_set!(ParticleType::Stone, ParticleType::Sand, ParticleType::Gravel));
 
     let chunk_bounds = GridBounds::new_from_corner(GridVec::new(0, 0), GridVec::new(CHUNK_SIZE as i32, CHUNK_SIZE as i32));
 
@@ -151,7 +213,7 @@ fn marching_squares_polylines_from_chunk(chunk: &sandworld::Chunk) -> crate::pol
         let left = offset + Vect::new(x as f32, y as f32 + 0.5);
         let right = offset + Vect::new(x as f32 + 1.0, y as f32 + 0.5);
 
-        match vals[index] {
+        match chunk_data[index] {
             1 => { polyline.add(bottom, left); },
             2 => { polyline.add(right, bottom); },
             3 => { polyline.add(right, left); },
@@ -174,7 +236,7 @@ fn marching_squares_polylines_from_chunk(chunk: &sandworld::Chunk) -> crate::pol
 }
 
 fn collider_for_chunk(chunk: &sandworld::Chunk) -> Collider {
-    let mut polyline = marching_squares_polylines_from_chunk(chunk);
+    let mut polyline = marching_squares_polylines_from_chunkdata(&chunk.get_marching_square_vals(COLLIDES));
     polyline.simplify(4.);
     let (vertices, indices) = polyline.to_verts_and_inds();
     Collider::polyline(vertices, Some(indices))
@@ -184,11 +246,62 @@ fn render_chunk_data(chunk: &sandworld::Chunk, draw_options: &DrawOptions) -> Ve
     chunk.render_to_color_array(draw_options.update_bounds, draw_options.chunk_bounds)
 }
 
+fn apply_generated_chunk_colliders(
+    mut collider_gen: ResMut<AsyncColliderManager>,
+    time: Res<Time>,
+    mut chunks_query: Query<(&Chunk, &mut GeneratedCollider, Option<&mut Collider>)>
+) {
+    let max_per_frame = 128;
+    let mut ready_cols = Vec::new();
+    let mut ready_indices = Vec::new();
+
+    for i in 0..collider_gen.in_progress.len() {
+        let building = &collider_gen.in_progress[i];
+        if building.ready.load(Ordering::Relaxed) {
+            ready_cols.push(building);
+            ready_indices.push(i);
+
+            if ready_cols.len() >= max_per_frame {
+                break;
+            }
+        }
+    }
+
+    println!("{0} chunk colliders processing, {1} are ready", collider_gen.in_progress.len(), ready_cols.len());
+    
+    
+    for (chunk, mut gen_flags, mut chunk_col_opt) in chunks_query.iter_mut() {
+        for ready_collider in ready_cols.iter_mut() {
+            // if this is the right position and this new data is actually newer than what we've got (wheeee async is fun)
+            if ready_collider.position == chunk.chunk_pos && gen_flags.world_data_source_time < ready_collider.request_time {
+                let mut guard = ready_collider.result.as_ref().lock().unwrap();
+                if let Some((vertices, indices)) = guard.take() {
+                    if let Some(ref mut chunk_col) = &mut chunk_col_opt {
+                        **chunk_col = Collider::polyline(vertices.clone(), Some(indices.clone()));
+                    }
+
+                    gen_flags.world_data_source_time = time.elapsed_seconds();
+                    gen_flags.last_lines = Some((vertices, indices));
+                    gen_flags.visible_last = false;
+                }
+            }
+        }
+    }
+    
+
+    // Remove all the jobs that were ready this update
+    for remove_index in ready_indices.iter().rev() {
+        collider_gen.in_progress.remove(*remove_index);
+    }
+}
+
 fn create_spawned_chunks(
     mut world: ResMut<Sandworld>,
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
     draw_options: Res<DrawOptions>,
+    mut collider_gen: ResMut<AsyncColliderManager>,
+    time: Res<Time>,
 ) {
     let added_chunks = world.world.get_added_chunks();
     for chunkpos in added_chunks {
@@ -214,7 +327,15 @@ fn create_spawned_chunks(
                     chunk_texture_handle: image_handle.clone(),
                     texture_dirty: false,
                 })
-                .insert(collider_for_chunk(chunk.as_ref()));
+                .insert(GeneratedCollider {
+                    world_data_source_time: 0.,
+                    last_requested_time: time.elapsed_seconds(),
+                    last_lines: None,
+                    visible_last: false,
+                })
+                ;
+
+            collider_gen.queue_collider_gen(chunkpos, chunk, time.elapsed_seconds());
         }
     }
 }
@@ -230,6 +351,28 @@ fn clear_removed_chunks(
         if removed_chunks.contains(&chunk.chunk_pos) {
             commands.entity(entity).despawn();
         }
+    }
+}
+
+fn remove_offscreen_colliders(
+    mut commands: Commands,
+    mut chunk_query: Query<(Entity, &mut GeneratedCollider, &Visibility)>,
+) {
+    for (entity, mut gencol, vis) in chunk_query.iter_mut() {
+        if vis == Visibility::Hidden {
+            if gencol.visible_last {
+                commands.entity(entity).remove::<Collider>();
+            }
+        }
+        else if vis == Visibility::Inherited {
+            if !gencol.visible_last {
+                if let Some((verts, indices)) = gencol.last_lines.clone() {
+                    commands.entity(entity).insert(Collider::polyline(verts, Some(indices)));
+                }
+            }
+        }
+
+        gencol.visible_last = vis == Visibility::Inherited;
     }
 }
 
@@ -274,8 +417,27 @@ fn cull_hidden_chunks(
     }
 }
 
+fn update_chunk_colliders(
+    world: Res<Sandworld>,
+    mut collider_gen: ResMut<AsyncColliderManager>,
+    mut chunk_query: Query<(&Chunk, &mut GeneratedCollider)>,
+    time: Res<Time>,
+) {
+    let updated_chunks = world.world.get_updated_chunks();
+
+    
+    for (chunk_comp, mut gen) in chunk_query.iter_mut() {
+        if updated_chunks.contains(&chunk_comp.chunk_pos) {
+            gen.last_requested_time = time.elapsed_seconds();
+            if let Some(chunk) = world.world.get_chunk(&chunk_comp.chunk_pos) {
+                collider_gen.queue_collider_gen(chunk_comp.chunk_pos, chunk, time.elapsed_seconds());
+            }
+        }
+    }
+}
+
 fn update_chunk_textures(
-    mut world: ResMut<Sandworld>,
+    world: Res<Sandworld>,
     mut images: ResMut<Assets<Image>>,
     mut world_stats: ResMut<WorldStats>,
     mut chunk_query: Query<(&mut Chunk, &Visibility)>,
@@ -321,6 +483,8 @@ fn sand_update(
     cam_query: Query<(&OrthographicProjection, &Camera, &GlobalTransform)>,
     debug_buttons: Res<ButtonInput<KeyCode>>,
 ) {
+    world.world.reset_updated_chunks();
+
     let mut target_chunk_updates = 128;
 
     if let Some(_stats) = &world_stats.update_stats {
