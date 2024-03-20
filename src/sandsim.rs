@@ -20,10 +20,14 @@ struct AsyncColliderManager {
 
 impl AsyncColliderManager {
     fn queue_collider_gen(&mut self, chunk_position: GridVec, chunk: &sandworld::Chunk, time: f32) {
+        self.queue_collider_gen_data(chunk_position, chunk.get_marching_square_vals(COLLIDES), time);
+    }
+
+    fn queue_collider_gen_data(&mut self, chunk_position: GridVec, chunk_data: Vec<u8>, time: f32) {
         self.in_progress.push(ChunkColliderGenerator::new(
             chunk_position,
             time,
-            chunk.get_marching_square_vals(COLLIDES),
+            chunk_data,
         ));
 
         self.in_progress.last_mut().unwrap().start_build();
@@ -56,7 +60,7 @@ impl ChunkColliderGenerator {
         
         rayon::spawn(move || {
             let mut polyline = marching_squares_polylines_from_chunkdata(&chunk_data);
-            polyline.simplify(16.);
+            polyline.simplify(4.);
             let (vertices, indices) = polyline.to_verts_and_inds();
 
             result.lock().unwrap().replace((vertices, indices));
@@ -69,6 +73,7 @@ impl ChunkColliderGenerator {
 struct GeneratedCollider {
     world_data_source_time: f32,
     last_requested_time: f32,
+    last_data: Option<Vec<u8>>,
     last_lines: Option<(Vec<Vect>, Vec<[u32; 2]>)>,
     visible_last: bool,
 }
@@ -235,13 +240,6 @@ fn marching_squares_polylines_from_chunkdata(chunk_data: &Vec<u8>) -> crate::pol
     polyline
 }
 
-fn collider_for_chunk(chunk: &sandworld::Chunk) -> Collider {
-    let mut polyline = marching_squares_polylines_from_chunkdata(&chunk.get_marching_square_vals(COLLIDES));
-    polyline.simplify(4.);
-    let (vertices, indices) = polyline.to_verts_and_inds();
-    Collider::polyline(vertices, Some(indices))
-}
-
 fn render_chunk_data(chunk: &sandworld::Chunk, draw_options: &DrawOptions) -> Vec<u8> {
     chunk.render_to_color_array(draw_options.update_bounds, draw_options.chunk_bounds)
 }
@@ -251,7 +249,7 @@ fn apply_generated_chunk_colliders(
     time: Res<Time>,
     mut chunks_query: Query<(&Chunk, &mut GeneratedCollider, Option<&mut Collider>)>
 ) {
-    let max_per_frame = 128;
+    let max_per_frame = 256;
     let mut ready_cols = Vec::new();
     let mut ready_indices = Vec::new();
 
@@ -269,25 +267,25 @@ fn apply_generated_chunk_colliders(
 
     println!("{0} chunk colliders processing, {1} are ready", collider_gen.in_progress.len(), ready_cols.len());
     
-    
-    for (chunk, mut gen_flags, mut chunk_col_opt) in chunks_query.iter_mut() {
-        for ready_collider in ready_cols.iter_mut() {
-            // if this is the right position and this new data is actually newer than what we've got (wheeee async is fun)
-            if ready_collider.position == chunk.chunk_pos && gen_flags.world_data_source_time < ready_collider.request_time {
-                let mut guard = ready_collider.result.as_ref().lock().unwrap();
-                if let Some((vertices, indices)) = guard.take() {
-                    if let Some(ref mut chunk_col) = &mut chunk_col_opt {
-                        **chunk_col = Collider::polyline(vertices.clone(), Some(indices.clone()));
-                    }
+    if ready_cols.len() > 0 {
+        chunks_query.par_iter_mut().for_each(|(chunk, mut gen_flags, mut chunk_col_opt)| {
+            for ready_collider in ready_cols.iter() {
+                // if this is the right position and this new data is actually newer than what we've got (wheeee async is fun)
+                if ready_collider.position == chunk.chunk_pos && gen_flags.world_data_source_time < ready_collider.request_time {
+                    let mut guard = ready_collider.result.as_ref().lock().unwrap();
+                    if let Some((vertices, indices)) = guard.take() {
+                        if let Some(ref mut chunk_col) = &mut chunk_col_opt {
+                            **chunk_col = Collider::polyline(vertices.clone(), Some(indices.clone()));
+                        }
 
-                    gen_flags.world_data_source_time = time.elapsed_seconds();
-                    gen_flags.last_lines = Some((vertices, indices));
-                    gen_flags.visible_last = false;
+                        gen_flags.world_data_source_time = time.elapsed_seconds();
+                        gen_flags.last_lines = Some((vertices, indices));
+                        gen_flags.visible_last = false;
+                    }
                 }
             }
-        }
+        });
     }
-    
 
     // Remove all the jobs that were ready this update
     for remove_index in ready_indices.iter().rev() {
@@ -330,6 +328,7 @@ fn create_spawned_chunks(
                 .insert(GeneratedCollider {
                     world_data_source_time: 0.,
                     last_requested_time: time.elapsed_seconds(),
+                    last_data: None,
                     last_lines: None,
                     visible_last: false,
                 })
@@ -425,12 +424,32 @@ fn update_chunk_colliders(
 ) {
     let updated_chunks = world.world.get_updated_chunks();
 
-    
     for (chunk_comp, mut gen) in chunk_query.iter_mut() {
         if updated_chunks.contains(&chunk_comp.chunk_pos) {
             gen.last_requested_time = time.elapsed_seconds();
+            
             if let Some(chunk) = world.world.get_chunk(&chunk_comp.chunk_pos) {
-                collider_gen.queue_collider_gen(chunk_comp.chunk_pos, chunk, time.elapsed_seconds());
+                if let Some(last_data) = &gen.last_data {
+                    let chunk_data = chunk.get_marching_square_vals(COLLIDES);
+                    let mut same = true;
+                    for i in 0..chunk_data.len() {
+                        same &= chunk_data[i] == last_data[i];
+
+                        if !same {
+                            break;
+                        }
+                    }
+
+                    if !same {
+                        collider_gen.queue_collider_gen_data(chunk_comp.chunk_pos, chunk_data.clone(), time.elapsed_seconds());
+                        gen.last_data = Some(chunk_data);
+                    }
+                }
+                else {
+                    let chunk_data = chunk.get_marching_square_vals(COLLIDES);
+                    collider_gen.queue_collider_gen_data(chunk_comp.chunk_pos, chunk_data.clone(), time.elapsed_seconds());
+                    gen.last_data = Some(chunk_data);
+                }
             }
         }
     }
