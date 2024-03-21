@@ -144,6 +144,7 @@ pub enum BrushMode {
     Break,
     Chill,
     Beam,
+    Ball,
 }
 
 #[derive(Resource)]
@@ -264,8 +265,6 @@ fn apply_generated_chunk_colliders(
             }
         }
     }
-
-    println!("{0} chunk colliders processing, {1} are ready", collider_gen.in_progress.len(), ready_cols.len());
     
     if ready_cols.len() > 0 {
         chunks_query.par_iter_mut().for_each(|(chunk, mut gen_flags, mut chunk_col_opt)| {
@@ -547,6 +546,7 @@ fn world_interact(
     buttons: Res<ButtonInput<MouseButton>>,
     mut brush_options: ResMut<BrushOptions>,
     mut world_stats: ResMut<WorldStats>,
+    mut commands: Commands,
 ) {
     // get the camera info and transform
     // assuming there is exactly one main camera entity, so query::single() is OK
@@ -573,6 +573,15 @@ fn world_interact(
                 brush_options.click_start = Some(gridpos);
 
                 println!("click start at {}", gridpos);
+
+                match brush_options.brush_mode {
+                    BrushMode::Ball => {
+                        commands.spawn(RigidBody::Dynamic)
+                            .insert(TransformBundle::from(Transform::from_xyz(world_pos.x, world_pos.y, 0.0)))
+                            .insert(Collider::ball(5.));
+                    },
+                    _ => ()
+                }
             }
 
             if buttons.pressed(MouseButton::Left) {
@@ -599,7 +608,8 @@ fn world_interact(
                                 sand.world.temp_change_circle(hit.point, brush_options.radius, 0.01, 1800);
                             }
                         }     
-                    }
+                    },
+                    BrushMode::Ball => () // only act on down
                 }
             } else if buttons.pressed(MouseButton::Right) {
                 sand.world.place_circle(

@@ -49,7 +49,7 @@ fn camera_movement(
     let move_speed = 256.;
     let zoom_speed = 0.5;
 
-    let max_zoom = 2.;
+    let max_zoom = 1.;
     let min_zoom = 0.1;
 
     if keys.pressed(KeyCode::ShiftLeft) {
