@@ -263,6 +263,7 @@ fn setup_buttons(mut commands: Commands, asset_server: Res<AssetServer>) {
         },
         ..Default::default()
     }).with_children(|parent| {
+        spawn_tool_selector_button(parent, &asset_server, "BOMB", BrushMode::Ball, 10);
         spawn_tool_selector_button(parent, &asset_server, "BEAM", BrushMode::Beam, 10);
         spawn_tool_selector_button(parent, &asset_server, "MELT", BrushMode::Melt, 10);
         spawn_tool_selector_button(parent, &asset_server, "BREAK", BrushMode::Break, 10);

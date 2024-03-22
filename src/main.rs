@@ -4,12 +4,14 @@
 use std::mem::size_of;
 
 use bevy::{prelude::*, window::PresentMode, window::WindowResolution};
+use bevy_rapier2d::{plugin::{NoUserData, RapierPhysicsPlugin}, render::RapierDebugRenderPlugin};
 
 mod camera;
 mod perf;
 mod sandsim;
 mod ui;
 mod worldgen;
+mod polyline;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet)]
 enum UpdateStages {
@@ -40,6 +42,11 @@ fn main() {
         .add_plugins(crate::camera::CameraPlugin)
         .add_plugins(crate::ui::UiPlugin)
         .add_plugins(crate::perf::PerfControlPlugin)
+        .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(10.))
+        .add_plugins(RapierDebugRenderPlugin {
+            enabled: false,
+            ..Default::default()
+        })
         .insert_resource(ClearColor(Color::rgb(0.04, 0.04, 0.04)))
         .run();
 }
