@@ -106,6 +106,7 @@ impl Plugin for SandSimulationPlugin {
             chunk_bounds: false,
             world_stats: false,
             force_redraw_all: false,
+            show_colliders: false,
         })
         .insert_resource(BrushOptions {
             brush_mode: BrushMode::Place(ParticleType::Sand, 0),
@@ -146,6 +147,7 @@ pub struct DrawOptions {
     pub chunk_bounds: bool,
     pub world_stats: bool,
     pub force_redraw_all: bool,
+    pub show_colliders: bool,
 }
 
 #[derive(PartialEq, Eq, Clone)]
@@ -182,7 +184,11 @@ pub struct WorldStats {
     pub mouse_region: GridVec,
 }
 
-fn draw_mode_controls(mut draw_options: ResMut<DrawOptions>, keys: Res<ButtonInput<KeyCode>>) {
+fn draw_mode_controls(
+    mut draw_options: ResMut<DrawOptions>, 
+    keys: Res<ButtonInput<KeyCode>>,
+    mut renderer_context: ResMut<DebugRenderContext>,
+){
     draw_options.force_redraw_all = false;
 
     if keys.just_pressed(KeyCode::F2) {
@@ -195,6 +201,10 @@ fn draw_mode_controls(mut draw_options: ResMut<DrawOptions>, keys: Res<ButtonInp
     }
     if keys.just_pressed(KeyCode::F4) {
         draw_options.world_stats = !draw_options.world_stats;
+    }
+    if keys.just_pressed(KeyCode::F5) {
+        draw_options.show_colliders = !draw_options.show_colliders;
+        renderer_context.enabled = draw_options.show_colliders;
     }
 }
 
