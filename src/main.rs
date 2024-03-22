@@ -43,7 +43,7 @@ fn main() {
         .add_plugins(crate::ui::UiPlugin)
         .add_plugins(crate::perf::PerfControlPlugin)
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(10.))
-        .add_plugins(RapierDebugRenderPlugin::default())
+        // .add_plugins(RapierDebugRenderPlugin::default())
         .insert_resource(ClearColor(Color::rgb(0.04, 0.04, 0.04)))
         .run();
 }

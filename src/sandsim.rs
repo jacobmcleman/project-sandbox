@@ -18,6 +18,17 @@ struct AsyncColliderManager {
     in_progress: Vec<ChunkColliderGenerator>,
 }
 
+#[derive(Component)]
+struct BombComp {
+    start_time: f32,
+    timer_length: f32,
+}
+
+#[derive(Component)]
+struct SandParticle {
+    material: ParticleType,
+}
+
 impl AsyncColliderManager {
     fn queue_collider_gen(&mut self, chunk_position: GridVec, chunk: &sandworld::Chunk, time: f32) {
         self.queue_collider_gen_data(chunk_position, chunk.get_marching_square_vals(COLLIDES), time);
@@ -116,7 +127,7 @@ impl Plugin for SandSimulationPlugin {
          .add_systems(Update, (apply_generated_chunk_colliders, update_chunk_colliders).in_set(crate::UpdateStages::WorldUpdate))
         .add_systems(Update, sand_update.in_set(crate::UpdateStages::WorldUpdate))
         .add_systems(Update, update_chunk_textures.in_set(crate::UpdateStages::WorldDraw))
-        .add_systems(Update, world_interact.in_set(crate::UpdateStages::Input))
+        .add_systems(Update, (world_interact, bomb_timer).in_set(crate::UpdateStages::Input))
         .add_systems(Update, (cull_hidden_chunks, remove_offscreen_colliders).in_set(crate::UpdateStages::WorldUpdate))
         .add_systems(Update, draw_mode_controls.in_set(crate::UpdateStages::Input));
     }
@@ -538,6 +549,24 @@ fn sand_update(
     world_stats.update_stats = Some(stats);
 }
 
+fn bomb_timer(
+    mut sand: ResMut<Sandworld>,
+    bomb_query: Query<(&BombComp, &Transform, Entity)>,
+    mut commands: Commands,
+    time: Res<Time>,
+) {
+    for (bomb, transform, entity) in bomb_query.iter() {
+        let timer = time.elapsed_seconds() - bomb.start_time;
+        if timer > bomb.timer_length {
+            let pos = transform.translation;
+            let gridpos = GridVec::new(pos.x as i32, pos.y as i32);
+            sand.world.break_circle(gridpos, 32, 0.9);
+            sand.world.temp_change_circle(gridpos, 8, 0.75, 1000);
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
 fn world_interact(
     wnds: Query<&Window, With<PrimaryWindow>>,
     capture_state: Res<crate::ui::PointerCaptureState>,
@@ -547,6 +576,8 @@ fn world_interact(
     mut brush_options: ResMut<BrushOptions>,
     mut world_stats: ResMut<WorldStats>,
     mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    time: Res<Time>,
 ) {
     // get the camera info and transform
     // assuming there is exactly one main camera entity, so query::single() is OK
@@ -577,8 +608,18 @@ fn world_interact(
                 match brush_options.brush_mode {
                     BrushMode::Ball => {
                         commands.spawn(RigidBody::Dynamic)
-                            .insert(TransformBundle::from(Transform::from_xyz(world_pos.x, world_pos.y, 0.0)))
-                            .insert(Collider::ball(5.));
+                            .insert(Collider::ball(5.))
+                            .insert(Restitution::coefficient(0.5))
+                            .insert(SpriteBundle {
+                                texture: asset_server.load("sprites/bomb1.png"),
+                                transform: Transform::from_xyz(world_pos.x, world_pos.y, 0.1),
+                                ..default()
+                            })
+                            .insert(BombComp {
+                                start_time: time.elapsed_seconds(),
+                                timer_length: 5.0,
+                            })
+                            ;
                     },
                     _ => ()
                 }
