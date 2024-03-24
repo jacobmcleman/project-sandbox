@@ -1,8 +1,9 @@
-use bevy::{ecs::schedule::common_conditions::resource_added, math::primitives::Line2d};
-use bevy_rapier2d::math::Vect;
+use bevy::math::Vec2;
+
+
 
 pub struct PolylineSet {
-    segments: Vec<Vec<Vect>>,
+    segments: Vec<Vec<Vec2>>,
 }
 
 impl PolylineSet {
@@ -12,7 +13,7 @@ impl PolylineSet {
         }
     }
 
-    pub fn add(&mut self, from: Vect, to: Vect) {
+    pub fn add(&mut self, from: Vec2, to: Vec2) {
         let mut matched = false;
         for segment in self.segments.iter_mut() {
             // Try inserting back first as thats cheaper
@@ -37,7 +38,7 @@ impl PolylineSet {
 
     
 
-    fn simplify_segment(segment: &Vec<Vect>, start: usize, end: usize, epsilon: f32) -> Vec<Vect> {
+    fn simplify_segment(segment: &Vec<Vec2>, start: usize, end: usize, epsilon: f32) -> Vec<Vec2> {
         let mut dmax = 0.;
         let mut index = 0;
 
@@ -74,7 +75,7 @@ impl PolylineSet {
         }
     }
 
-    pub fn to_verts_and_inds(&self) -> (Vec<Vect>, Vec<[u32; 2]>) {
+    pub fn to_verts_and_inds(&self) -> (Vec<Vec2>, Vec<[u32; 2]>) {
         let mut verts = Vec::new(); 
         let mut indices = Vec::new();
 
@@ -97,7 +98,7 @@ impl PolylineSet {
     }
 }
 
-fn point_line_distance(p1: Vect, p2: Vect, point: Vect) -> f32 {
+fn point_line_distance(p1: Vec2, p2: Vec2, point: Vec2) -> f32 {
     ((p2.x - p1.x) * (p1.y - point.y) - (p1.x - point.x) *  (p2.y - p1.y)).abs() / 
         ((p2.x - p1.x).powi(2) + (p2.y - p1.y).powi(2)).sqrt()
 }

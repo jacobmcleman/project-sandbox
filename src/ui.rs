@@ -129,9 +129,10 @@ fn update_performance_text(
         *vis = Visibility::Inherited;
 
         text.sections[0].value = format!(
-            "FPS: {} ({:.1}ms)",
+            "FPS: {} ({:.1}ms (worst: {:.1}ms))",
             (1. / frame_times.current_avg).round() as u32,
-            frame_times.current_avg * 1000.
+            frame_times.current_avg * 1000.,
+            frame_times.recent_worst * 1000.,
         );
 
         if let Some(world_stats) = &stats.update_stats {

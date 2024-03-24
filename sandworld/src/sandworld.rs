@@ -339,7 +339,10 @@ impl World {
 
         let chunkpos = World::get_chunkpos(&pos);
         let chunklocal = World::get_chunklocal(pos);
-        self.get_chunk_mut(&chunkpos).unwrap().set_particle(chunklocal.x as u8, chunklocal.y as u8, new_val);
+
+        if let Some(chunk) = self.get_chunk_mut(&chunkpos) {
+            chunk.set_particle(chunklocal.x as u8, chunklocal.y as u8, new_val);
+        }
     }
     
     pub fn set_particle_temperature(&mut self, pos: GridVec, temperature: i32, rng: &mut ThreadRng) {
@@ -351,7 +354,10 @@ impl World {
 
         let chunkpos = World::get_chunkpos(&pos);
         let chunklocal = World::get_chunklocal(pos);
-        self.get_chunk_mut(&chunkpos).unwrap().try_state_change(chunklocal.x as u8, chunklocal.y as u8, temperature, rng);
+
+        if let Some(chunk) = self.get_chunk_mut(&chunkpos) {
+            chunk.try_state_change(chunklocal.x as u8, chunklocal.y as u8, temperature, rng);
+        }
     }
     
     pub fn replace_particle_filtered(&mut self, pos: GridVec, new_val: Particle, replace_type: ParticleType) {
@@ -363,7 +369,10 @@ impl World {
 
         let chunkpos = World::get_chunkpos(&pos);
         let chunklocal = World::get_chunklocal(pos);
-        self.get_chunk_mut(&chunkpos).unwrap().replace_particle_filtered(chunklocal.x as i16, chunklocal.y as i16, new_val, replace_type);
+        
+        if let Some(chunk) = self.get_chunk_mut(&chunkpos) {
+            chunk.replace_particle_filtered(chunklocal.x as i16, chunklocal.y as i16, new_val, replace_type);
+        }
     }
 
     pub fn add_particle(&mut self, pos: GridVec, new_val: Particle) {

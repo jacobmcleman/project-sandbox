@@ -1,6 +1,6 @@
-use std::sync::atomic::AtomicU32;
 
-use bevy::{prelude::*, render::{render_asset::RenderAssetUsages, render_resource::{Extent3d, TextureFormat}, view::visibility}};
+use bevy::{prelude::*, render::{render_asset::RenderAssetUsages, render_resource::{Extent3d, TextureFormat}}};
+use bevy_xpbd_2d::{components::RigidBody, plugins::collision::Collider};
 use gridmath::{GridBounds, GridVec};
 use sandworld::CHUNK_SIZE;
 use crate::{camera::cam_bounds, sandsim::*};
@@ -17,14 +17,21 @@ pub struct DrawOptions {
 #[derive(Component, Default)]
 pub struct ChunkDisplay {
     pub chunk_pos: Option<GridVec>,
-    redraw: bool,
-    dirty: bool,
+    pub redraw: bool,
 }
 
 #[derive(Bundle, Default)]
 struct ChunkDisplayBundle {
     chunk_display: ChunkDisplay,
     sprite: SpriteBundle,
+    collider: Collider,
+    rigidbody: RigidBody,
+    collider_manager: crate::chunk_colliders::ChunkColliderManager,
+}
+
+#[derive(Resource)]
+struct ChunkVisibilityCache {
+    visible_chunk_bounds: GridBounds,
 }
 
 pub struct SandworldDisplayPlugin;
@@ -39,14 +46,17 @@ impl Plugin for SandworldDisplayPlugin {
             force_redraw_all: false,
             show_colliders: false,
         })
-        .add_systems(Update,(assign_chunk_displays, update_chunk_textures))
+        .insert_resource(ChunkVisibilityCache {
+            visible_chunk_bounds: GridBounds::new(GridVec::new(0, 0), GridVec::new(0, 0)),
+        })
+        .add_systems(Update,(assign_chunk_displays, update_chunk_textures).in_set(crate::UpdateStages::WorldDraw))
         ;
     }
 }
 
 fn update_chunk_textures(
     world: Res<Sandworld>,
-    mut chunk_display_query: Query<(&mut ChunkDisplay, &mut Handle<Image>)>,
+    mut chunk_display_query: Query<(&ChunkDisplay, &mut Handle<Image>)>,
     draw_options: Res<DrawOptions>,
     mut images: ResMut<Assets<Image>>,
     mut world_stats: ResMut<WorldStats>,
@@ -56,7 +66,7 @@ fn update_chunk_textures(
     let updated_chunks = world.world.get_updated_chunks();
     let mut updated_textures_count = 0;
 
-    chunk_display_query.iter_mut().for_each(|(mut chunk_display, texture)| {
+    chunk_display_query.iter_mut().for_each(|(chunk_display, texture)| {
         // Is this display entity currently representing a chunk
         if let Some(chunk_pos) = chunk_display.chunk_pos {
             // If the chunk this entity is representing needs to show an update
@@ -70,8 +80,6 @@ fn update_chunk_textures(
                     cur_tuxture.data = render_chunk_data(world_chunk, &draw_options);
 
                     updated_textures_count += 1;
-
-                    chunk_display.redraw = false;
                 }
             }
         }
@@ -93,9 +101,8 @@ fn assign_chunk_displays(
     cam_query: Query<(&OrthographicProjection, &Camera, &GlobalTransform), Or<(Changed<OrthographicProjection>, Changed<Camera>, Changed<GlobalTransform>)>>,
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
+    mut visibility_cache: ResMut<ChunkVisibilityCache>,
 ) {
-    println!("Currently have {} chunk display entities", chunk_display_query.iter().count());
-    
     let (ortho, camera, cam_transform) = cam_query.single();
     let bounds = cam_bounds(ortho, camera, cam_transform);
 
@@ -104,13 +111,17 @@ fn assign_chunk_displays(
         sandworld::World::get_chunkpos(&bounds.bottom_left()), 
         sandworld::World::get_chunkpos(&bounds.top_right())
     ).inflated_by(1); // One chunk of padding to reduce flickering
+
+    if visibility_cache.visible_chunk_bounds == chunk_bounds {
+        // Do no work
+        return;
+    }
+
+    // Ok, we've moved - update the cache and continue
+    visibility_cache.visible_chunk_bounds = chunk_bounds;
     
     // Don't unload chunks until they're a few off the edge to limit thrashing
     let keep_chunk_bounds = chunk_bounds.inflated_by(2);
-
-    // println!("Cam bounds: {}", bounds);
-    // println!("chunk bounds: {}", chunk_bounds);
-    // println!("discard bound: {}", keep_chunk_bounds);
 
     // Free up any display entities that are beyond those bounds (inflated a little to avoid thrashing for small movements)
     chunk_display_query.par_iter_mut().for_each(|(mut chunk_display, _, mut visibility)| {
@@ -119,15 +130,16 @@ fn assign_chunk_displays(
                 // Unassign and hide
                 chunk_display.chunk_pos = None;
                 *visibility = Visibility::Hidden;
-
-                // println!("freeing display_entity for {}", chunk_pos);
             }
+
+            // If was told to redraw last frame, assume it has finished by now and clear that flag
+            chunk_display.redraw = false;
         }
     });
 
     // Go through loaded chunks
     // Keep track of entities ready for reassignment as well as which visible chunks are ready
-    let mut free_displays = Vec::new();
+    let mut free_displays = Vec::with_capacity(chunk_bounds.width() as usize);
     let mut filled_spots = 0;
     let mut filled_set = vec![false; chunk_bounds.area()];
 
@@ -143,8 +155,6 @@ fn assign_chunk_displays(
         }
     });
     
-    // println!("{0}/{1} visible chunks have entities, {2} display entities ready to be allocated", filled_spots, chunk_bounds.area(), free_displays.len());
-
     // For each point in the visible bounds that is missing representation, first attempt to claim one of the unclaimed chunks
     // Failing that increase the count of representing entities that need to spawn
     for i in 0..filled_set.len() {
@@ -174,8 +184,10 @@ fn assign_chunk_displays(
                     chunk_display: ChunkDisplay {
                         chunk_pos: Some(chunk_pos),
                         redraw: true,
-                        dirty: true
-                    }
+                    },
+                    rigidbody: RigidBody::Static,
+                    collider: Collider::default(),
+                    ..Default::default()
                 });
             }
         }
