@@ -1,6 +1,5 @@
-use bevy::{prelude::*, core::Zeroable};
+use bevy::prelude::*;
 use gridmath::{GridBounds, GridVec};
-use sandworld::CHUNK_SIZE;
 
 pub struct CameraPlugin;
 
@@ -29,7 +28,7 @@ fn spawn_camera(mut commands: Commands) {
     );
 }
 
-pub fn cam_bounds(ortho: &OrthographicProjection, camera: &Camera, camera_transform: &GlobalTransform) -> GridBounds {
+pub fn cam_bounds(camera: &Camera, camera_transform: &GlobalTransform) -> GridBounds {
     let bottom_left = camera.ndc_to_world(camera_transform, Vec3::new(-1., -1., 0.)).unwrap().truncate().floor();
     let top_right = camera.ndc_to_world(camera_transform, Vec3::new(1., 1., 0.)).unwrap().truncate().ceil();
 

@@ -1,10 +1,8 @@
-use bevy::math::Vec2;
-use bevy_xpbd_2d::parry::shape::SharedShape;
-
-const JOIN_EPSILLON: f32 = 0.25;
+use bevy::{ecs::schedule::common_conditions::resource_added, math::primitives::Line2d};
+use bevy_rapier2d::math::Vect;
 
 pub struct PolylineSet {
-    segments: Vec<Vec<Vec2>>,
+    segments: Vec<Vec<Vect>>,
 }
 
 impl PolylineSet {
@@ -14,16 +12,16 @@ impl PolylineSet {
         }
     }
 
-    pub fn add(&mut self, from: Vec2, to: Vec2) {
+    pub fn add(&mut self, from: Vect, to: Vect) {
         let mut matched = false;
         for segment in self.segments.iter_mut() {
             // Try inserting back first as thats cheaper
-            if segment.last().unwrap().distance_squared(from) < JOIN_EPSILLON {
+            if segment.last().unwrap().distance_squared(from) < 0.1 {
                 segment.push(to);
                 matched = true;
             }
             // Don't want to join both ends need an else
-            else if segment.first().unwrap().distance_squared(to) < JOIN_EPSILLON {
+            else if segment.first().unwrap().distance_squared(to) < 0.1 {
                 segment.insert(0, from);
                 matched = true;
             }
@@ -39,7 +37,7 @@ impl PolylineSet {
 
     
 
-    fn simplify_segment(segment: &Vec<Vec2>, start: usize, end: usize, epsilon: f32) -> Vec<Vec2> {
+    fn simplify_segment(segment: &Vec<Vect>, start: usize, end: usize, epsilon: f32) -> Vec<Vect> {
         let mut dmax = 0.;
         let mut index = 0;
 
@@ -76,7 +74,7 @@ impl PolylineSet {
         }
     }
 
-    pub fn to_verts_and_inds(&self) -> (Vec<Vec2>, Vec<[u32; 2]>) {
+    pub fn to_verts_and_inds(&self) -> (Vec<Vect>, Vec<[u32; 2]>) {
         let mut verts = Vec::new(); 
         let mut indices = Vec::new();
 
@@ -97,15 +95,9 @@ impl PolylineSet {
 
         (verts, indices)
     }
-
-    pub fn to_shared_shape_polyline(&self) -> SharedShape {
-        let (verts, indices) = self.to_verts_and_inds();
-        let vertices = verts.into_iter().map(|v| v.into()).collect();
-        SharedShape::polyline(vertices, Some(indices))
-    }
 }
 
-fn point_line_distance(p1: Vec2, p2: Vec2, point: Vec2) -> f32 {
+fn point_line_distance(p1: Vect, p2: Vect, point: Vect) -> f32 {
     ((p2.x - p1.x) * (p1.y - point.y) - (p1.x - point.x) *  (p2.y - p1.y)).abs() / 
         ((p2.x - p1.x).powi(2) + (p2.y - p1.y).powi(2)).sqrt()
 }

@@ -4,7 +4,7 @@ use std::sync::{atomic::AtomicU64, Arc};
 
 use gridmath::{gridline::GridLine, *};
 use rayon::prelude::*;
-use crate::{chunk::{self, *}, collisions::HitInfo, Particle, ParticleSet, ParticleType, World, WorldGenerator};
+use crate::{chunk::*, collisions::HitInfo, Particle, ParticleSet, ParticleType, World, WorldGenerator};
 
 pub struct Region {
     pub position: GridVec,

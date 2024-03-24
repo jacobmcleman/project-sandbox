@@ -6,6 +6,7 @@ use bevy::prelude::*;
 pub struct FrameTimes {
     recent: VecDeque<f64>,
     pub current_avg: f64,
+    pub recent_worst: f64,
 }
 
 #[derive(Resource)]
@@ -20,6 +21,7 @@ impl Plugin for PerfControlPlugin {
         app.insert_resource(FrameTimes {
             recent: VecDeque::new(),
             current_avg: 0.,
+            recent_worst: 0.,
         })
         .insert_resource(PerfSettings {
             target_frame_rate: 60,
@@ -33,7 +35,13 @@ fn frame_timing(time: Res<Time>, mut timing_data: ResMut<FrameTimes>) {
     if timing_data.recent.len() > 64 {
         timing_data.recent.pop_front();
     }
-
-    timing_data.current_avg = timing_data.recent.iter().fold(0., |total, val| total + val)
-        / (timing_data.recent.len() as f64);
+    
+    let mut worst = timing_data.current_avg;
+    let mut total = 0.;
+    for time in timing_data.recent.iter() {
+        total += time;
+        if *time > worst { worst = *time }
+    }
+    timing_data.current_avg = total / (timing_data.recent.len() as f64);
+    timing_data.recent_worst = worst;
 }
