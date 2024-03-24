@@ -1,6 +1,6 @@
 
 use bevy::{prelude::*, render::{render_asset::RenderAssetUsages, render_resource::{Extent3d, TextureFormat}}};
-use bevy_xpbd_2d::{components::RigidBody, plugins::collision::Collider};
+use bevy_xpbd_2d::{components::{CollisionLayers, RigidBody}, plugins::collision::Collider};
 use gridmath::{GridBounds, GridVec};
 use sandworld::CHUNK_SIZE;
 use crate::{camera::cam_bounds, sandsim::*};
@@ -25,6 +25,7 @@ struct ChunkDisplayBundle {
     chunk_display: ChunkDisplay,
     sprite: SpriteBundle,
     collider: Collider,
+    layers: CollisionLayers,
     rigidbody: RigidBody,
     collider_manager: crate::chunk_colliders::ChunkColliderManager,
 }
@@ -97,14 +98,14 @@ fn update_chunk_textures(
 }
 
 fn assign_chunk_displays(
-    mut chunk_display_query: Query<(&mut ChunkDisplay, &mut Transform, &mut Visibility)>,
-    cam_query: Query<(&OrthographicProjection, &Camera, &GlobalTransform), Or<(Changed<OrthographicProjection>, Changed<Camera>, Changed<GlobalTransform>)>>,
+    mut chunk_display_query: Query<(&mut ChunkDisplay, &mut Transform, &mut Visibility, &mut CollisionLayers)>,
+    cam_query: Query<(&Camera, &GlobalTransform), Or<(Changed<OrthographicProjection>, Changed<Camera>, Changed<GlobalTransform>)>>,
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
     mut visibility_cache: ResMut<ChunkVisibilityCache>,
 ) {
-    let (ortho, camera, cam_transform) = cam_query.single();
-    let bounds = cam_bounds(ortho, camera, cam_transform);
+    let (camera, cam_transform) = cam_query.single();
+    let bounds = cam_bounds(camera, cam_transform);
 
     // Establish bounds that should be represented by Bevy entities
     let chunk_bounds: GridBounds = GridBounds::new_from_extents(
@@ -124,12 +125,13 @@ fn assign_chunk_displays(
     let keep_chunk_bounds = chunk_bounds.inflated_by(2);
 
     // Free up any display entities that are beyond those bounds (inflated a little to avoid thrashing for small movements)
-    chunk_display_query.par_iter_mut().for_each(|(mut chunk_display, _, mut visibility)| {
+    chunk_display_query.par_iter_mut().for_each(|(mut chunk_display, _, mut visibility, mut layers)| {
         if let Some(chunk_pos) = chunk_display.chunk_pos {
             if !keep_chunk_bounds.contains(chunk_pos) {
                 // Unassign and hide
                 chunk_display.chunk_pos = None;
                 *visibility = Visibility::Hidden;
+                *layers = CollisionLayers::new(crate::chunk_colliders::ColliderLayer::Ignore, [crate::chunk_colliders::ColliderLayer::Ignore]);
             }
 
             // If was told to redraw last frame, assume it has finished by now and clear that flag
@@ -167,11 +169,12 @@ fn assign_chunk_displays(
                 0.
             );
 
-            if let Some((mut chunk_display, mut transform, mut visibility)) = free_displays.pop() {
+            if let Some((mut chunk_display, mut transform, mut visibility, mut layers)) = free_displays.pop() {
                 chunk_display.chunk_pos = Some(chunk_pos);
                 chunk_display.redraw = true;
                 *visibility = Visibility::Inherited;
                 transform.translation = position;
+                *layers = CollisionLayers::new(crate::chunk_colliders::ColliderLayer::Terrain, crate::chunk_colliders::MOBILE_COLLISION_LAYERS);
             }
             else {
                 let image = create_chunk_image();
@@ -187,6 +190,7 @@ fn assign_chunk_displays(
                     },
                     rigidbody: RigidBody::Static,
                     collider: Collider::default(),
+                    layers: CollisionLayers::new(crate::chunk_colliders::ColliderLayer::Terrain, crate::chunk_colliders::MOBILE_COLLISION_LAYERS),
                     ..Default::default()
                 });
             }

@@ -1,5 +1,4 @@
 pub const CHUNK_SIZE: u8 = 64;
-use std::arch::x86_64;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 
@@ -8,7 +7,7 @@ use gridmath::gridline::GridLine;
 use rand::{Rng, rngs::ThreadRng};
 use crate::collisions::HitInfo;
 use crate::region::REGION_SIZE;
-use crate::{collisions, particle::*, World, WorldGenerator};
+use crate::{particle::*, World, WorldGenerator};
 
 #[derive(Debug)]
 pub struct Chunk {

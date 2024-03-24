@@ -1,4 +1,4 @@
-use std::{hash::{DefaultHasher, Hash, Hasher}, sync::{atomic::{AtomicBool, AtomicU64, Ordering}, Arc, Mutex}};
+use std::{hash::{DefaultHasher, Hash, Hasher}, sync::{atomic::{AtomicBool, Ordering}, Arc, Mutex}};
 
 use bevy::prelude::*;
 use sandworld::*;
@@ -9,6 +9,21 @@ use crate::sandsim::Sandworld;
 use crate::chunk_display::ChunkDisplay;
 
 const COLLIDES: ParticleSet = particle_set!(ParticleType::Stone, ParticleType::Sand, ParticleType::Gravel, ParticleType::Ice, ParticleType::Glass);
+const SIMPLIFICATION_EPSILLON: f32 = 2.5;
+const MAX_COLLIDER_UPDATES_PER_FRAME: usize = 64;
+
+
+
+#[derive(PhysicsLayer)]
+pub enum ColliderLayer {
+    Terrain,     // Layer 0,
+    Player,     // Layer 1,
+    Projectile, // Layer 2
+    Ignore,
+}
+
+pub const DEFAULT_COLLISION_LAYERS: [ColliderLayer; 3] = [ColliderLayer::Terrain, ColliderLayer::Player, ColliderLayer::Projectile];
+pub const MOBILE_COLLISION_LAYERS: [ColliderLayer; 2] = [ColliderLayer::Player, ColliderLayer::Projectile];
 
 #[derive(Component, Default)]
 pub struct ChunkColliderManager {
@@ -26,7 +41,7 @@ struct ChunkColliderGenerator {
     request_time: f32,
     chunk_data: Vec<u8>,
     ready: Arc<AtomicBool>,
-    result: Arc<Mutex<Option<(Vec<Vec2>, Vec<[u32; 2]>)>>>,
+    result: Arc<Mutex<Option<SharedShape>>>,
 }
 
 pub struct SandworldColliderPlugin;
@@ -72,11 +87,10 @@ fn update_chunk_colliders(
 
 fn apply_generated_colliders(
     mut collider_gen: ResMut<AsyncColliderManager>,
-    mut chunks_query: Query<(&ChunkDisplay, &mut ChunkColliderManager, &mut Collider)>,
+    mut chunks_query: Query<(&ChunkDisplay, &mut ChunkColliderManager, &mut Collider, &mut CollisionLayers)>,
 ) {
-    let max_updates = 64;
-    let mut ready_cols = Vec::with_capacity(max_updates);
-    let mut ready_indices = Vec::with_capacity(max_updates);
+    let mut ready_cols = Vec::with_capacity(MAX_COLLIDER_UPDATES_PER_FRAME);
+    let mut ready_indices = Vec::with_capacity(MAX_COLLIDER_UPDATES_PER_FRAME);
 
     for i in 0..collider_gen.in_progress.len() {
         let building = &collider_gen.in_progress[i];
@@ -84,14 +98,14 @@ fn apply_generated_colliders(
             ready_cols.push(building);
             ready_indices.push(i);
 
-            if ready_indices.len() >= max_updates {
+            if ready_indices.len() >= MAX_COLLIDER_UPDATES_PER_FRAME {
                 break;
             }
         }
     }
 
     if ready_indices.len() > 0 {
-        chunks_query.par_iter_mut().for_each(|(chunk_display, mut colman, mut collider)| {
+        chunks_query.par_iter_mut().for_each(|(chunk_display, mut colman, mut collider, mut layers)| {
             for ready_collider in ready_cols.iter() {
                 if let Some(rep_pos) = chunk_display.chunk_pos {
                     // if this is the right position and this new data is actually newer than what we've got (wheeee async is fun)
@@ -99,8 +113,17 @@ fn apply_generated_colliders(
                         // println!("recieved new collider for {}", rep_pos);
 
                         let mut guard = ready_collider.result.as_ref().lock().unwrap();
-                        if let Some((vertices, indices)) = guard.take() {
-                            *collider = Collider::polyline(vertices, Some(indices));
+                        if let Some(shape) = guard.take() {
+                            if shape.as_polyline().unwrap().vertices().len() > 0 {
+                                collider.set_shape(shape);
+                                *layers = CollisionLayers::new(crate::chunk_colliders::ColliderLayer::Terrain, crate::chunk_colliders::MOBILE_COLLISION_LAYERS);
+                            }
+                            else {
+                                collider.set_shape(SharedShape::ball(1.));
+                                *layers = CollisionLayers::new(crate::chunk_colliders::ColliderLayer::Ignore, [crate::chunk_colliders::ColliderLayer::Ignore]);
+                            }
+
+                            colman.last_data_source_time = ready_collider.request_time;
                         }
                     }
                 }
@@ -132,10 +155,10 @@ impl ChunkColliderGenerator {
         
         rayon::spawn(move || {
             let mut polyline = marching_squares_polylines_from_chunkdata(&chunk_data);
-            polyline.simplify(2.);
-            let (vertices, indices) = polyline.to_verts_and_inds();
+            polyline.simplify(SIMPLIFICATION_EPSILLON);
+            let shape = polyline.to_shared_shape_polyline();
 
-            result.lock().unwrap().replace((vertices, indices));
+            result.lock().unwrap().replace(shape);
             ready.store(true, std::sync::atomic::Ordering::Relaxed);
         });
     }

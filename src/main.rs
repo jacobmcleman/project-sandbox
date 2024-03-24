@@ -45,7 +45,7 @@ fn main() {
         .add_plugins(crate::ui::UiPlugin)
         .add_plugins(crate::perf::PerfControlPlugin)
         .add_plugins(PhysicsPlugins::default())
-        .add_plugins(PhysicsDebugPlugin::default())
+        // .add_plugins(PhysicsDebugPlugin::default())
         .insert_resource(ClearColor(Color::rgb(0.04, 0.04, 0.04)))
         .insert_resource(Gravity(Vec2::NEG_Y * 100.0))
         .run();

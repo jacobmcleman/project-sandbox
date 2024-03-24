@@ -1,6 +1,7 @@
 use bevy::math::Vec2;
+use bevy_xpbd_2d::parry::shape::SharedShape;
 
-
+const JOIN_EPSILLON: f32 = 0.25;
 
 pub struct PolylineSet {
     segments: Vec<Vec<Vec2>>,
@@ -17,12 +18,12 @@ impl PolylineSet {
         let mut matched = false;
         for segment in self.segments.iter_mut() {
             // Try inserting back first as thats cheaper
-            if segment.last().unwrap().distance_squared(from) < 0.1 {
+            if segment.last().unwrap().distance_squared(from) < JOIN_EPSILLON {
                 segment.push(to);
                 matched = true;
             }
             // Don't want to join both ends need an else
-            else if segment.first().unwrap().distance_squared(to) < 0.1 {
+            else if segment.first().unwrap().distance_squared(to) < JOIN_EPSILLON {
                 segment.insert(0, from);
                 matched = true;
             }
@@ -95,6 +96,12 @@ impl PolylineSet {
         }
 
         (verts, indices)
+    }
+
+    pub fn to_shared_shape_polyline(&self) -> SharedShape {
+        let (verts, indices) = self.to_verts_and_inds();
+        let vertices = verts.into_iter().map(|v| v.into()).collect();
+        SharedShape::polyline(vertices, Some(indices))
     }
 }
 

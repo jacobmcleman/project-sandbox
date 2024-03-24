@@ -13,10 +13,3 @@ noise = "0.9"
 rand = "0.8.5"
 bevy_xpbd_2d = "0.4.2"
 rayon = "1.5"
-
-# Use compiler optimizations for physics even in debug
-[profile.dev.package.bevy_rapier2d]
-opt-level = 3
-
-[profile.release]
-codegen-units = 1

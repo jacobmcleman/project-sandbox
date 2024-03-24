@@ -4,11 +4,11 @@ use bevy::{
     prelude::*, window::PrimaryWindow
 };
 use bevy_xpbd_2d::prelude::*;
-use gridmath::{gridline::GridLine, GridVec};
+use gridmath::*;
 use rand::Rng;
-use sandworld::{ParticleType, ParticleSet, particle_set, CHUNK_SIZE};
+use sandworld::{ParticleType, CHUNK_SIZE};
 
-use crate::{camera::cam_bounds, chunk_colliders::SandworldColliderPlugin, chunk_display::{DrawOptions, SandworldDisplayPlugin}};
+use crate::{camera::cam_bounds, chunk_colliders::{self, SandworldColliderPlugin}, chunk_display::{DrawOptions, SandworldDisplayPlugin}};
 
 pub struct SandSimulationPlugin;
 
@@ -47,9 +47,6 @@ impl Plugin for SandSimulationPlugin {
             mouse_chunk_pos: GridVec::new(0, 0),
             mouse_region: GridVec::new(0, 0),
         })
-        
-        //.add_systems(Update, (create_spawned_chunks, clear_removed_chunks).in_set(crate::UpdateStages::WorldUpdate))
-        //.add_systems(Update, (apply_generated_chunk_colliders, update_chunk_colliders).in_set(crate::UpdateStages::WorldUpdate))
         .add_systems(Update, sand_update.in_set(crate::UpdateStages::WorldUpdate))
         .add_systems(Update, (world_interact, bomb_timer).in_set(crate::UpdateStages::Input))
         .add_systems(Update, draw_mode_controls.in_set(crate::UpdateStages::Input))
@@ -114,7 +111,7 @@ fn sand_update(
     mut world: ResMut<Sandworld>,
     mut world_stats: ResMut<WorldStats>,
     perf_settings: Res<crate::perf::PerfSettings>,
-    cam_query: Query<(&OrthographicProjection, &Camera, &GlobalTransform)>,
+    cam_query: Query<(&Camera, &GlobalTransform)>,
     debug_buttons: Res<ButtonInput<KeyCode>>,
 ) {
     world.world.reset_updated_chunks();
@@ -134,8 +131,8 @@ fn sand_update(
         world_stats.target_chunk_updates = target_chunk_updates;
     }
 
-    let (ortho, camera, cam_transform) = cam_query.single();
-    let bounds = cam_bounds(ortho, camera, cam_transform);
+    let (camera, cam_transform) = cam_query.single();
+    let bounds = cam_bounds(camera, cam_transform);
 
     let update_options = sandworld::WorldUpdateOptions {
         force_compress_decompress_all: debug_buttons.just_pressed(KeyCode::F10),
@@ -204,19 +201,15 @@ fn world_interact(
         world_stats.mouse_chunk_pos = gridpos / CHUNK_SIZE as i32;
         world_stats.mouse_region = sandworld::World::get_regionpos_for_chunkpos(&(world_stats.mouse_chunk_pos));
 
+        
         if !capture_state.click_consumed && buttons.any_pressed([MouseButton::Left, MouseButton::Right])
         {
             if buttons.just_pressed(MouseButton::Left) {
                 brush_options.click_start = Some(gridpos);
 
-                println!("click start at {}", gridpos);
-
                 match brush_options.brush_mode {
                     BrushMode::Ball => {
-                        commands.spawn(RigidBody::Dynamic)
-                            .insert(Collider::circle(5.))
-                            .insert(Restitution::new(0.5))
-                            .insert(SpriteBundle {
+                        commands.spawn(SpriteBundle {
                                 texture: asset_server.load("sprites/bomb1.png"),
                                 transform: Transform::from_xyz(world_pos.x, world_pos.y, 0.1),
                                 ..default()
@@ -225,6 +218,12 @@ fn world_interact(
                                 start_time: time.elapsed_seconds(),
                                 timer_length: 5.0,
                             })
+                            .insert(Collider::circle(5.))
+                            .insert(RigidBody::Dynamic)
+                            .insert(CollisionLayers::new(
+                                chunk_colliders::ColliderLayer::Projectile,
+                                chunk_colliders::DEFAULT_COLLISION_LAYERS
+                            ))
                             ;
                     },
                     _ => ()

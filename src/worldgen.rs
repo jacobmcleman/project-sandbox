@@ -1,4 +1,3 @@
-use bevy::ecs::world;
 use gridmath::GridVec;
 use noise::{NoiseFn, Perlin};
 use sandworld::{Particle, ParticleType, WorldGenerator};
