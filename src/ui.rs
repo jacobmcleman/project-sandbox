@@ -1,4 +1,5 @@
 use crate::sandsim::{BrushMode, BrushOptions};
+use crate::chunk_display::DrawOptions;
 use bevy::prelude::*;
 use sandworld::ParticleType;
 
@@ -120,7 +121,7 @@ fn spawn_performance_info_text(mut commands: Commands, asset_server: Res<AssetSe
 fn update_performance_text(
     mut text_query: Query<(&PerformanceReadout, &mut Text, &mut Visibility)>,
     stats: Res<crate::sandsim::WorldStats>,
-    draw_options: Res<crate::sandsim::DrawOptions>,
+    draw_options: Res<DrawOptions>,
     frame_times: Res<crate::perf::FrameTimes>,
 ) {
     let (_, mut text, mut vis) = text_query.single_mut();

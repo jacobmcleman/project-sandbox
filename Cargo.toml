@@ -17,3 +17,7 @@ rayon = "1.5"
 # Use compiler optimizations for physics even in debug
 [profile.dev.package.bevy_rapier2d]
 opt-level = 3
+
+# Use compiler optimizations for engine even in debug
+[profile.dev.package.bevy]
+opt-level = 3

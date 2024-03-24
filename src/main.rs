@@ -12,6 +12,7 @@ mod sandsim;
 mod ui;
 mod worldgen;
 mod polyline;
+mod chunk_display;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet)]
 enum UpdateStages {

@@ -89,11 +89,11 @@ impl GridBounds {
     }
 
     pub fn width(&self) -> u32 {
-        (self.top_right.x - self.bottom_left.x) as u32
+        (self.top_right.x - self.bottom_left.x) as u32 + 1
     }
 
     pub fn height(&self) -> u32 {
-        (self.top_right.y - self.bottom_left.y) as u32
+        (self.top_right.y - self.bottom_left.y) as u32 + 1
     }
 
     pub fn center(&self) -> GridVec {
@@ -125,9 +125,10 @@ impl GridBounds {
     }
 
     pub fn contains(&self, point: GridVec) -> bool {
-        let delta = point - self.center();
-        let half_extent = self.half_extent();
-        return delta.x.abs() <= half_extent.x && delta.y.abs() <= half_extent.y;
+        point.x >= self.left() 
+        && point.x <= self.right() 
+        && point.y >= self.bottom()
+        && point.y <= self.top()
     }
 
     pub fn is_boundary(&self, point: GridVec) -> bool {
@@ -213,8 +214,26 @@ impl GridBounds {
         }
     }
 
-    pub fn area(&self) -> u32 {
-        self.width() * self.height()
+    pub fn area(&self) -> usize {
+        self.width() as usize * self.height() as usize
+    }
+
+    pub fn get_index(&self, pos: GridVec) -> Option<usize> {
+        if !self.contains(pos) {
+            return None;
+        }
+
+        let x = (pos.x - self.left()) as usize;
+        let y = (pos.y - self.bottom()) as usize;
+
+        Some(y * self.width() as usize + x)
+    }
+
+    pub fn at_index(&self, index: usize) -> GridVec {
+        let x = index % (self.width() as usize);
+        let y = index / (self.width() as usize);
+
+        GridVec::new(self.left() + x as i32, self.bottom() + y as i32)
     }
 
     pub fn iter(&self) -> GridIterator {
@@ -365,6 +384,24 @@ impl Iterator for SlideGridIterator {
 mod tests {
     use crate::gridbounds::*;
     use crate::gridvec::*;
+
+    #[test]
+    fn to_from_index_symetric() {
+        let bottom_left = GridVec::new(0, 0);
+        let size = GridVec::new(16, 16);
+        
+        let bounds = GridBounds::new_from_corner(bottom_left, size);
+
+        let in_point = GridVec::new(3, 7);
+
+        let index_1 = bounds.get_index(in_point).expect("point is within bounds");
+        println!("index: {}", index_1);
+        let out_point = bounds.at_index(index_1);
+        assert_eq!(in_point, out_point);
+
+        let index_2 = bounds.get_index(out_point).expect("point is within bounds");
+        assert_eq!(index_1, index_2);
+    }
 
     #[test]
     fn bounds_resize_even() {

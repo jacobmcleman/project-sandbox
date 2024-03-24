@@ -234,6 +234,7 @@ impl World {
         GridVec::new(modpos.x / REGION_SIZE as i32, modpos.y / REGION_SIZE as i32)
     }
 
+
     fn get_regionpos_for_pos(pos: &GridVec) -> GridVec {
         Self::get_regionpos_for_chunkpos(&Self::get_chunkpos(pos))
     }
@@ -297,7 +298,7 @@ impl World {
         return set;
     }
 
-    pub(crate) fn get_chunkpos(pos: &GridVec) -> GridVec {
+    pub fn get_chunkpos(pos: &GridVec) -> GridVec {
         let mut modpos = pos.clone();
         if modpos.x < 0 {
             modpos.x -= CHUNK_SIZE as i32 - 1;

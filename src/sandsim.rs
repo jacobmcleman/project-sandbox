@@ -1,13 +1,13 @@
 use bevy::{
-    input::keyboard::KeyboardInput, pbr::MAX_CASCADES_PER_LIGHT, prelude::*, render::{render_asset::RenderAssetUsages, render_resource::{Extent3d, TextureFormat}}, window::PrimaryWindow
+    prelude::*, render::{render_asset::RenderAssetUsages, render_resource::{Extent3d, TextureFormat}}, window::PrimaryWindow
 };
 use bevy_rapier2d::prelude::*;
 use gridmath::{gridline::GridLine, GridBounds, GridVec};
 use rand::Rng;
 use sandworld::{ParticleType, ParticleSet, particle_set, CHUNK_SIZE};
-use std::{collections::VecDeque, ptr::read, sync::{atomic::{AtomicBool, AtomicU64, Ordering}, Arc, Mutex}};
+use std::{collections::VecDeque, sync::{atomic::{AtomicBool, AtomicU64, Ordering}, Arc, Mutex}};
 
-use crate::{camera::cam_bounds, polyline::PolylineSet};
+use crate::{camera::cam_bounds, chunk_display::{SandworldDisplayPlugin, DrawOptions}};
 
 pub struct SandSimulationPlugin;
 
@@ -71,7 +71,7 @@ impl ChunkColliderGenerator {
         
         rayon::spawn(move || {
             let mut polyline = marching_squares_polylines_from_chunkdata(&chunk_data);
-            polyline.simplify(4.);
+            polyline.simplify(2.);
             let (vertices, indices) = polyline.to_verts_and_inds();
 
             result.lock().unwrap().replace((vertices, indices));
@@ -101,13 +101,7 @@ impl Plugin for SandSimulationPlugin {
                 seed, 5000., 1500., 500., 500., 400.,
             ))),
         })
-        .insert_resource(DrawOptions {
-            update_bounds: false,
-            chunk_bounds: false,
-            world_stats: false,
-            force_redraw_all: false,
-            show_colliders: false,
-        })
+        .add_plugins(SandworldDisplayPlugin)
         .insert_resource(BrushOptions {
             brush_mode: BrushMode::Place(ParticleType::Sand, 0),
             radius: 10,
@@ -124,13 +118,12 @@ impl Plugin for SandSimulationPlugin {
             mouse_region: GridVec::new(0, 0),
         })
         .insert_resource(AsyncColliderManager::default())
-        .add_systems(Update, (create_spawned_chunks, clear_removed_chunks).in_set(crate::UpdateStages::WorldUpdate))
-         .add_systems(Update, (apply_generated_chunk_colliders, update_chunk_colliders).in_set(crate::UpdateStages::WorldUpdate))
+        //.add_systems(Update, (create_spawned_chunks, clear_removed_chunks).in_set(crate::UpdateStages::WorldUpdate))
+        //.add_systems(Update, (apply_generated_chunk_colliders, update_chunk_colliders).in_set(crate::UpdateStages::WorldUpdate))
         .add_systems(Update, sand_update.in_set(crate::UpdateStages::WorldUpdate))
-        .add_systems(Update, update_chunk_textures.in_set(crate::UpdateStages::WorldDraw))
         .add_systems(Update, (world_interact, bomb_timer).in_set(crate::UpdateStages::Input))
-        .add_systems(Update, (cull_hidden_chunks, remove_offscreen_colliders).in_set(crate::UpdateStages::WorldUpdate))
-        .add_systems(Update, draw_mode_controls.in_set(crate::UpdateStages::Input));
+        .add_systems(Update, draw_mode_controls.in_set(crate::UpdateStages::Input))
+        ;
     }
 }
 
@@ -139,15 +132,6 @@ struct Chunk {
     chunk_pos: gridmath::GridVec,
     chunk_texture_handle: Handle<Image>,
     texture_dirty: bool,
-}
-
-#[derive(Resource)]
-pub struct DrawOptions {
-    pub update_bounds: bool,
-    pub chunk_bounds: bool,
-    pub world_stats: bool,
-    pub force_redraw_all: bool,
-    pub show_colliders: bool,
 }
 
 #[derive(PartialEq, Eq, Clone)]
@@ -168,8 +152,8 @@ pub struct BrushOptions {
 }
 
 #[derive(Resource)]
-struct Sandworld {
-    world: sandworld::World,
+pub struct Sandworld {
+    pub world: sandworld::World,
 }
 
 #[derive(Resource)]
@@ -223,6 +207,11 @@ fn create_chunk_image(chunk: &sandworld::Chunk, draw_options: &DrawOptions) -> I
     )
 }
 
+
+fn render_chunk_data(chunk: &sandworld::Chunk, draw_options: &DrawOptions) -> Vec<u8> {
+    chunk.render_to_color_array(draw_options.update_bounds, draw_options.chunk_bounds)
+}
+
 fn marching_squares_polylines_from_chunkdata(chunk_data: &Vec<u8>) -> crate::polyline::PolylineSet {
     let mut polyline = crate::polyline::PolylineSet::new();
 
@@ -260,10 +249,6 @@ fn marching_squares_polylines_from_chunkdata(chunk_data: &Vec<u8>) -> crate::pol
     }
 
     polyline
-}
-
-fn render_chunk_data(chunk: &sandworld::Chunk, draw_options: &DrawOptions) -> Vec<u8> {
-    chunk.render_to_color_array(draw_options.update_bounds, draw_options.chunk_bounds)
 }
 
 fn apply_generated_chunk_colliders(
