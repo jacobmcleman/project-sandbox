@@ -7,7 +7,7 @@ use gridmath::gridline::GridLine;
 use rand::{Rng, rngs::ThreadRng};
 use crate::collisions::HitInfo;
 use crate::region::REGION_SIZE;
-use crate::{particle::*, World, WorldGenerator};
+use crate::{particle::*, particle_set, World, WorldGenerator};
 
 #[derive(Debug)]
 pub struct Chunk {
@@ -658,12 +658,16 @@ impl Chunk {
     }
 
     pub fn add_particle(&mut self, x: i16, y: i16, val: Particle) {
-        self.replace_particle_filtered(x, y, val, ParticleType::Air)
+        self.replace_particle_filtered(x, y, val, particle_set![ParticleType::Air]);
     }
     
-    pub fn replace_particle_filtered(&mut self, x: i16, y: i16, val: Particle, replace_type: ParticleType) {
-        if self.get_local_part(x, y) == replace_type {
+    pub fn replace_particle_filtered(&mut self, x: i16, y: i16, val: Particle, replace_type: ParticleSet) -> bool {
+        if replace_type.test(self.get_local_part(x, y)) {
             self.set_local_part(x, y, val);
+            true
+        }
+        else {
+            false
         }
     }
     

@@ -7,6 +7,7 @@ use std::collections::{BinaryHeap, VecDeque};
 use std::mem::swap;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicU64, AtomicBool};
+use crate::particle_set;
 use crate::{chunk::*, region::*, collisions::HitInfo, particle::*};
 
 pub const WORLD_WIDTH: i32 = 1440;
@@ -360,7 +361,7 @@ impl World {
         }
     }
     
-    pub fn replace_particle_filtered(&mut self, pos: GridVec, new_val: Particle, replace_type: ParticleType) {
+    pub fn replace_particle_filtered(&mut self, pos: GridVec, new_val: Particle, replace_types: ParticleSet) -> bool {
         if !self.contains(pos) {
             let chunkpos = World::get_chunkpos(&pos);
             let regpos = World::get_regionpos_for_chunkpos(&chunkpos);
@@ -371,7 +372,10 @@ impl World {
         let chunklocal = World::get_chunklocal(pos);
         
         if let Some(chunk) = self.get_chunk_mut(&chunkpos) {
-            chunk.replace_particle_filtered(chunklocal.x as i16, chunklocal.y as i16, new_val, replace_type);
+            chunk.replace_particle_filtered(chunklocal.x as i16, chunklocal.y as i16, new_val, replace_types)
+        }
+        else {
+            false
         }
     }
 
@@ -440,14 +444,37 @@ impl World {
         for y in bottom..top {
             for x in left..right {
                 if pos.sq_distance(GridVec{x, y}) < radius.pow(2) {
-                    let rad_t = f64::sqrt(pos.sq_distance(GridVec{x, y}) as f64) / radius as f64;
-                    let local_strength = 0.5 - (rad_t * (0.5 - break_strength));
+                    let rad_t = 1. - f64::sqrt(pos.sq_distance(GridVec{x, y}) as f64) / radius as f64;
+                    let local_strength = (rad_t * break_strength).clamp(0., 1.);
                     if rng.gen_bool(local_strength) {
-                        self.replace_particle_filtered(GridVec{x, y}, Particle::new(ParticleType::Gravel), ParticleType::Stone);
+                        self.replace_particle_filtered(GridVec{x, y}, Particle::new(ParticleType::Gravel), particle_set![ParticleType::Stone]);
                     }
                 }
             }
         }
+    }
+    
+    pub fn extract_circle(&mut self, pos: GridVec, radius: i32, filter: ParticleSet) -> Vec<(ParticleType, GridVec)> {
+        let mut particles = Vec::new();
+        let left = pos.x - radius;
+        let right = pos.x + radius;
+        let bottom = pos.y - radius;
+        let top = pos.y + radius;
+
+        for y in bottom..top {
+            for x in left..right {
+                let test_pos = GridVec{x, y};
+                if pos.sq_distance(test_pos) < radius.pow(2) {
+                    let part = self.get_particle(test_pos).particle_type;
+                    if filter.test(part) {
+                        particles.push((part, test_pos));
+                        self.replace_particle(test_pos, Particle::new(ParticleType::Air));
+                    }
+                }
+            }
+        }
+
+        particles
     }
 
     pub fn update(&mut self, visible: GridBounds, target_chunk_updates: u64, update_options: WorldUpdateOptions) -> WorldUpdateStats {
