@@ -9,7 +9,7 @@ use crate::sandsim::Sandworld;
 use crate::chunk_display::ChunkDisplay;
 
 const COLLIDES: ParticleSet = particle_set!(ParticleType::Stone, ParticleType::Sand, ParticleType::Gravel, ParticleType::Ice, ParticleType::Glass);
-const SIMPLIFICATION_EPSILLON: f32 = 2.5;
+const SIMPLIFICATION_EPSILLON: f32 = 1.0;
 const MAX_COLLIDER_UPDATES_PER_FRAME: usize = 64;
 
 
@@ -19,11 +19,12 @@ pub enum ColliderLayer {
     Terrain,     // Layer 0,
     Player,     // Layer 1,
     Projectile, // Layer 2
+    Particle,   
     Ignore,
 }
 
 pub const DEFAULT_COLLISION_LAYERS: [ColliderLayer; 3] = [ColliderLayer::Terrain, ColliderLayer::Player, ColliderLayer::Projectile];
-pub const MOBILE_COLLISION_LAYERS: [ColliderLayer; 2] = [ColliderLayer::Player, ColliderLayer::Projectile];
+pub const MOBILE_COLLISION_LAYERS: [ColliderLayer; 3] = [ColliderLayer::Player, ColliderLayer::Projectile, ColliderLayer::Particle];
 
 #[derive(Component, Default)]
 pub struct ChunkColliderManager {
