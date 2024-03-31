@@ -2,6 +2,8 @@ use crate::sandsim::{BrushMode, BrushOptions};
 use crate::chunk_display::DrawOptions;
 use bevy::prelude::*;
 use sandworld::ParticleType;
+use iyes_perf_ui::prelude::*;
+use bevy::ecs::system::lifetimeless::SRes;
 
 pub struct UiPlugin;
 
@@ -16,8 +18,14 @@ const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
 
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup_buttons)
-            .add_systems(Startup, spawn_performance_info_text)
+        app
+            .add_plugins(PerfUiPlugin)
+            .add_perf_ui_entry_type::<PerfUiEntryChunkUpdates>()
+            .add_perf_ui_entry_type::<PerfUiEntryLoadedRegions>()
+            .add_perf_ui_entry_type::<PerfUiEntryUpdatedRegions>()
+            .add_systems(Startup, setup_buttons)
+            .add_systems(Startup, spawn_perf_ui)
+            //.add_systems(Update, toggle_perf_ui.run_if(resource_changed::<DrawOptions>))
             .insert_resource(PointerCaptureState {
                 click_consumed: false,
             })
@@ -27,185 +35,203 @@ impl Plugin for UiPlugin {
                     .in_set(crate::UpdateStages::UI)
                     .before(crate::UpdateStages::Input),
             )
-            .add_systems(
-                Update,
-                update_performance_text
-                    .in_set(crate::UpdateStages::UI)
-                    .after(crate::UpdateStages::WorldUpdate),
-            );
+            
+            ;
+    }
+}
+
+fn spawn_perf_ui(mut commands: Commands) {
+    commands.spawn((
+        PerfUiRoot {
+            position: PerfUiPosition::TopRight,
+            ..default()
+        },
+        PerfUiEntryFPS::default(),
+        PerfUiEntryFrameTime::default(),
+        PerfUiEntryFrameTimeWorst::default(),
+        PerfUiEntryEntityCount::default(),
+        PerfUiEntryChunkUpdates::default(),
+        PerfUiEntryLoadedRegions::default(),
+        PerfUiEntryUpdatedRegions::default(),
+    ));
+}
+
+fn toggle_perf_ui(
+    mut commands: Commands,
+    draw_options: Res<DrawOptions>,
+    perf_ui_query: Query<Entity, With<PerfUiRoot>>,
+) {
+    let ui_entity_result = perf_ui_query.get_single().ok();
+    let has_ui = ui_entity_result.is_some();
+    if draw_options.world_stats != has_ui {
+        if draw_options.world_stats {
+            println!("spawned perf UI");
+            commands.spawn((
+                PerfUiRoot {
+                    position: PerfUiPosition::TopLeft,
+                    ..default()
+                },
+                PerfUiEntryFPS::default(),
+                PerfUiEntryFrameTime::default(),
+                PerfUiEntryFrameTimeWorst::default(),
+                PerfUiEntryEntityCount::default(),
+                PerfUiEntryChunkUpdates::default(),
+                PerfUiEntryLoadedRegions::default(),
+                PerfUiEntryUpdatedRegions::default(),
+            ));
+        }
+        else {
+            let ui_entity = ui_entity_result.unwrap();
+            commands.entity(ui_entity).despawn_recursive();
+            println!("despawned perf UI");
+        }
     }
 }
 
 #[derive(Component)]
-struct PerformanceReadout;
+pub struct PerfUiEntryLoadedRegions {
+    pub sort_key: i32,
+} 
 
-fn spawn_performance_info_text(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands
-        .spawn(
-            TextBundle::from_sections([
-                TextSection {
-                    value: "FPS: 69".to_string(),
-                    style: TextStyle {
-                        font: asset_server.load("fonts/FiraMono-Medium.ttf"),
-                        font_size: 30.0,
-                        color: Color::rgb(0.9, 0.9, 0.9),
-                    },
-                },
-                TextSection {
-                    value: "\nLoaded Regions: 000".to_string(),
-                    style: TextStyle {
-                        font: asset_server.load("fonts/FiraMono-Medium.ttf"),
-                        font_size: 20.0,
-                        color: Color::rgb(0.9, 0.9, 0.9),
-                    },
-                },
-                TextSection {
-                    value: "\nSleeping Regions: 000".to_string(),
-                    style: TextStyle {
-                        font: asset_server.load("fonts/FiraMono-Medium.ttf"),
-                        font_size: 20.0,
-                        color: Color::rgb(0.9, 0.9, 0.9),
-                    },
-                },
-                TextSection {
-                    value: "\nUpdated Regions: 000".to_string(),
-                    style: TextStyle {
-                        font: asset_server.load("fonts/FiraMono-Medium.ttf"),
-                        font_size: 20.0,
-                        color: Color::rgb(0.9, 0.9, 0.9),
-                    },
-                },
-                TextSection {
-                    value: "\nChunk Updates: 000".to_string(),
-                    style: TextStyle {
-                        font: asset_server.load("fonts/FiraMono-Medium.ttf"),
-                        font_size: 20.0,
-                        color: Color::rgb(0.9, 0.9, 0.9),
-                    },
-                },
-                TextSection {
-                    value: "\nAvg time per chunk".to_string(),
-                    style: TextStyle {
-                        font: asset_server.load("fonts/FiraMono-Medium.ttf"),
-                        font_size: 20.0,
-                        color: Color::rgb(0.9, 0.9, 0.6),
-                    },
-                },
-                TextSection {
-                    value: "\nAvg render time per chunk".to_string(),
-                    style: TextStyle {
-                        font: asset_server.load("fonts/FiraMono-Medium.ttf"),
-                        font_size: 20.0,
-                        color: Color::rgb(0.9, 0.9, 0.6),
-                    },
-                },
-                TextSection {
-                    value: "\nAvg chunk culling time".to_string(),
-                    style: TextStyle {
-                        font: asset_server.load("fonts/FiraMono-Medium.ttf"),
-                        font_size: 20.0,
-                        color: Color::rgb(0.9, 0.9, 0.6),
-                    },
-                },
-            ])
-            .with_style(Style {
-                position_type: PositionType::Absolute,
-                left: Val::Px(10.0),
-                top: Val::Px(10.0),
-                ..Default::default()
-            }),
-        )
-        .insert(PerformanceReadout {});
-}
+#[derive(Component)]
+pub struct PerfUiEntryUpdatedRegions {
+    pub sort_key: i32,
+    pub color_gradient: ColorGradient,
+} 
 
-fn update_performance_text(
-    mut text_query: Query<(&PerformanceReadout, &mut Text, &mut Visibility)>,
-    stats: Res<crate::sandsim::WorldStats>,
-    draw_options: Res<DrawOptions>,
-    frame_times: Res<crate::perf::FrameTimes>,
-) {
-    let (_, mut text, mut vis) = text_query.single_mut();
-    if draw_options.world_stats {
-        *vis = Visibility::Inherited;
+#[derive(Component)]
+pub struct PerfUiEntryChunkUpdates {
+    pub sort_key: i32,
+    pub color_gradient: ColorGradient,
+} 
 
-        text.sections[0].value = format!(
-            "FPS: {} ({:.1}ms (worst: {:.1}ms))",
-            (1. / frame_times.current_avg).round() as u32,
-            frame_times.current_avg * 1000.,
-            frame_times.recent_worst * 1000.,
-        );
-
-        if let Some(world_stats) = &stats.update_stats {
-            text.sections[1].value = format!("\nLoaded Regions: {0} ({1}) [Compressed {2} ({3})]", 
-                world_stats.loaded_regions, world_stats.loading_regions, 
-                world_stats.compressed_regions, world_stats.compressing_regions);
-            text.sections[2].value = format!("\nMouse position: {0} (Chunk: {1} Region: {2})", stats.mouse_grid_pos, stats.mouse_chunk_pos, stats.mouse_region);
-            text.sections[3].value = format!("\nRegion Updates: {}", world_stats.region_updates);
-            text.sections[4].value = format!(
-                "\nChunk Updates [Target]: {} [{}]",
-                world_stats.chunk_updates, stats.target_chunk_updates
-            );
-
-            if stats.chunk_texture_update_time.len() > 0 {
-                let mut texture_update_time_avg = 0.;
-                let mut texture_update_per_chunk_avg = 0.;
-                for (time, count) in &stats.chunk_texture_update_time {
-                    texture_update_time_avg += time;
-                    texture_update_per_chunk_avg += time / (*count as f64);
-                }
-                texture_update_time_avg =
-                    texture_update_time_avg / (stats.chunk_texture_update_time.len() as f64);
-                texture_update_per_chunk_avg =
-                    texture_update_per_chunk_avg / (stats.chunk_texture_update_time.len() as f64);
-
-                text.sections[6].value = format!(
-                    "\nTex Update time:  {:.2}ms - Avg time per chunk: {:.3}ms",
-                    texture_update_time_avg * 1000.,
-                    texture_update_per_chunk_avg * 1000.
-                );
-            }
-            if stats.chunk_cull_time.len() > 0 {
-                let mut cull_time_avg = 0.;
-                let mut culled_chunks_avg = 0;
-                for (time, count) in &stats.chunk_cull_time {
-                    cull_time_avg += time;
-                    culled_chunks_avg += count;
-                }
-                cull_time_avg =
-                    cull_time_avg / (stats.chunk_cull_time.len() as f64);
-
-                culled_chunks_avg =
-                    culled_chunks_avg / stats.chunk_cull_time.len() as u64;
-    
-                text.sections[7].value = format!(
-                    "\nChunk cull time:  {:.2}ms - Avg chunks culled: {:.3}",
-                    cull_time_avg * 1000.,
-                    culled_chunks_avg
-                );
-            }
-            
+impl Default for PerfUiEntryLoadedRegions {
+    fn default() -> Self {
+        PerfUiEntryLoadedRegions {
+            sort_key: iyes_perf_ui::utils::next_sort_key(),
         }
-
-        let mut chunk_updates_per_second_avg = 0.;
-        let mut total_sand_update_second_avg = 0.;
-        for (time, count) in &stats.sand_update_time {
-            chunk_updates_per_second_avg += *count as f64 / time;
-            total_sand_update_second_avg += time;
-        }
-        chunk_updates_per_second_avg =
-            chunk_updates_per_second_avg / (stats.sand_update_time.len() as f64);
-        total_sand_update_second_avg =
-            total_sand_update_second_avg / (stats.sand_update_time.len() as f64);
-
-        text.sections[5].value = format!(
-            "\nSand update time: {:.2}ms - Avg time per chunk: {:.3}ms",
-            total_sand_update_second_avg * 1000.,
-            1000. / chunk_updates_per_second_avg
-        );
-    } else {
-        *vis = Visibility::Hidden;
     }
 }
+
+impl Default for PerfUiEntryUpdatedRegions {
+    fn default() -> Self {
+        PerfUiEntryUpdatedRegions {
+            sort_key: iyes_perf_ui::utils::next_sort_key(),
+            color_gradient: ColorGradient::new_preset_ryg(3.0, 8.0, 12.0).unwrap(),
+        }
+    }
+}
+
+impl Default for PerfUiEntryChunkUpdates {
+    fn default() -> Self {
+        PerfUiEntryChunkUpdates {
+            sort_key: iyes_perf_ui::utils::next_sort_key(),
+            color_gradient: ColorGradient::new_preset_gyr(50.0, 500.0, 1000.0).unwrap(),
+        }
+    }
+}
+
+impl PerfUiEntry for PerfUiEntryLoadedRegions {
+    type Value = usize;
+    type SystemParam = SRes<crate::sandsim::WorldStats>;
+    
+    fn label(&self) -> &str {
+        "Loaded Regions"
+    }
+    
+    fn update_value(
+        &self,
+        world_stats: &mut <Self::SystemParam as bevy::ecs::system::SystemParam>::Item<'_, '_>,
+    ) -> Option<Self::Value> {
+        if let Some(update_stats) = &world_stats.update_stats {
+            Some(update_stats.loaded_regions)
+        }
+        else {
+            None
+        }
+    }
+    
+    fn sort_key(&self) -> i32 {
+        self.sort_key
+    }
+
+    fn width_hint(&self) -> usize {
+        2
+    }
+}
+
+impl PerfUiEntry for PerfUiEntryUpdatedRegions {
+    type Value = u64;
+    type SystemParam = SRes<crate::sandsim::WorldStats>;
+    
+    fn label(&self) -> &str {
+        "Region Updates"
+    }
+    
+    fn update_value(
+        &self,
+        world_stats: &mut <Self::SystemParam as bevy::ecs::system::SystemParam>::Item<'_, '_>,
+    ) -> Option<Self::Value> {
+        if let Some(update_stats) = &world_stats.update_stats {
+            Some(update_stats.region_updates)
+        }
+        else {
+            None
+        }
+    }
+    
+    fn sort_key(&self) -> i32 {
+        self.sort_key
+    }
+
+    fn width_hint(&self) -> usize {
+        2
+    }
+
+    fn value_color(
+        &self,
+        value: &Self::Value,
+    ) -> Option<Color> {
+        self.color_gradient.get_color_for_value(*value as f32)
+    }
+}
+
+impl PerfUiEntry for PerfUiEntryChunkUpdates {
+    type Value = u64;
+    type SystemParam = SRes<crate::sandsim::WorldStats>;
+    
+    fn label(&self) -> &str {
+        "Chunk Updates"
+    }
+    
+    fn update_value(
+        &self,
+        world_stats: &mut <Self::SystemParam as bevy::ecs::system::SystemParam>::Item<'_, '_>,
+    ) -> Option<Self::Value> {
+        if let Some(update_stats) = &world_stats.update_stats {
+            Some(update_stats.chunk_updates)
+        }
+        else {
+            None
+        }
+    }
+    
+    fn sort_key(&self) -> i32 {
+        self.sort_key
+    }
+
+    fn width_hint(&self) -> usize {
+        4
+    }
+
+    fn value_color(
+        &self,
+        value: &Self::Value,
+    ) -> Option<Color> {
+        self.color_gradient.get_color_for_value(*value as f32)
+    }
+}
+
 
 #[derive(Component)]
 struct ToolSelector {

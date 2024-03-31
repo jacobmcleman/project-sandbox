@@ -26,7 +26,11 @@ impl Plugin for PerfControlPlugin {
         .insert_resource(PerfSettings {
             target_frame_rate: 60,
         })
-        .add_systems(PostUpdate, frame_timing);
+        .add_systems(PostUpdate, frame_timing)
+        .add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin)
+        .add_plugins(bevy::diagnostic::EntityCountDiagnosticsPlugin)
+        .add_plugins(bevy::diagnostic::SystemInformationDiagnosticsPlugin)
+        ;
     }
 }
 
