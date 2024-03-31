@@ -361,7 +361,7 @@ impl World {
         }
     }
     
-    pub fn replace_particle_filtered(&mut self, pos: GridVec, new_val: Particle, replace_types: ParticleSet) -> bool {
+    pub fn replace_particle_filtered(&mut self, pos: GridVec, new_val: Particle, replace_types: ParticleSet) -> Option<ParticleType> {
         if !self.contains(pos) {
             let chunkpos = World::get_chunkpos(&pos);
             let regpos = World::get_regionpos_for_chunkpos(&chunkpos);
@@ -375,7 +375,7 @@ impl World {
             chunk.replace_particle_filtered(chunklocal.x as i16, chunklocal.y as i16, new_val, replace_types)
         }
         else {
-            false
+            None
         }
     }
 
