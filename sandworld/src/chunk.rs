@@ -661,13 +661,14 @@ impl Chunk {
         self.replace_particle_filtered(x, y, val, particle_set![ParticleType::Air]);
     }
     
-    pub fn replace_particle_filtered(&mut self, x: i16, y: i16, val: Particle, replace_type: ParticleSet) -> bool {
-        if replace_type.test(self.get_local_part(x, y)) {
+    pub fn replace_particle_filtered(&mut self, x: i16, y: i16, val: Particle, replace_type: ParticleSet) -> Option<ParticleType> {
+        let local_part = self.get_local_part(x, y);
+        if replace_type.test(local_part) {
             self.set_local_part(x, y, val);
-            true
+            Some(local_part)
         }
         else {
-            false
+            None
         }
     }
     

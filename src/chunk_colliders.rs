@@ -8,7 +8,7 @@ use bevy_xpbd_2d::{parry::shape::SharedShape, prelude::*};
 use crate::sandsim::Sandworld;
 use crate::chunk_display::ChunkDisplay;
 
-const COLLIDES: ParticleSet = particle_set!(ParticleType::Stone, ParticleType::Sand, ParticleType::Gravel, ParticleType::Ice, ParticleType::Glass);
+pub const COLLIDES: ParticleSet = particle_set!(ParticleType::Stone, ParticleType::Sand, ParticleType::Gravel, ParticleType::Ice, ParticleType::Glass);
 const SIMPLIFICATION_EPSILLON: f32 = 1.0;
 const MAX_COLLIDER_UPDATES_PER_FRAME: usize = 64;
 

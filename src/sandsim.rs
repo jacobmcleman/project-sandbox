@@ -3,7 +3,7 @@ use std::{collections::VecDeque, sync::Arc};
 use bevy::{
     prelude::*, window::PrimaryWindow
 };
-use bevy_xpbd_2d::prelude::*;
+use bevy_xpbd_2d::{parry::na::partial_ge, prelude::*};
 use gridmath::*;
 use rand::Rng;
 use sandworld::*;
@@ -24,6 +24,7 @@ struct BombComp {
 #[derive(Component)]
 struct SandParticle {
     particle: ParticleType,
+    last_good: Option<GridVec>,
 }
 
 #[derive(Bundle)]
@@ -38,7 +39,7 @@ struct SandParticleBundle {
 }
 
 impl SandParticleBundle {
-    fn new(particle_type: ParticleType, position: Vec3, velocity: Vec3) -> Self {
+    fn new(particle_type: ParticleType, position: Vec3, velocity: Vec3, last_good: Option<GridVec>) -> Self {
         let color = get_color_for_type(particle_type);
         SandParticleBundle {
             sprite_bundle: SpriteBundle {
@@ -49,7 +50,7 @@ impl SandParticleBundle {
                 transform: Transform::from_translation(position),
                 ..Default::default()
             },
-            sand_particle: SandParticle { particle: particle_type },
+            sand_particle: SandParticle { particle: particle_type, last_good },
             collider: Collider::circle(0.5),
             rigidbody: RigidBody::Dynamic,
             velocity: LinearVelocity(velocity.truncate()),
@@ -216,7 +217,7 @@ fn bomb_timer(
                 let world_pos = Vec3::new(position.x as f32, position.y as f32, 0.1);
                 let power = (world_pos - pos).length_squared() / throw_radius.pow(2) as f32;
                 let throw_velocity = (world_pos - pos).normalize_or_zero() * power * bomb.throw_power;
-                commands.spawn(SandParticleBundle::new(part_type, world_pos, throw_velocity));
+                commands.spawn(SandParticleBundle::new(part_type, world_pos, throw_velocity, Some(position)));
             }
         }
     }
@@ -224,21 +225,36 @@ fn bomb_timer(
 
 fn sand_particle_settle(
     mut sand: ResMut<Sandworld>,
-    particle_query: Query<(Entity, &Transform, &LinearVelocity, &SandParticle)>,
+    mut particle_query: Query<(Entity, &Transform, &LinearVelocity, &mut SandParticle)>,
     mut commands: Commands,
 ) {
     let min_vel = 0.1;
 
-    for (entity, transform, velocity, particle) in particle_query.iter() {
+    for (entity, transform, velocity, mut particle) in particle_query.iter_mut() {
         let fpos = transform.translation;
         let gridpos = GridVec::new((fpos.x + 0.5) as i32, (fpos.y + 0.5) as i32);
 
-        if particle_set![ParticleType::Stone].test(sand.world.get_particle(gridpos).particle_type) {
+        if crate::chunk_colliders::COLLIDES.test(sand.world.get_particle(gridpos).particle_type) {
             commands.entity(entity).despawn_recursive();
+
+            // If we're in a bad spot, attempt to place in the last good spot
+            if let Some(last_pos) = particle.last_good {
+                sand.world.replace_particle_filtered(last_pos, Particle::new(particle.particle), particle_set![ParticleType::Air]);
+            }
         }
         else if velocity.length_squared() < min_vel {
-            sand.world.replace_particle_filtered(gridpos, Particle::new(particle.particle), particle_set![ParticleType::Air, ParticleType::Water]);
+            if let Some(replaced_type) = sand.world.replace_particle_filtered(gridpos, Particle::new(particle.particle), particle_set![ParticleType::Air, ParticleType::Water]) {
+                // if we're replacing something, attempt to preserve it by displacing it to the last air that this particle passed thru
+                if let Some(last_pos) = particle.last_good {
+                    sand.world.replace_particle_filtered(last_pos, Particle::new(replaced_type), particle_set![ParticleType::Air]);
+                }
+            }
             commands.entity(entity).despawn_recursive();
+        }
+        else {
+            if sand.world.get_particle(gridpos).particle_type == ParticleType::Air {
+                particle.last_good = Some(gridpos);
+            }
         }
     }
 }
